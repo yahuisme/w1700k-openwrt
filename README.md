@@ -1,4 +1,4 @@
-# Quantum Fiber W1700K OpenWrt
+# AI 协助构建的 Quantum Fiber W1700K OpenWrt 固件
 
 适用于 **Quantum Fiber W1700K** 路由器的定制 OpenWrt 固件构建项目。
 

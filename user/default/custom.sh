@@ -26,10 +26,21 @@ echo "Installing latest Aurora LuCI theme..."
 
 rm -rf package/luci-theme-aurora
 
-git clone \
+if ! git clone \
     --depth=1 \
     https://github.com/eamonxg/luci-theme-aurora.git \
     package/luci-theme-aurora
+then
+    echo "ERROR: Failed to download Aurora theme!"
+    exit 1
+fi
+
+if [ ! -f package/luci-theme-aurora/Makefile ]; then
+    echo "ERROR: Aurora theme was downloaded, but Makefile is missing!"
+    exit 1
+fi
+
+echo "Aurora theme installed successfully."
 
 
 # -------------------------------------------------

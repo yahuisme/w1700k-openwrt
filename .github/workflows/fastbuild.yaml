@@ -1,4 +1,4 @@
-name: W1700K ubi2
+name: W1700K OpenWrt
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ jobs:
   build:
     name: Build ${{ matrix.target }}
     runs-on: ubuntu-24.04-arm
-    strategy: {fail-fast: false, matrix: {target: [ubi2]}}
+    strategy: {fail-fast: false, matrix: {target: [ubi2, ubi2-oc]}}
     env:
       DK_OPENWRT: /bld/openwrt
       DK_BIN: /bld/openwrt_bin

@@ -69,5 +69,5 @@ LuCI 状态首页增加「温度与风扇」信息：
 GitHub Actions 每天 **北京时间 19:00** 自动构建：
 
 ```text
-ubi2
-ubi2-oc
+W1700K-ubi2
+W1700K-ubi2-oc

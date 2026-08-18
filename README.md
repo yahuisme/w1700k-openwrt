@@ -11,11 +11,11 @@
 ## ✨ 主要特性
 
 - 🇨🇳 LuCI 默认中文
-- 🎨 Aurora LuCI 主题，并设置为默认主题
-- 🚀 Aurora 每次构建自动拉取最新版本
+- 🎨 内置 Aurora LuCI 主题为默认主题
+- 🚀 内置 HomeProxy 代理插件
 - 🇭🇰 系统时区：香港（UTC+8）
 - 📡 默认开启 2.4 GHz / 5 GHz Wi-Fi
-- 📡 默认关闭 6 GHz Wi-Fi
+- 📡 默认不开启 6 GHz Wi-Fi
 - 🌡️ LuCI 首页增加设备温度及风扇转速显示
 - 🔄 每日自动构建最新固件
 - 📦 提供 `ubi2` 和 `ubi2-oc` 两种版本

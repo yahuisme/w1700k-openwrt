@@ -1,0 +1,20 @@
+name: daily ghcr.io image cleanup
+on:
+  schedule:
+    - cron: '30 1 * * *'
+  workflow_dispatch:
+permissions: write-all
+env:
+  GH_TOKEN: ${{ github.token }}
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dataaxiom/ghcr-cleanup-action@v1
+        continue-on-error: true
+      - name: Delete caches with prefix ghcr-manifest
+        run: |
+          gh cache list --key ghcr-manifest --json id --jq '.[].id' | while read id; do
+            gh cache delete "$id"
+          done

@@ -1,0 +1,124 @@
+name: self-host fastbuild ubi2-oc
+on: workflow_dispatch
+permissions: write-all
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: self-hosted
+    strategy: {fail-fast: false, matrix: {target: [ubi2-oc]}}
+    env:
+      DK_OPENWRT: /bld/openwrt
+      DK_BIN: /bld/openwrt_bin
+      DK_USER: /bld/user
+      DK_PROFILE: /bld/user/current
+      GH_TOKEN: ${{ github.token }}
+      IMG_INC: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ matrix.target }}-x86inc
+    steps:
+    - name: Fix workspace permissions
+      run: sudo chown -R "$(id -u):$(id -g)" dlcache stcache ghcache openwrt_bin 2>&- || true
+    - uses: actions/checkout@v7
+      with:
+        clean: false
+
+    - uses: docker/login-action@v4
+      with: {registry: ghcr.io, username: '${{ github.actor }}', password: '${{ github.token }}'}
+
+    - id: gh
+      uses: actions/cache/restore@v5
+      with: {path: "ghcache\nstcache", key: 'x86cache-${{ matrix.target }}.${{ github.run_id }}', restore-keys: 'x86cache-${{ matrix.target }}.'}
+    - id: dl
+      uses: actions/cache/restore@v5
+      with: {path: dlcache, key: 'x86dlcache.${{ github.run_id }}', restore-keys: x86dlcache.}
+
+    - name: Initialize environment
+      run: |
+        curl -Z --create-dirs -Lo user/default/files/etc/apk/repositories.d/distfeeds.list https://w1700k.github.io/builds/distfeeds.list
+        curl -Z -Lo user/default/files/etc/vermagic.txt https://w1700k.github.io/builds/vermagic.txt
+        [ -f "user/${{ matrix.target }}/config.diff" ] || { echo "::error::config.diff not found for ${{ matrix.target }}"; exit 1; }
+        rsync -aI --mkpath user/default/ user/${{ matrix.target }}/ user/current/ 2>&-
+        echo 'CONFIG_CCACHE_DIR="/ghcache"' >> user/current/config.diff
+        sudo tee /etc/docker/daemon.json <<< '{"max-concurrent-downloads":50,"max-concurrent-uploads":50,"experimental":true}'
+        sudo systemctl reload docker
+        IMAGE=$IMG_INC; docker pull $IMAGE 2>&- || IMAGE=ghcr.io/w1700k/fastbuild_base:debian
+        docker rm -f DK 2>&- ||:
+        docker run -dt --name DK -v $PWD/user:$DK_USER -v $PWD/openwrt_bin:$DK_BIN -v $PWD/ghcache:/ghcache -v $PWD/stcache:/stcache -v $PWD/dlcache:/dlcache $IMAGE
+        sudo tee /usr/local/bin/docker_exec > /dev/null <<'DKR'
+        #!/bin/bash
+        for n in DK_BIN DK_USER DK_PROFILE DK_OPENWRT; do e+=(-e "$n=${!n}"); done
+        exec docker exec -u 0 -i "${e[@]}" "$@"
+        DKR
+        sudo chmod 755 /usr/local/bin/docker_exec
+
+    - name: Prepare OpenWrt source
+      run: |
+        docker_exec DK bash -e -c '
+          . $DK_USER/default/settings.ini &>/dev/null ||:
+          . $DK_PROFILE/settings.ini
+          [[ $REPO_URL && $REPO_BRANCH ]] || { echo "::error::Missing REPO_URL or REPO_BRANCH"; exit 1; }
+          mkdir -p $DK_OPENWRT/files
+          cd $DK_OPENWRT
+          if [ ! -d .git ]; then git init; fi
+          git remote set-url origin $REPO_URL 2>&- || git remote add origin $REPO_URL
+          git fetch && git checkout $REPO_BRANCH && git pull --rebase
+          { git log origin/main..$REPO_BRANCH --oneline || echo "(no commits ahead of main)"; } > files/build_info
+          mountpoint $DK_BIN || { echo "::error::not mounted" >&2; exit 1; }
+          cp files/build_info $DK_BIN
+          ln -sf $DK_BIN bin && ln -sf /dlcache dl && ln -sf /stcache staging_dir
+          bp=$DK_PROFILE fc=feeds.conf
+          cp $bp/files/$fc $fc 2>&- && cp $fc /tmp/feeds.bak
+          rm -rf feeds/* &>/dev/null; ./scripts/feeds update -a &>/dev/null; ./scripts/feeds install -a
+          mv /tmp/feeds.bak $fc &>/dev/null ||:
+          cp $bp/config.diff .config
+          cat $bp/patches/*.patch 2>&- | patch -d . -p0 --forward ||:
+          cp -r $bp/files/ . &>/dev/null ||:
+          bash $bp/custom.sh &>/dev/null ||:
+          make defconfig; echo "CONFIG_VERSION_NUMBER=${{ matrix.target }}" >> .config
+          make download -j8 2>&1 | tee /dev/stderr | grep -q "ERROR:" || [ $PIPESTATUS -ne 0 ] && exit 1 ||:
+        '
+
+    - name: Compile OpenWrt
+      run: |
+        for mode in c s; do
+          docker_exec -e MODE=$mode DK bash -c '
+            bash $DK_PROFILE/pre_compile.sh 2>&- ||:
+            cd $DK_OPENWRT
+            export FORCE_UNSAFE_CONFIGURE=1 CCACHE_SLOPPINESS=file_stat_matches,include_file_mtime,time_macros CCACHE_NOHASHDIR=true CCACHE_COMPILERCHECK=content
+            make -j$(($(nproc) + 1)) V=$MODE
+            staging_dir/host/bin/ccache -d /ghcache -sz ||:
+          ' && break
+        done
+
+    - name: Create release
+      run: |
+        sudo chown -R "$(id -u):$(id -g)" openwrt_bin stcache
+        find -L openwrt_bin/targets/*/* -maxdepth 1 -type f -exec install -D -t firmware {} +
+        VERSION="${{ matrix.target }}_$(date +'%Y.%m.%d')_$(jq -r '.version_code' firmware/profiles.json)"
+        sed -i "s/^/    /; 1s/^/## $VERSION\n\n/" openwrt_bin/build_info
+        gh release list --json tagName --jq '.[].tagName' | grep "^${{ matrix.target }}_" | xargs -r gh release delete --cleanup-tag -y ||:
+        gh release create $VERSION firmware/*sysupgrade.itb --title $VERSION --notes-file openwrt_bin/build_info
+
+    - name: Upload builder container
+      run: |
+        docker_exec DK bash -c 'cd $DK_OPENWRT && rm -rf bin build_dir feeds tmp'
+        docker commit -a openwrt-fastbuild -m "Building at $(date)" DK $IMG_INC
+        docker push $IMG_INC
+
+    - name: Delete old caches
+      if: success()
+      run: |
+        for p in x86dlcache. x86cache-${{ matrix.target }}.; do
+          gh cache list --json key,id --jq '.[] | select(.key | startswith("'"$p"'")) | .id' | xargs -r gh cache delete
+        done ||:
+
+    - uses: actions/cache/save@v5
+      if: success()
+      with: {path: "ghcache\nstcache", key: '${{ steps.gh.outputs.cache-primary-key }}'}
+    - uses: actions/cache/save@v5
+      if: success()
+      with: {path: dlcache, key: '${{ steps.dl.outputs.cache-primary-key }}'}
+
+    - name: Reclaim workspace
+      if: always()
+      run: |
+        docker rm -f DK 2>&- ||:
+        sudo chown -R "$(id -u):$(id -g)" dlcache stcache ghcache 2>&- ||:

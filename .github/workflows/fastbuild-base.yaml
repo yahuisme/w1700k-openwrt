@@ -1,0 +1,117 @@
+name: Prepare fastbuild base image
+on:
+  schedule:
+    -   cron: '42 09 * * *'
+  workflow_dispatch:
+permissions: write-all
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-24.04-arm
+    strategy: {fail-fast: false, matrix: {target: [ubi2-oc, ubi2, SNAPSHOT]}}
+    env:
+      DK_OPENWRT: /bld/openwrt
+      DK_BIN: /bld/openwrt_bin
+      DK_USER: /bld/user
+      DK_PROFILE: /bld/user/current
+      GH_TOKEN: ${{ github.token }}
+      IMG_BASE: ghcr.io/w1700k/fastbuild_base:base-builder
+      IMG_INC: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ matrix.target }}-inc
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: docker/login-action@v4
+      with: {registry: ghcr.io, username: '${{ github.actor }}', password: '${{ github.token }}'}
+
+    - name: Seed caches from toolchain
+      run: |
+        mkdir -p openwrt_bin ghcache stcache dlcache
+        if [ -z "$(ls -A ghcache 2>&-)" ] || [ -z "$(ls -A stcache 2>&-)" ]; then
+          I=ghcr.io/w1700k/fastbuild_base:base-toolcache-${{ matrix.target }}
+          docker pull $I 2>&- && { docker create --name CA $I >/dev/null; for d in ghcache stcache; do docker cp CA:/$d/. $d; done; }
+        fi
+
+    - name: Initialize environment
+      run: |
+        mkdir -p openwrt_bin ghcache stcache dlcache
+        curl -Z --create-dirs -Lo user/default/files/etc/apk/repositories.d/distfeeds.list https://w1700k.github.io/builds/distfeeds.list
+        curl -Z -Lo user/default/files/etc/vermagic.txt https://w1700k.github.io/builds/vermagic.txt
+        sudo tee /etc/docker/daemon.json <<< '{"max-concurrent-downloads":50,"max-concurrent-uploads":50,"experimental":true}'
+        sudo systemctl reload docker
+        [ -f "user/${{ matrix.target }}/config.diff" ] || { echo "::error::config.diff not found for ${{ matrix.target }}"; exit 1; }
+        rsync -aI --mkpath user/default/ user/${{ matrix.target }}/ user/current/ 2>&-
+        echo 'CONFIG_CCACHE_DIR="/ghcache"' >> user/current/config.diff
+        docker run -dt --name DK -v $PWD/user:$DK_USER -v $PWD/openwrt_bin:$DK_BIN -v $PWD/ghcache:/ghcache -v $PWD/stcache:/stcache -v $PWD/dlcache:/dlcache ghcr.io/w1700k/fastbuild_base:base-toolchain
+        install -m 755 /dev/stdin /usr/local/bin/docker_exec <<'DKR'
+        #!/bin/bash
+        for n in DK_BIN DK_USER DK_PROFILE DK_OPENWRT; do e+=(-e "$n=${!n}"); done
+        exec docker exec -u 0 -i "${e[@]}" "$@"
+        DKR
+
+    - name: Prepare OpenWrt source
+      run: |
+        docker_exec DK bash -e -c '
+          . $DK_USER/default/settings.ini &>/dev/null ||:
+          . $DK_PROFILE/settings.ini
+          [[ $REPO_URL && $REPO_BRANCH ]] || { echo "::error::Missing REPO_URL or REPO_BRANCH"; exit 1; }
+          mkdir -p $DK_OPENWRT/files
+          cd $DK_OPENWRT
+          if [ ! -d .git ]; then git init; fi
+          git remote set-url origin $REPO_URL 2>&- || git remote add origin $REPO_URL
+          git fetch && git checkout $REPO_BRANCH && git pull --rebase
+          { git log origin/main..$REPO_BRANCH --oneline || echo "(no commits ahead of main)"; } > files/build_info
+          mountpoint $DK_BIN || { echo "::error::not mounted" >&2; exit 1; }
+          cp files/build_info $DK_BIN
+          ln -sf $DK_BIN bin && ln -sf /dlcache dl && ln -sf /stcache staging_dir
+          bp=$DK_PROFILE fc=feeds.conf
+          cp $bp/files/$fc $fc 2>&- && cp $fc /tmp/feeds.bak
+          rm -rf feeds/* &>/dev/null; ./scripts/feeds update -a &>/dev/null; ./scripts/feeds install -a
+          mv /tmp/feeds.bak $fc &>/dev/null ||:
+          cp $bp/config.diff .config
+          cat $bp/patches/*.patch 2>&- | patch -d . -p0 --forward ||:
+          cp -r $bp/files/ . &>/dev/null ||:
+          bash $bp/custom.sh &>/dev/null ||:
+          make defconfig; echo "CONFIG_VERSION_NUMBER=${{ matrix.target }}" >> .config
+          make download -j8 2>&1 | tee /dev/stderr | grep -q "ERROR:" || [ $PIPESTATUS -ne 0 ] && exit 1 ||:
+        '
+
+    - name: Compile OpenWrt
+      run: |
+        for mode in c s; do
+          docker_exec -e MODE=$mode DK bash -c '
+            bash $DK_PROFILE/pre_compile.sh 2>&- ||:
+            cd $DK_OPENWRT
+            export FORCE_UNSAFE_CONFIGURE=1 CCACHE_SLOPPINESS=file_stat_matches,include_file_mtime,time_macros CCACHE_NOHASHDIR=true CCACHE_COMPILERCHECK=content
+            make -j$(($(nproc) + 1)) V=$MODE
+            staging_dir/host/bin/ccache -d /ghcache -sz ||:
+          ' && break
+        done
+
+    - name: Create release
+      run: |
+        sudo chown -R "$(id -u):$(id -g)" openwrt_bin stcache
+        find -L openwrt_bin/targets/*/* -maxdepth 1 -type f -exec install -D -t firmware {} +
+        VERSION="${{ matrix.target }}_$(date +'%Y.%m.%d')_$(jq -r '.version_code' firmware/profiles.json)"
+        sed -i "s/^/    /; 1s/^/## $VERSION\n\n/" openwrt_bin/build_info
+        gh release list --json tagName --jq '.[].tagName' | grep "^${{ matrix.target }}_" | xargs -r gh release delete --cleanup-tag -y ||:
+        gh release create $VERSION firmware/*sysupgrade.itb --title $VERSION --notes-file openwrt_bin/build_info
+
+    - name: Upload builder container
+      run: |
+        docker_exec DK bash -c 'cd $DK_OPENWRT && rm -rf bin build_dir feeds tmp'
+        docker commit -a openwrt-fastbuild -m "Building at $(date)" DK $IMG_BASE
+        docker push $IMG_BASE
+        docker buildx imagetools create -t $IMG_INC $IMG_BASE
+        IMAGE="ghcr.io/w1700k/fastbuild_base:base-bldcache-${{ matrix.target }}"
+        docker build -t "$IMAGE" -f- . <<'DKR'
+        FROM busybox
+        COPY dlcache /dlcache
+        COPY stcache /stcache
+        COPY ghcache /ghcache
+        DKR
+        docker push "$IMAGE"
+
+    - name: Cleanup old ghcr images
+      uses: dataaxiom/ghcr-cleanup-action@v1
+      with:
+        package: fastbuild_base

@@ -1,0 +1,87 @@
+# saves to   https://w1700k.github.io/builds/distfeeds.list
+#   and      https://w1700k.github.io/builds/vermagic.txt
+
+name: publish-distfeeds
+on:
+  schedule:
+    # Every hour — checks kmods page and only runs full extraction if updated
+    - cron: '42 * * * *'
+  workflow_dispatch:
+permissions: write-all
+env:
+  GH_TOKEN: ${{ github.token }}
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check for kmods update
+        id: check
+        run: |
+          LATEST_KMOD=$(curl -sL https://downloads.openwrt.org/snapshots/targets/airoha/an7581/kmods/ | \
+            grep '<tr>' | \
+            grep 'href="' | \
+            while read line; do
+              dir=$(echo "$line" | grep -oP 'href="\K[^"/]+')
+              date_str=$(echo "$line" | grep -oP 'class="d">\K[^<]+')
+              epoch=$(date -d "$date_str" +%s 2>/dev/null)
+              echo "$epoch $dir"
+            done | \
+            sort -rn | \
+            head -1 | \
+            awk '{print $2}')
+          echo "kmod_version=$LATEST_KMOD" >> "$GITHUB_OUTPUT"
+
+      - name: Restore cached kmod version
+        id: cache
+        uses: actions/cache@v5
+        with:
+          path: .kmod_version
+          key: kmod-${{ steps.check.outputs.kmod_version }}
+
+      - name: Install binwalk
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y binwalk
+
+      - name: Download and extract
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          curl -L https://downloads.openwrt.org/snapshots/targets/airoha/an7581/openwrt-airoha-an7581-airoha_an7581-evb-squashfs-sysupgrade.bin --output sysupgrade.bin
+          binwalk -e sysupgrade.bin
+
+      - name: Prepare artifact for GitHub Pages
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p _site
+          cp _sysupgrade.bin.extracted/squashfs-root/etc/apk/repositories.d/distfeeds.list _site/
+          sed -n 's/.*6.18.*-*-\([^/]*\).*/\1/p' _site/distfeeds.list 2>/dev/null > _site/vermagic.txt
+
+      - name: Upload Pages artifact
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/deploy-pages@v5
+
+      - name: Upload artifact
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          path: _site/distfeeds.list
+          archive: false
+
+      - name: Delete old cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          gh cache list --key kmod --json id --jq '.[].id' | while read id; do
+            gh cache delete "$id"
+          done
+
+      - name: Save kmod version to cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: echo "${{ steps.check.outputs.kmod_version }}" > .kmod_version

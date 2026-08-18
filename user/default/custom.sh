@@ -28,7 +28,6 @@ rm -rf package/luci-theme-aurora
 
 git clone \
     --depth=1 \
-    --branch v1.2.0 \
     https://github.com/eamonxg/luci-theme-aurora.git \
     package/luci-theme-aurora
 

@@ -4,8 +4,7 @@ on:
   workflow_dispatch:
 
   schedule:
-    - cron: '0 19 * * *'
-      timezone: 'Asia/Hong_Kong'
+    - cron: '0 11 * * *'
 
 permissions: write-all
 jobs:

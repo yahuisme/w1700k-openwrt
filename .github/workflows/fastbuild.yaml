@@ -317,13 +317,15 @@ jobs:
           --title "$VERSION" \
           --notes-file openwrt_bin/build_info
 
-        gh release list --limit 100 --json tagName --jq '.[].tagName' |
-          grep "^W1700K-${{ matrix.target }}_" |
-          grep -Fxv "$VERSION" |
-          while IFS= read -r old_version; do
-            [ -z "$old_version" ] || \
-              gh release delete "$old_version" --cleanup-tag -y
-          done
+        {
+          gh release list --limit 100 --json tagName --jq '.[].tagName' |
+            grep "^W1700K-${{ matrix.target }}_" |
+            grep -Fxv "$VERSION" |
+            while IFS= read -r old_version; do
+              [ -z "$old_version" ] || \
+                gh release delete "$old_version" --cleanup-tag -y
+            done
+        } || :
 
     - name: Upload builder container
       shell: bash

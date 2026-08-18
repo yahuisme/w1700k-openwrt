@@ -24,9 +24,9 @@ uci -q set luci.main.mediaurlbase='/luci-static/aurora'
 # Find Wi-Fi radios
 # ------------------------------------------------------------
 
-RADIO_2G=""
-RADIO_5G=""
-RADIO_6G=""
+RADIOS_2G=""
+RADIOS_5G=""
+RADIOS_6G=""
 
 for DEV in $(uci show wireless | \
     sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p')
@@ -35,13 +35,13 @@ do
 
     case "$BAND" in
         2g)
-            RADIO_2G="$DEV"
+            RADIOS_2G="$RADIOS_2G $DEV"
             ;;
         5g)
-            RADIO_5G="$DEV"
+            RADIOS_5G="$RADIOS_5G $DEV"
             ;;
         6g)
-            RADIO_6G="$DEV"
+            RADIOS_6G="$RADIOS_6G $DEV"
             ;;
     esac
 done
@@ -51,38 +51,38 @@ done
 # 2.4 GHz
 # ------------------------------------------------------------
 
-if [ -n "$RADIO_2G" ]; then
-    uci -q set wireless.${RADIO_2G}.disabled='0'
-    uci -q set wireless.${RADIO_2G}.country='US'
-    uci -q set wireless.${RADIO_2G}.channel='1'
-    uci -q set wireless.${RADIO_2G}.htmode='HT20'
-fi
+for DEV in $RADIOS_2G; do
+    uci -q set wireless.${DEV}.disabled='0'
+    uci -q set wireless.${DEV}.country='US'
+    uci -q set wireless.${DEV}.channel='1'
+    uci -q set wireless.${DEV}.htmode='HT20'
+done
 
 
 # ------------------------------------------------------------
 # 5 GHz
 # ------------------------------------------------------------
 
-if [ -n "$RADIO_5G" ]; then
-    uci -q set wireless.${RADIO_5G}.disabled='0'
-    uci -q set wireless.${RADIO_5G}.country='US'
-    uci -q set wireless.${RADIO_5G}.channel='36'
-    uci -q set wireless.${RADIO_5G}.htmode='HE160'
-fi
+for DEV in $RADIOS_5G; do
+    uci -q set wireless.${DEV}.disabled='0'
+    uci -q set wireless.${DEV}.country='US'
+    uci -q set wireless.${DEV}.channel='36'
+    uci -q set wireless.${DEV}.htmode='HE160'
+done
 
 
 # ------------------------------------------------------------
 # 6 GHz
+# 6 GHz is configured but disabled by default.
+# Enable it manually from LuCI when needed.
 # ------------------------------------------------------------
 
-if [ -n "$RADIO_6G" ]; then
-    # 6 GHz is configured but disabled by default.
-    # Enable it manually from LuCI when needed.
-    uci -q set wireless.${RADIO_6G}.disabled='1'
-    uci -q set wireless.${RADIO_6G}.country='US'
-    uci -q set wireless.${RADIO_6G}.channel='37'
-    uci -q set wireless.${RADIO_6G}.htmode='EHT320'
-fi
+for DEV in $RADIOS_6G; do
+    uci -q set wireless.${DEV}.disabled='1'
+    uci -q set wireless.${DEV}.country='US'
+    uci -q set wireless.${DEV}.channel='37'
+    uci -q set wireless.${DEV}.htmode='EHT320'
+done
 
 
 # ------------------------------------------------------------
@@ -97,57 +97,45 @@ done
 
 
 # ------------------------------------------------------------
-# 2.4 GHz SSID
+# 按频段为每一张网卡建 SSID
+# 同频段出现多张网卡时，自动加 -2 / -3 ... 后缀防止 SSID 重名
 # ------------------------------------------------------------
 
-if [ -n "$RADIO_2G" ]; then
+create_ssid() {
+    # $1=device  $2=SSID基名  $3=加密方式  $4=密码  $5=后缀
+    IFACE="$(uci add wireless wifi-iface)"
 
-    IFACE_2G="$(uci add wireless wifi-iface)"
+    uci set wireless.${IFACE}.device="$1"
+    uci set wireless.${IFACE}.mode='ap'
+    uci set wireless.${IFACE}.network='lan'
+    uci set wireless.${IFACE}.ssid="$2$5"
+    uci set wireless.${IFACE}.encryption="$3"
+    uci set wireless.${IFACE}.key="$4"
+}
 
-    uci set wireless.${IFACE_2G}.device="${RADIO_2G}"
-    uci set wireless.${IFACE_2G}.mode='ap'
-    uci set wireless.${IFACE_2G}.network='lan'
-    uci set wireless.${IFACE_2G}.ssid='W1700K'
-    uci set wireless.${IFACE_2G}.encryption='psk2'
-    uci set wireless.${IFACE_2G}.key='12345678'
+N=0
+for DEV in $RADIOS_2G; do
+    N=$((N + 1))
+    SUFFIX=""
+    [ "$N" -gt 1 ] && SUFFIX="-$N"
+    create_ssid "$DEV" 'W1700K' 'psk2' '12345678' "$SUFFIX"
+done
 
-fi
+N=0
+for DEV in $RADIOS_5G; do
+    N=$((N + 1))
+    SUFFIX=""
+    [ "$N" -gt 1 ] && SUFFIX="-$N"
+    create_ssid "$DEV" 'W1700K' 'psk2' '12345678' "$SUFFIX"
+done
 
-
-# ------------------------------------------------------------
-# 5 GHz SSID
-# ------------------------------------------------------------
-
-if [ -n "$RADIO_5G" ]; then
-
-    IFACE_5G="$(uci add wireless wifi-iface)"
-
-    uci set wireless.${IFACE_5G}.device="${RADIO_5G}"
-    uci set wireless.${IFACE_5G}.mode='ap'
-    uci set wireless.${IFACE_5G}.network='lan'
-    uci set wireless.${IFACE_5G}.ssid='W1700K'
-    uci set wireless.${IFACE_5G}.encryption='psk2'
-    uci set wireless.${IFACE_5G}.key='12345678'
-
-fi
-
-
-# ------------------------------------------------------------
-# 6 GHz SSID
-# ------------------------------------------------------------
-
-if [ -n "$RADIO_6G" ]; then
-
-    IFACE_6G="$(uci add wireless wifi-iface)"
-
-    uci set wireless.${IFACE_6G}.device="${RADIO_6G}"
-    uci set wireless.${IFACE_6G}.mode='ap'
-    uci set wireless.${IFACE_6G}.network='lan'
-    uci set wireless.${IFACE_6G}.ssid='W1700K-6G'
-    uci set wireless.${IFACE_6G}.encryption='sae'
-    uci set wireless.${IFACE_6G}.key='12345678'
-
-fi
+N=0
+for DEV in $RADIOS_6G; do
+    N=$((N + 1))
+    SUFFIX=""
+    [ "$N" -gt 1 ] && SUFFIX="-$N"
+    create_ssid "$DEV" 'W1700K-6G' 'sae' '12345678' "$SUFFIX"
+done
 
 
 # ------------------------------------------------------------

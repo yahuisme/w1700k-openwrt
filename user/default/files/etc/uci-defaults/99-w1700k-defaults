@@ -26,6 +26,7 @@ uci -q set luci.main.mediaurlbase='/luci-static/aurora'
 
 RADIO_2G=""
 RADIO_5G=""
+RADIO_6G=""
 
 for DEV in $(uci show wireless | \
     sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p')
@@ -40,7 +41,7 @@ do
             RADIO_5G="$DEV"
             ;;
         6g)
-            uci -q set wireless.${DEV}.disabled='1'
+            RADIO_6G="$DEV"
             ;;
     esac
 done
@@ -54,6 +55,7 @@ if [ -n "$RADIO_2G" ]; then
     uci -q set wireless.${RADIO_2G}.disabled='0'
     uci -q set wireless.${RADIO_2G}.country='US'
     uci -q set wireless.${RADIO_2G}.channel='1'
+    uci -q set wireless.${RADIO_2G}.htmode='HT20'
 fi
 
 
@@ -65,6 +67,21 @@ if [ -n "$RADIO_5G" ]; then
     uci -q set wireless.${RADIO_5G}.disabled='0'
     uci -q set wireless.${RADIO_5G}.country='US'
     uci -q set wireless.${RADIO_5G}.channel='36'
+    uci -q set wireless.${RADIO_5G}.htmode='HE160'
+fi
+
+
+# ------------------------------------------------------------
+# 6 GHz
+# ------------------------------------------------------------
+
+if [ -n "$RADIO_6G" ]; then
+    # 6 GHz is configured but disabled by default.
+    # Enable it manually from LuCI when needed.
+    uci -q set wireless.${RADIO_6G}.disabled='1'
+    uci -q set wireless.${RADIO_6G}.country='US'
+    uci -q set wireless.${RADIO_6G}.channel='37'
+    uci -q set wireless.${RADIO_6G}.htmode='EHT320'
 fi
 
 
@@ -111,6 +128,24 @@ if [ -n "$RADIO_5G" ]; then
     uci set wireless.${IFACE_5G}.ssid='W1700K'
     uci set wireless.${IFACE_5G}.encryption='psk2'
     uci set wireless.${IFACE_5G}.key='12345678'
+
+fi
+
+
+# ------------------------------------------------------------
+# 6 GHz SSID
+# ------------------------------------------------------------
+
+if [ -n "$RADIO_6G" ]; then
+
+    IFACE_6G="$(uci add wireless wifi-iface)"
+
+    uci set wireless.${IFACE_6G}.device="${RADIO_6G}"
+    uci set wireless.${IFACE_6G}.mode='ap'
+    uci set wireless.${IFACE_6G}.network='lan'
+    uci set wireless.${IFACE_6G}.ssid='W1700K-6G'
+    uci set wireless.${IFACE_6G}.encryption='sae'
+    uci set wireless.${IFACE_6G}.key='12345678'
 
 fi
 

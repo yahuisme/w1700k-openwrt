@@ -51,16 +51,16 @@
 
 LuCI 状态首页增加「温度与风扇」信息：
 
-- CPU
-- 主板
-- 10G WAN PHY
-- 10G LAN PHY
-- 2.4 GHz
-- 5 GHz
-- 6 GHz
+- CPU 温度
+- 主板 温度
+- 10G WAN PHY 温度
+- 10G LAN PHY 温度
+- 2.4 GHz WiFi 温度
+- 5 GHz WiFi 温度
+- 6 GHz WiFi 温度
 - 风扇转速及占空比
 
-温度达到不同区间会自动进行颜色提示。
+温度达到不同区间会自动变化不同颜色提示。
 
 ---
 

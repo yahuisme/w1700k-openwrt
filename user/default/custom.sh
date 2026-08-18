@@ -44,6 +44,31 @@ echo "Aurora theme installed successfully."
 
 
 # -------------------------------------------------
+# Install latest HomeProxy
+# -------------------------------------------------
+
+echo "Installing latest HomeProxy..."
+
+rm -rf package/luci-app-homeproxy
+
+if ! git clone \
+    --depth=1 \
+    https://github.com/immortalwrt/homeproxy.git \
+    package/luci-app-homeproxy
+then
+    echo "ERROR: Failed to download HomeProxy!"
+    exit 1
+fi
+
+if [ ! -f package/luci-app-homeproxy/Makefile ]; then
+    echo "ERROR: HomeProxy was downloaded, but Makefile is missing!"
+    exit 1
+fi
+
+echo "HomeProxy installed successfully."
+
+
+# -------------------------------------------------
 # Enable Chinese language
 # -------------------------------------------------
 

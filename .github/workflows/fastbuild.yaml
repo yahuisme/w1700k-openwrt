@@ -4,21 +4,14 @@ on:
   workflow_dispatch:
 
   schedule:
-    # GitHub Actions cron uses UTC; 11:00 UTC = 19:00 Asia/Hong_Kong
     - cron: '0 11 * * *'
 
 permissions: write-all
-
 jobs:
   build:
     name: Build ${{ matrix.target }}
     runs-on: ubuntu-24.04-arm
-
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [ubi2, ubi2-oc]
-
+    strategy: {fail-fast: false, matrix: {target: [ubi2, ubi2-oc]}}
     env:
       DK_OPENWRT: /bld/openwrt
       DK_BIN: /bld/openwrt_bin
@@ -26,346 +19,108 @@ jobs:
       DK_PROFILE: /bld/user/current
       GH_TOKEN: ${{ github.token }}
       IMG_INC: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ matrix.target }}-inc
-
     steps:
     - uses: actions/checkout@v7
 
     - uses: docker/login-action@v4
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ github.token }}
+      with: {registry: ghcr.io, username: '${{ github.actor }}', password: '${{ github.token }}'}
 
     - id: gh
       uses: actions/cache/restore@v5
-      with:
-        path: |
-          ghcache
-          stcache
-        key: cache-${{ matrix.target }}.${{ github.run_id }}
-        restore-keys: cache-${{ matrix.target }}.
-
+      with: {path: "ghcache\nstcache", key: 'cache-${{ matrix.target }}.${{ github.run_id }}', restore-keys: 'cache-${{ matrix.target }}.'}
     - id: dl
       uses: actions/cache/restore@v5
-      with:
-        path: dlcache
-        key: dlcache.${{ github.run_id }}
-        restore-keys: dlcache.
+      with: {path: dlcache, key: 'dlcache.${{ github.run_id }}', restore-keys: dlcache.}
 
     - name: Seed caches if missing
-      shell: bash
       run: |
-        set -e
         mkdir -p openwrt_bin ghcache stcache dlcache
-
-        if [ -z "$(ls -A ghcache 2>/dev/null)" ] || [ -z "$(ls -A stcache 2>/dev/null)" ]; then
-          I="ghcr.io/w1700k/fastbuild_base:base-bldcache-${{ matrix.target }}"
-
-          if docker pull "$I" 2>/dev/null; then
-            docker create --name CA "$I" >/dev/null
-            for d in ghcache stcache dlcache; do
-              docker cp "CA:/$d/." "$d"
-            done
-            docker rm CA >/dev/null
-          fi
+        if [ -z "$(ls -A ghcache 2>&-)" ] || [ -z "$(ls -A stcache 2>&-)" ]; then
+          I=ghcr.io/w1700k/fastbuild_base:base-bldcache-${{ matrix.target }}
+          docker pull $I 2>&- && { docker create --name CA $I >/dev/null; for d in ghcache stcache dlcache; do docker cp CA:/$d/. $d; done; }
         fi
 
     - name: Initialize environment
-      shell: bash
       run: |
-        set -euo pipefail
-
-        curl -fL --retry 3 --retry-delay 3 \
-          --create-dirs \
-          -o user/default/files/etc/apk/repositories.d/distfeeds.list \
-          https://w1700k.github.io/builds/distfeeds.list
-
-        curl -fL --retry 3 --retry-delay 3 \
-          -o user/default/files/etc/vermagic.txt \
-          https://w1700k.github.io/builds/vermagic.txt
-
-        [ -f "user/${{ matrix.target }}/config.diff" ] || {
-          echo "::error::config.diff not found for ${{ matrix.target }}"
-          exit 1
-        }
-
-        rsync -aI --mkpath \
-          user/default/ \
-          "user/${{ matrix.target }}/" \
-          user/current/ 2>/dev/null
-
+        curl -Z --create-dirs -Lo user/default/files/etc/apk/repositories.d/distfeeds.list https://w1700k.github.io/builds/distfeeds.list
+        curl -Z -Lo user/default/files/etc/vermagic.txt https://w1700k.github.io/builds/vermagic.txt
+        [ -f "user/${{ matrix.target }}/config.diff" ] || { echo "::error::config.diff not found for ${{ matrix.target }}"; exit 1; }
+        rsync -aI --mkpath user/default/ user/${{ matrix.target }}/ user/current/ 2>&-
         echo 'CONFIG_CCACHE_DIR="/ghcache"' >> user/current/config.diff
-
-        sudo tee /etc/docker/daemon.json >/dev/null <<'EOF'
-        {
-          "max-concurrent-downloads": 50,
-          "max-concurrent-uploads": 50,
-          "experimental": true
-        }
-        EOF
-
+        sudo tee /etc/docker/daemon.json <<< '{"max-concurrent-downloads":50,"max-concurrent-uploads":50,"experimental":true}'
         sudo systemctl reload docker
-
-        IMAGE="$IMG_INC"
-        if ! docker pull "$IMAGE" 2>/dev/null; then
-          IMAGE="ghcr.io/w1700k/fastbuild_base:base-builder"
-        fi
-
-        docker run -dt \
-          --name DK \
-          -v "$PWD/user:$DK_USER" \
-          -v "$PWD/openwrt_bin:$DK_BIN" \
-          -v "$PWD/ghcache:/ghcache" \
-          -v "$PWD/stcache:/stcache" \
-          -v "$PWD/dlcache:/dlcache" \
-          "$IMAGE"
-
+        IMAGE=$IMG_INC; docker pull $IMAGE 2>&- || IMAGE=ghcr.io/w1700k/fastbuild_base:base-builder
+        docker run -dt --name DK -v $PWD/user:$DK_USER -v $PWD/openwrt_bin:$DK_BIN -v $PWD/ghcache:/ghcache -v $PWD/stcache:/stcache -v $PWD/dlcache:/dlcache $IMAGE
         install -m 755 /dev/stdin /usr/local/bin/docker_exec <<'DKR'
         #!/bin/bash
-        for n in DK_BIN DK_USER DK_PROFILE DK_OPENWRT; do
-          e+=(-e "$n=${!n}")
-        done
+        for n in DK_BIN DK_USER DK_PROFILE DK_OPENWRT; do e+=(-e "$n=${!n}"); done
         exec docker exec -u 0 -i "${e[@]}" "$@"
         DKR
 
     - name: Prepare OpenWrt source
-      shell: bash
       run: |
-        docker_exec DK bash -e -o pipefail -c '
-          . "$DK_USER/default/settings.ini" &>/dev/null || :
-          . "$DK_PROFILE/settings.ini"
-
-          [[ -n "$REPO_URL" && -n "$REPO_BRANCH" ]] || {
-            echo "::error::Missing REPO_URL or REPO_BRANCH"
-            exit 1
-          }
-
-          mkdir -p "$DK_OPENWRT/files"
-          cd "$DK_OPENWRT"
-
-          if [ ! -d .git ]; then
-            git init
-          fi
-
-          git remote set-url origin "$REPO_URL" 2>/dev/null || \
-            git remote add origin "$REPO_URL"
-
-          git fetch
-          git checkout "$REPO_BRANCH"
-          git pull --rebase
-
-          {
-            git log "origin/main..$REPO_BRANCH" --oneline || \
-              echo "(no commits ahead of main)"
-          } > files/build_info
-
-          mountpoint "$DK_BIN" || {
-            echo "::error::OpenWrt output directory is not mounted" >&2
-            exit 1
-          }
-
-          cp files/build_info "$DK_BIN"
-          ln -sf "$DK_BIN" bin
-          ln -sf /dlcache dl
-          ln -sf /stcache staging_dir
-
-          bp="$DK_PROFILE"
-          fc="feeds.conf"
-
-          cp "$bp/files/$fc" "$fc" 2>/dev/null && cp "$fc" /tmp/feeds.bak
-          rm -rf feeds/* 2>/dev/null
-          ./scripts/feeds update -a >/dev/null
-          ./scripts/feeds install -a
-          mv /tmp/feeds.bak "$fc" 2>/dev/null || :
-
-          cp "$bp/config.diff" .config
-          cat "$bp"/patches/*.patch 2>/dev/null | patch -d . -p0 --forward || :
-          cp -r "$bp/files/." . 2>/dev/null || :
-          bash "$DK_PROFILE/custom.sh"
-
-          make defconfig
-          echo "CONFIG_VERSION_NUMBER=${{ matrix.target }}" >> .config
-
-          make download -j8 2>&1 | tee /tmp/make-download.log
-          if grep -q "ERROR:" /tmp/make-download.log; then
-            echo "::error::Package download reported ERROR"
-            exit 1
-          fi
+        docker_exec DK bash -e -c '
+          . $DK_USER/default/settings.ini &>/dev/null ||:
+          . $DK_PROFILE/settings.ini
+          [[ $REPO_URL && $REPO_BRANCH ]] || { echo "::error::Missing REPO_URL or REPO_BRANCH"; exit 1; }
+          mkdir -p $DK_OPENWRT/files
+          cd $DK_OPENWRT
+          if [ ! -d .git ]; then git init; fi
+          git remote set-url origin $REPO_URL 2>&- || git remote add origin $REPO_URL
+          git fetch && git checkout $REPO_BRANCH && git pull --rebase
+          { git log origin/main..$REPO_BRANCH --oneline || echo "(no commits ahead of main)"; } > files/build_info
+          mountpoint $DK_BIN || { echo "::error::not mounted" >&2; exit 1; }
+          cp files/build_info $DK_BIN
+          ln -sf $DK_BIN bin && ln -sf /dlcache dl && ln -sf /stcache staging_dir
+          bp=$DK_PROFILE fc=feeds.conf
+          cp $bp/files/$fc $fc 2>&- && cp $fc /tmp/feeds.bak
+          rm -rf feeds/* &>/dev/null; ./scripts/feeds update -a &>/dev/null; ./scripts/feeds install -a
+          mv /tmp/feeds.bak $fc &>/dev/null ||:
+          cp $bp/config.diff .config
+          cat $bp/patches/*.patch 2>&- | patch -d . -p0 --forward ||:
+          cp -r $bp/files/ . &>/dev/null ||:
+          bash $DK_PROFILE/custom.sh
+          make defconfig; echo "CONFIG_VERSION_NUMBER=${{ matrix.target }}" >> .config
+          make download -j8 2>&1 | tee /dev/stderr | grep -q "ERROR:" || [ $PIPESTATUS -ne 0 ] && exit 1 ||:
         '
 
     - name: Compile OpenWrt
-      shell: bash
       run: |
-        set -e
-
         for mode in c s; do
-          echo "Building with V=$mode"
-
-          if docker_exec -e MODE="$mode" DK bash -e -c '
-            bash "$DK_PROFILE/pre_compile.sh" 2>/dev/null || :
-            cd "$DK_OPENWRT"
-
-            export FORCE_UNSAFE_CONFIGURE=1
-            export CCACHE_SLOPPINESS=file_stat_matches,include_file_mtime,time_macros
-            export CCACHE_NOHASHDIR=true
-            export CCACHE_COMPILERCHECK=content
-
-            make -j"$(($(nproc) + 1))" "V=$MODE"
-            staging_dir/host/bin/ccache -d /ghcache -sz || :
-          '; then
-            echo "Build completed successfully with V=$mode"
-            exit 0
-          fi
-
-          echo "Build failed with V=$mode; trying the next mode..."
+          docker_exec -e MODE=$mode DK bash -c '
+            bash $DK_PROFILE/pre_compile.sh 2>&- ||:
+            cd $DK_OPENWRT
+            export FORCE_UNSAFE_CONFIGURE=1 CCACHE_SLOPPINESS=file_stat_matches,include_file_mtime,time_macros CCACHE_NOHASHDIR=true CCACHE_COMPILERCHECK=content
+            make -j$(($(nproc) + 1)) V=$MODE
+            staging_dir/host/bin/ccache -d /ghcache -sz ||:
+          ' && break
         done
 
-        echo "::error::All compile attempts failed"
-        exit 1
-
     - name: Create release
-      shell: bash
       run: |
-        set -euo pipefail
-
         sudo chown -R "$(id -u):$(id -g)" openwrt_bin stcache
-
-        # New staging directory: never publish a stale artifact from a prior run.
-        rm -rf firmware
-        mkdir -p firmware
-
-        # One matrix target should produce exactly one sysupgrade ITB.
-        mapfile -t images < <(
-          find -L openwrt_bin/targets \
-            -type f \
-            -name '*sysupgrade.itb' \
-            -print | sort
-        )
-
-        if [ "${#images[@]}" -ne 1 ]; then
-          echo "::error::Expected exactly one sysupgrade ITB image, found ${#images[@]}"
-          echo "Image candidates:"
-          if [ "${#images[@]}" -eq 0 ]; then
-            echo "  <none>"
-          else
-            printf '  %s\n' "${images[@]}"
-          fi
-          echo "All target output files:"
-          find -L openwrt_bin/targets -type f -print | sort || true
-          exit 1
-        fi
-
-        mapfile -t profiles < <(
-          find -L openwrt_bin/targets \
-            -type f \
-            -name profiles.json \
-            -print | sort
-        )
-
-        if [ "${#profiles[@]}" -ne 1 ]; then
-          echo "::error::Expected exactly one profiles.json, found ${#profiles[@]}"
-          echo "profiles.json candidates:"
-          if [ "${#profiles[@]}" -eq 0 ]; then
-            echo "  <none>"
-          else
-            printf '  %s\n' "${profiles[@]}"
-          fi
-          exit 1
-        fi
-
-        install -D -m 0644 \
-          "${images[0]}" \
-          "firmware/$(basename "${images[0]}")"
-
-        install -D -m 0644 \
-          "${profiles[0]}" \
-          firmware/profiles.json
-
-        version_code="$(jq -er '.version_code | strings | select(length > 0)' firmware/profiles.json)"
-        version_code="${version_code#r}"
-        version_code="${version_code%%-*}"
-
-        [ -n "$version_code" ] || {
-          echo "::error::Unable to derive version code from profiles.json"
-          exit 1
-        }
-
-        [ -s openwrt_bin/build_info ] || {
-          echo "::error::openwrt_bin/build_info is missing or empty"
-          exit 1
-        }
-
-        image_path="$(find firmware -maxdepth 1 -type f -name '*sysupgrade.itb' -print -quit)"
-        [ -n "$image_path" ] || {
-          echo "::error::Verified firmware image was not copied to firmware/"
-          exit 1
-        }
-
-        VERSION="W1700K-${{ matrix.target }}_$(TZ=Asia/Hong_Kong date +'%y.%m.%d-%H.%M.%S')_r${version_code}"
-
+        find -L openwrt_bin/targets/*/* -maxdepth 1 -type f -exec install -D -t firmware {} +
+        VERSION="W1700K-${{ matrix.target }}_$(TZ=Asia/Hong_Kong date +'%y.%m.%d-%H.%M.%S')_r$(jq -r '.version_code' firmware/profiles.json | sed 's/^r//; s/-.*//')"
         sed -i "s/^/    /; 1s/^/## $VERSION\n\n/" openwrt_bin/build_info
-
-        echo "Release tag: $VERSION"
-        echo "Firmware image: $image_path"
-        echo "Image SHA256:"
-        sha256sum "$image_path"
-        echo "Build version:"
-        jq -c '.version_code' firmware/profiles.json
-
-        # Keep the prior release if the upload fails. Delete old releases only after success.
-        gh release create "$VERSION" "$image_path" \
-          --title "$VERSION" \
-          --notes-file openwrt_bin/build_info
-
-        {
-          gh release list --limit 100 --json tagName --jq '.[].tagName' |
-            grep "^W1700K-${{ matrix.target }}_" |
-            grep -Fxv "$VERSION" |
-            while IFS= read -r old_version; do
-              [ -z "$old_version" ] || \
-                gh release delete "$old_version" --cleanup-tag -y
-            done
-        } || :
+        gh release list --json tagName --jq '.[].tagName' | grep "^W1700K-${{ matrix.target }}_" | xargs -r gh release delete --cleanup-tag -y ||:
+        gh release create "$VERSION" firmware/*sysupgrade.itb --title "$VERSION" --notes-file openwrt_bin/build_info
 
     - name: Upload builder container
-      shell: bash
       run: |
-        set -e
-
-        docker_exec DK bash -c '
-          cd "$DK_OPENWRT"
-          rm -rf bin build_dir feeds tmp
-        '
-
-        docker commit \
-          -a openwrt-fastbuild \
-          -m "Building at $(date)" \
-          DK \
-          "$IMG_INC"
-
-        docker push "$IMG_INC"
+        docker_exec DK bash -c 'cd $DK_OPENWRT && rm -rf bin build_dir feeds tmp'
+        docker commit -a openwrt-fastbuild -m "Building at $(date)" DK $IMG_INC
+        docker push $IMG_INC
 
     - name: Delete old caches
       if: always()
-      shell: bash
       run: |
-        for p in "dlcache." "cache-${{ matrix.target }}."; do
-          gh cache list \
-            --json key,id \
-            --jq '.[] | select(.key | startswith("'"$p"'")) | .id' |
-            xargs -r gh cache delete
-        done || :
+        for p in dlcache. cache-${{ matrix.target }}.; do
+          gh cache list --json key,id --jq '.[] | select(.key | startswith("'"$p"'")) | .id' | xargs -r gh cache delete
+        done ||:
 
     - uses: actions/cache/save@v5
-      if: success()
-      with:
-        path: |
-          ghcache
-          stcache
-        key: ${{ steps.gh.outputs.cache-primary-key }}
-
+      if: always()
+      with: {path: "ghcache\nstcache", key: '${{ steps.gh.outputs.cache-primary-key }}'}
     - uses: actions/cache/save@v5
-      if: success()
-      with:
-        path: dlcache
-        key: ${{ steps.dl.outputs.cache-primary-key }}
+      if: always()
+      with: {path: dlcache, key: '${{ steps.dl.outputs.cache-primary-key }}'}

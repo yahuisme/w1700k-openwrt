@@ -19,10 +19,10 @@ mv files/998-single-wiphy.patch \
 
 
 # -------------------------------------------------
-# Install Aurora LuCI theme
+# Install latest Aurora LuCI theme
 # -------------------------------------------------
 
-echo "Installing Aurora LuCI theme..."
+echo "Installing latest Aurora LuCI theme..."
 
 rm -rf package/luci-theme-aurora
 
@@ -33,13 +33,18 @@ git clone \
 
 
 # -------------------------------------------------
-# Enable packages
+# Enable Chinese language
 # -------------------------------------------------
 
 echo "Enabling Chinese language..."
 
 grep -qxF 'CONFIG_PACKAGE_luci-i18n-base-zh-cn=y' .config || \
     echo 'CONFIG_PACKAGE_luci-i18n-base-zh-cn=y' >> .config
+
+
+# -------------------------------------------------
+# Enable Aurora
+# -------------------------------------------------
 
 echo "Enabling Aurora theme..."
 

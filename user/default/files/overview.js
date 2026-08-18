@@ -827,7 +827,7 @@ return view.extend({
 					if (selectedRelease) {
 						// Clear previous link and create a new one
 						urlElement.innerHTML = '';
-						urlElement.appendChild(E('a', { href: 'https://github.com/w1700k/builds/releases/tag/' + selectedRelease.tag, target: '_blank' }, _('View on GitHub')));
+						urlElement.appendChild(E('a', { href: 'https://github.com/yahuisme/W1700K-OpenWrt/releases/tag/' + selectedRelease.tag, target: '_blank' }, _('View on GitHub')));
 					}
 				};
 

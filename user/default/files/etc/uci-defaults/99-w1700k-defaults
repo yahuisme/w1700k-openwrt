@@ -1,0 +1,135 @@
+#!/bin/sh
+
+# ============================================================
+# W1700K default configuration
+# ============================================================
+
+# ------------------------------------------------------------
+# System timezone
+# ------------------------------------------------------------
+
+uci -q set system.@system[0].zonename='Asia/Hong_Kong'
+uci -q set system.@system[0].timezone='HKT-8'
+
+
+# ------------------------------------------------------------
+# LAN address
+# ------------------------------------------------------------
+
+uci -q set network.lan.ipaddr='192.168.8.1'
+
+
+# ------------------------------------------------------------
+# LuCI language / theme
+# ------------------------------------------------------------
+
+uci -q set luci.main.lang='zh_cn'
+uci -q set luci.main.mediaurlbase='/luci-static/aurora'
+
+
+# ------------------------------------------------------------
+# Find Wi-Fi radios
+# ------------------------------------------------------------
+
+RADIO_2G=""
+RADIO_5G=""
+
+for DEV in $(uci show wireless | \
+    sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p')
+do
+    BAND="$(uci -q get wireless.${DEV}.band || true)"
+
+    case "$BAND" in
+        2g)
+            RADIO_2G="$DEV"
+            ;;
+        5g)
+            RADIO_5G="$DEV"
+            ;;
+        6g)
+            uci -q set wireless.${DEV}.disabled='1'
+            ;;
+    esac
+done
+
+
+# ------------------------------------------------------------
+# 2.4 GHz
+# ------------------------------------------------------------
+
+if [ -n "$RADIO_2G" ]; then
+    uci -q set wireless.${RADIO_2G}.disabled='0'
+    uci -q set wireless.${RADIO_2G}.country='US'
+    uci -q set wireless.${RADIO_2G}.channel='1'
+fi
+
+
+# ------------------------------------------------------------
+# 5 GHz
+# ------------------------------------------------------------
+
+if [ -n "$RADIO_5G" ]; then
+    uci -q set wireless.${RADIO_5G}.disabled='0'
+    uci -q set wireless.${RADIO_5G}.country='US'
+    uci -q set wireless.${RADIO_5G}.channel='36'
+fi
+
+
+# ------------------------------------------------------------
+# Remove existing Wi-Fi interface defaults
+# ------------------------------------------------------------
+
+for IFACE in $(uci show wireless | \
+    sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p')
+do
+    uci -q delete wireless.${IFACE}
+done
+
+
+# ------------------------------------------------------------
+# 2.4 GHz SSID
+# ------------------------------------------------------------
+
+if [ -n "$RADIO_2G" ]; then
+
+    IFACE_2G="$(uci add wireless wifi-iface)"
+
+    uci set wireless.${IFACE_2G}.device="${RADIO_2G}"
+    uci set wireless.${IFACE_2G}.mode='ap'
+    uci set wireless.${IFACE_2G}.network='lan'
+    uci set wireless.${IFACE_2G}.ssid='W1700K'
+    uci set wireless.${IFACE_2G}.encryption='psk2'
+    uci set wireless.${IFACE_2G}.key='12345678'
+
+fi
+
+
+# ------------------------------------------------------------
+# 5 GHz SSID
+# ------------------------------------------------------------
+
+if [ -n "$RADIO_5G" ]; then
+
+    IFACE_5G="$(uci add wireless wifi-iface)"
+
+    uci set wireless.${IFACE_5G}.device="${RADIO_5G}"
+    uci set wireless.${IFACE_5G}.mode='ap'
+    uci set wireless.${IFACE_5G}.network='lan'
+    uci set wireless.${IFACE_5G}.ssid='W1700K'
+    uci set wireless.${IFACE_5G}.encryption='psk2'
+    uci set wireless.${IFACE_5G}.key='12345678'
+
+fi
+
+
+# ------------------------------------------------------------
+# Commit
+# ------------------------------------------------------------
+
+uci commit system
+uci commit network
+uci commit luci
+uci commit wireless
+
+
+exit 0

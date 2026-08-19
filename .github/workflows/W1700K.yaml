@@ -98,9 +98,38 @@ jobs:
         sudo chown -R "$(id -u):$(id -g)" openwrt_bin stcache
         find -L openwrt_bin/targets/*/* -maxdepth 1 -type f -exec install -D -t firmware {} +
         VERSION="W1700K-${{ matrix.target }}_$(TZ=Asia/Hong_Kong date +'%y.%m.%d-%H.%M.%S')_r$(jq -r '.version_code' firmware/profiles.json | sed 's/^r//; s/-.*//')"
-        sed -i "s/^/    /; 1s/^/## $VERSION\n\n/" openwrt_bin/build_info
+        RELEASE_NOTES="$RUNNER_TEMP/release-notes.md"
+        if [ "${{ matrix.target }}" = "ubi2" ]; then
+          cat > "$RELEASE_NOTES" <<EOF
+        ## Quantum Fiber / Gemtek W1700K OpenWrt — ubi2 标准版
+
+        **推荐版本。** 使用标准 CPU 工作参数，优先保障稳定性，适合绝大多数 W1700K 用户日常使用。
+
+        - 机型：Quantum Fiber / Gemtek W1700K
+        - 固件分支：\`ubi2\`
+        - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
+        - 上游源码：OpenWRT-fanboy/OpenW1700k
+        - 本 Release 仅包含 \`sysupgrade.itb\` 升级镜像。
+
+        请确认设备为 W1700K，并在刷写前备份当前配置。
+        EOF
+        else
+          cat > "$RELEASE_NOTES" <<EOF
+        ## Quantum Fiber / Gemtek W1700K OpenWrt — ubi2-oc 超频版
+
+        **超频版本。** 使用项目提供的超频 CPU 工作参数，仅建议熟悉设备散热、稳定性测试与故障恢复的用户使用。
+
+        - 机型：Quantum Fiber / Gemtek W1700K
+        - 固件分支：\`ubi2-oc\`
+        - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
+        - 上游源码：OpenWRT-fanboy/OpenW1700k
+        - 本 Release 仅包含 \`sysupgrade.itb\` 升级镜像。
+
+        超频可能增加发热、稳定性风险及功耗；如无明确需求，请下载 **ubi2 标准版**。刷写前请确认设备为 W1700K，并备份当前配置。
+        EOF
+        fi
         gh release list --json tagName --jq '.[].tagName' | grep "^W1700K-${{ matrix.target }}_" | xargs -r gh release delete --cleanup-tag -y ||:
-        gh release create "$VERSION" firmware/*sysupgrade.itb --title "$VERSION" --notes-file openwrt_bin/build_info
+        gh release create "$VERSION" firmware/*sysupgrade.itb --title "$VERSION" --notes-file "$RELEASE_NOTES"
 
     - name: Delete old caches
       if: always()

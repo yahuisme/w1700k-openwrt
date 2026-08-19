@@ -1,23 +1,25 @@
-name: fastbuild ubi2-oc, ubi2, snapshot
-on: workflow_dispatch
+name: W1700K OpenWrt Builds
+
+on:
+  workflow_dispatch:
+
+  # GitHub Actions uses UTC; 19:00 Hong Kong time = 11:00 UTC.
+  schedule:
+    - cron: '0 11 * * *'
 permissions: write-all
 jobs:
   build:
     name: Build ${{ matrix.target }}
     runs-on: ubuntu-24.04-arm
-    strategy: {fail-fast: false, matrix: {target: [ubi2-oc, ubi2, SNAPSHOT]}}
+    strategy: {fail-fast: false, matrix: {target: [ubi2, ubi2-oc]}}
     env:
       DK_OPENWRT: /bld/openwrt
       DK_BIN: /bld/openwrt_bin
       DK_USER: /bld/user
       DK_PROFILE: /bld/user/current
       GH_TOKEN: ${{ github.token }}
-      IMG_INC: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ matrix.target }}-inc
     steps:
     - uses: actions/checkout@v7
-
-    - uses: docker/login-action@v4
-      with: {registry: ghcr.io, username: '${{ github.actor }}', password: '${{ github.token }}'}
 
     - id: gh
       uses: actions/cache/restore@v5
@@ -43,7 +45,8 @@ jobs:
         echo 'CONFIG_CCACHE_DIR="/ghcache"' >> user/current/config.diff
         sudo tee /etc/docker/daemon.json <<< '{"max-concurrent-downloads":50,"max-concurrent-uploads":50,"experimental":true}'
         sudo systemctl reload docker
-        IMAGE=$IMG_INC; docker pull $IMAGE 2>&- || IMAGE=ghcr.io/w1700k/fastbuild_base:base-builder
+        IMAGE=ghcr.io/w1700k/fastbuild_base:base-builder
+        docker pull $IMAGE
         docker run -dt --name DK -v $PWD/user:$DK_USER -v $PWD/openwrt_bin:$DK_BIN -v $PWD/ghcache:/ghcache -v $PWD/stcache:/stcache -v $PWD/dlcache:/dlcache $IMAGE
         install -m 755 /dev/stdin /usr/local/bin/docker_exec <<'DKR'
         #!/bin/bash
@@ -73,7 +76,7 @@ jobs:
           cp $bp/config.diff .config
           cat $bp/patches/*.patch 2>&- | patch -d . -p0 --forward ||:
           cp -r $bp/files/ . &>/dev/null ||:
-          bash $bp/custom.sh &>/dev/null ||:
+          bash $DK_PROFILE/custom.sh
           make defconfig; echo "CONFIG_VERSION_NUMBER=${{ matrix.target }}" >> .config
           make download -j8 2>&1 | tee /dev/stderr | grep -q "ERROR:" || [ $PIPESTATUS -ne 0 ] && exit 1 ||:
         '
@@ -94,16 +97,10 @@ jobs:
       run: |
         sudo chown -R "$(id -u):$(id -g)" openwrt_bin stcache
         find -L openwrt_bin/targets/*/* -maxdepth 1 -type f -exec install -D -t firmware {} +
-        VERSION="${{ matrix.target }}_$(date +'%Y.%m.%d')_$(jq -r '.version_code' firmware/profiles.json)"
+        VERSION="W1700K-${{ matrix.target }}_$(TZ=Asia/Hong_Kong date +'%y.%m.%d-%H.%M.%S')_r$(jq -r '.version_code' firmware/profiles.json | sed 's/^r//; s/-.*//')"
         sed -i "s/^/    /; 1s/^/## $VERSION\n\n/" openwrt_bin/build_info
-        gh release list --json tagName --jq '.[].tagName' | grep "^${{ matrix.target }}_" | xargs -r gh release delete --cleanup-tag -y ||:
-        gh release create $VERSION firmware/*sysupgrade.itb --title $VERSION --notes-file openwrt_bin/build_info
-
-    - name: Upload builder container
-      run: |
-        docker_exec DK bash -c 'cd $DK_OPENWRT && rm -rf bin build_dir feeds tmp'
-        docker commit -a openwrt-fastbuild -m "Building at $(date)" DK $IMG_INC
-        docker push $IMG_INC
+        gh release list --json tagName --jq '.[].tagName' | grep "^W1700K-${{ matrix.target }}_" | xargs -r gh release delete --cleanup-tag -y ||:
+        gh release create "$VERSION" firmware/*sysupgrade.itb --title "$VERSION" --notes-file openwrt_bin/build_info
 
     - name: Delete old caches
       if: always()

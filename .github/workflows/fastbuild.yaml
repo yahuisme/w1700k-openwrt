@@ -18,7 +18,8 @@ jobs:
       DK_USER: /bld/user
       DK_PROFILE: /bld/user/current
       GH_TOKEN: ${{ github.token }}
-      IMG_INC: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ matrix.target }}-inc
+      # OCI image repository names must be lowercase; GitHub owner/repository names need not be.
+      IMG_INC: ghcr.io/${{ github.repository_owner }}/w1700k-openwrt:${{ matrix.target }}-inc
     steps:
     - uses: actions/checkout@v7
 

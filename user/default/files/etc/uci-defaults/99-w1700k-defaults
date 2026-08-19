@@ -55,7 +55,7 @@ if [ -n "$RADIO_2G" ]; then
     uci -q set wireless.${RADIO_2G}.disabled='0'
     uci -q set wireless.${RADIO_2G}.country='US'
     uci -q set wireless.${RADIO_2G}.channel='1'
-    uci -q set wireless.${RADIO_2G}.htmode='HT20'
+    uci -q set wireless.${RADIO_2G}.htmode='EHT20'
 fi
 
 
@@ -67,7 +67,7 @@ if [ -n "$RADIO_5G" ]; then
     uci -q set wireless.${RADIO_5G}.disabled='0'
     uci -q set wireless.${RADIO_5G}.country='US'
     uci -q set wireless.${RADIO_5G}.channel='36'
-    uci -q set wireless.${RADIO_5G}.htmode='HE160'
+    uci -q set wireless.${RADIO_5G}.htmode='EHT160'
 fi
 
 
@@ -108,7 +108,7 @@ if [ -n "$RADIO_2G" ]; then
     uci set wireless.${IFACE_2G}.mode='ap'
     uci set wireless.${IFACE_2G}.network='lan'
     uci set wireless.${IFACE_2G}.ssid='W1700K'
-    uci set wireless.${IFACE_2G}.encryption='psk2'
+    uci set wireless.${IFACE_2G}.encryption='psk2+ccmp'
     uci set wireless.${IFACE_2G}.key='12345678'
 
 fi
@@ -126,7 +126,7 @@ if [ -n "$RADIO_5G" ]; then
     uci set wireless.${IFACE_5G}.mode='ap'
     uci set wireless.${IFACE_5G}.network='lan'
     uci set wireless.${IFACE_5G}.ssid='W1700K'
-    uci set wireless.${IFACE_5G}.encryption='psk2'
+    uci set wireless.${IFACE_5G}.encryption='psk2+ccmp'
     uci set wireless.${IFACE_5G}.key='12345678'
 
 fi
@@ -144,7 +144,7 @@ if [ -n "$RADIO_6G" ]; then
     uci set wireless.${IFACE_6G}.mode='ap'
     uci set wireless.${IFACE_6G}.network='lan'
     uci set wireless.${IFACE_6G}.ssid='W1700K-6G'
-    uci set wireless.${IFACE_6G}.encryption='sae'
+    uci set wireless.${IFACE_6G}.encryption='sae+ccmp'
     uci set wireless.${IFACE_6G}.key='12345678'
 
 fi

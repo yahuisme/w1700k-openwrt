@@ -9,7 +9,7 @@ temp_json="/tmp/github_versions_$$.tmp"
 > "$temp_json"  # Clear the file
 
 curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
-    https://api.github.com/repos/yahuisme/W1700K-OpenWrt/releases?per_page=100 | \
+    https://api.github.com/repos/yahuisme/w1700k-openwrt/releases?per_page=100 | \
     jq -r '.[] | "\(.tag_name) \(.assets[] | select(.name == "openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb") | .browser_download_url)"' | \
 while read -r tag url; do
     if [ -z "$url" ] || [ -z "$tag" ]; then

@@ -18,7 +18,7 @@ case "$TAG" in
         ;;
 esac
 
-API_URL="https://api.github.com/repos/yahuisme/W1700K-OpenWrt/releases/tags/$TAG"
+API_URL="https://api.github.com/repos/yahuisme/w1700k-openwrt/releases/tags/$TAG"
 RELEASE_JSON="/tmp/github_release_$$.json"
 DOWNLOAD_FILE="$(mktemp /tmp/w1700k-firmware.XXXXXX)"
 DOWNLOAD_SHA="$(mktemp /tmp/w1700k-sha256.XXXXXX)"
@@ -46,7 +46,7 @@ URL="$(printf '%s' "$ASSET_JSON" | jq -r '.[0].browser_download_url')"
 ASSET_DIGEST="$(printf '%s' "$ASSET_JSON" | jq -r '.[0].digest // empty' | sed 's/^sha256://')"
 FILENAME="$(printf '%s' "$ASSET_JSON" | jq -r '.[0].name')"
 
-if ! printf '%s' "$URL" | grep -Eq '^https://github\.com/yahuisme/W1700K-OpenWrt/releases/download/[^/]+/openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade\.itb$'; then
+if ! printf '%s' "$URL" | grep -Eq '^https://github\.com/yahuisme/w1700k-openwrt/releases/download/[^/]+/openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade\.itb$'; then
     echo '{"error":"Unexpected firmware download URL"}'
     exit 0
 fi

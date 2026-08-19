@@ -1,8 +1,8 @@
-# AI 协助构建的 Quantum Fiber W1700K OpenWrt 固件
+# AI 协力构建的 Quantum Fiber W1700K OpenWrt 固件
 
 适用于 **Quantum Fiber W1700K** 路由器的定制 OpenWrt 固件构建项目。
 
-本项目基于 [W1700K OpenWrt Builds](https://github.com/w1700k/builds) Fork，在原版固件基础上加入中文 LuCI、Aurora 主题、默认无线配置及温度监控等定制功能。
+本项目基于 [W1700K OpenWrt Builds](https://github.com/w1700k/builds) Fork，在原版固件基础上加入多项定制功能。
 
 > ⚠️ **仅适用于 Quantum Fiber W1700K，请勿刷入其他型号设备。**
 

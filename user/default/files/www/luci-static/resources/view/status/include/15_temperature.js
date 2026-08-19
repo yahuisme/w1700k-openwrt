@@ -31,7 +31,7 @@ return baseclass.extend({
 
 		function temp(value) {
 			value = Number(value);
-			return isFinite(value) ? value + ' °C' : '--';
+			return isFinite(value) && value > 0 ? value + ' °C' : '--';
 		}
 
 		function color(value) {
@@ -53,7 +53,7 @@ return baseclass.extend({
 		}
 
 		function fan(d) {
-			if (d.fan_rpm == null)
+			if (d.fan_rpm == null || Number(d.fan_rpm) <= 0)
 				return '--';
 
 			return d.fan_rpm + ' RPM' +

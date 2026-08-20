@@ -500,7 +500,7 @@ return view.extend({
 
 							L.resolveDefault(callUpgradeStart(keep), {}).then((response) => {
 								// Wait 10 seconds before we try to reconnect...
-								let hosts = keep ? [] : ['192.168.1.1', 'openwrt.lan'];
+								let hosts = keep ? [] : ['192.168.8.1', 'openwrt.lan'];
 								setTimeout(() => { ui.awaitReconnect(...hosts); }, 10000);
 							});
 						}
@@ -941,7 +941,7 @@ return view.extend({
 
 					L.resolveDefault(callUpgradeStart(keep), {}).then((response) => {
 						// Wait 10 seconds before we try to reconnect...
-						let hosts = keep ? [] : ['192.168.1.1', 'openwrt.lan'];
+						let hosts = keep ? [] : ['192.168.8.1', 'openwrt.lan'];
 						setTimeout(() => { ui.awaitReconnect(...hosts); }, 10000);
 					});
 				} else {

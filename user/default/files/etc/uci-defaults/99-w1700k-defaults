@@ -29,6 +29,19 @@ uci -q set system.@system[0].hostname='W1700K'
 
 
 # ------------------------------------------------------------
+# Default LAN network
+# ------------------------------------------------------------
+
+# Default management address: 192.168.8.1/24.
+uci -q delete network.lan.ipaddr
+uci -q add_list network.lan.ipaddr='192.168.8.1/24'
+
+# Keep IPv6 Router Advertisements in hybrid mode, but do not provide DHCPv6.
+uci -q set dhcp.lan.dhcpv6='disabled'
+uci -q set dhcp.lan.ra='hybrid'
+
+
+# ------------------------------------------------------------
 # LuCI language / theme
 # ------------------------------------------------------------
 
@@ -180,6 +193,8 @@ fi
 # ------------------------------------------------------------
 
 uci commit system
+uci commit network
+uci commit dhcp
 uci commit luci
 uci commit wireless
 

@@ -56,6 +56,7 @@ if [ -n "$RADIO_2G" ]; then
     uci -q set wireless.${RADIO_2G}.country='US'
     uci -q set wireless.${RADIO_2G}.channel='1'
     uci -q set wireless.${RADIO_2G}.htmode='EHT20'
+    uci -q set wireless.${RADIO_2G}.txpower='23'
 fi
 
 
@@ -68,6 +69,7 @@ if [ -n "$RADIO_5G" ]; then
     uci -q set wireless.${RADIO_5G}.country='US'
     uci -q set wireless.${RADIO_5G}.channel='36'
     uci -q set wireless.${RADIO_5G}.htmode='EHT160'
+    uci -q set wireless.${RADIO_5G}.txpower='23'
 fi
 
 
@@ -82,6 +84,7 @@ if [ -n "$RADIO_6G" ]; then
     uci -q set wireless.${RADIO_6G}.country='US'
     uci -q set wireless.${RADIO_6G}.channel='37'
     uci -q set wireless.${RADIO_6G}.htmode='EHT320'
+    uci -q set wireless.${RADIO_6G}.txpower='23'
 fi
 
 

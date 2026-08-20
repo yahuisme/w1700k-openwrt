@@ -5,6 +5,21 @@
 # ============================================================
 
 # ------------------------------------------------------------
+# Preserve all settings during config-retaining sysupgrade
+# ------------------------------------------------------------
+# sysupgrade restores its configuration archive before uci-default scripts
+# run, and removes that archive only later in the boot sequence. Detect the
+# actual retained-config upgrade instead of relying on a project-specific
+# first-boot marker: this also protects users who arrived from another
+# firmware and have never run this script before.
+
+if [ -f /sysupgrade.tgz ] || [ -f /tmp/sysupgrade.tar ]; then
+    echo "Keeping existing configuration restored by sysupgrade."
+    exit 0
+fi
+
+
+# ------------------------------------------------------------
 # System timezone
 # ------------------------------------------------------------
 
@@ -19,25 +34,6 @@ uci -q set system.@system[0].hostname='W1700K'
 
 uci -q set luci.main.lang='zh-cn'
 uci -q set luci.main.mediaurlbase='/luci-static/aurora'
-
-
-# ------------------------------------------------------------
-# Preserve Wi-Fi settings during sysupgrade
-# ------------------------------------------------------------
-# UCI-default scripts from a new squashfs image also run after a config-
-# preserving sysupgrade. Do not recreate the W1700K default SSIDs when a
-# prior W1700K wireless configuration already exists.
-
-if uci -q get system.@system[0].w1700k_wifi_defaults >/dev/null || \
-   uci -q get wireless.wifinet2g >/dev/null || \
-   uci -q get wireless.wifinet5g >/dev/null || \
-   uci -q get wireless.wifinet6g >/dev/null
-then
-    echo "Keeping existing W1700K Wi-Fi configuration."
-    uci -q set system.@system[0].w1700k_wifi_defaults='1'
-    uci commit system
-    exit 0
-fi
 
 
 # ------------------------------------------------------------
@@ -183,7 +179,6 @@ fi
 # Commit
 # ------------------------------------------------------------
 
-uci -q set system.@system[0].w1700k_wifi_defaults='1'
 uci commit system
 uci commit luci
 uci commit wireless

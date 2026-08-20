@@ -16,7 +16,7 @@ uci -q set system.@system[0].timezone='HKT-8'
 # LuCI language / theme
 # ------------------------------------------------------------
 
-uci -q set luci.main.lang='zh_cn'
+uci -q set luci.main.lang='zh-cn'
 uci -q set luci.main.mediaurlbase='/luci-static/aurora'
 
 

@@ -44,6 +44,31 @@ echo "Aurora theme installed successfully."
 
 
 # -------------------------------------------------
+# Install Aurora theme configuration app
+# -------------------------------------------------
+
+echo "Installing Aurora theme configuration app..."
+
+rm -rf package/luci-app-aurora-config
+
+if ! git clone \
+    --depth=1 \
+    https://github.com/eamonxg/luci-app-aurora-config.git \
+    package/luci-app-aurora-config
+then
+    echo "ERROR: Failed to download Aurora theme configuration app!"
+    exit 1
+fi
+
+if [ ! -f package/luci-app-aurora-config/Makefile ]; then
+    echo "ERROR: Aurora theme configuration app was downloaded, but Makefile is missing!"
+    exit 1
+fi
+
+echo "Aurora theme configuration app installed successfully."
+
+
+# -------------------------------------------------
 # Install latest HomeProxy
 # -------------------------------------------------
 
@@ -74,8 +99,8 @@ echo "HomeProxy installed successfully."
 
 echo "Enabling Chinese language..."
 
-grep -qxF 'CONFIG_PACKAGE_luci-i18n-base-zh-cn=y' .config || \
-    echo 'CONFIG_PACKAGE_luci-i18n-base-zh-cn=y' >> .config
+grep -qxF 'CONFIG_LUCI_LANG_zh_Hans=y' .config || \
+    echo 'CONFIG_LUCI_LANG_zh_Hans=y' >> .config
 
 
 # -------------------------------------------------
@@ -86,6 +111,9 @@ echo "Enabling Aurora theme..."
 
 grep -qxF 'CONFIG_PACKAGE_luci-theme-aurora=y' .config || \
     echo 'CONFIG_PACKAGE_luci-theme-aurora=y' >> .config
+
+grep -qxF 'CONFIG_PACKAGE_luci-app-aurora-config=y' .config || \
+    echo 'CONFIG_PACKAGE_luci-app-aurora-config=y' >> .config
 
 
 # -------------------------------------------------

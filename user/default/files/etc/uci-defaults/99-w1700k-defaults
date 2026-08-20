@@ -22,7 +22,26 @@ uci -q set luci.main.mediaurlbase='/luci-static/aurora'
 
 
 # ------------------------------------------------------------
-# Find Wi-Fi radios
+# Preserve Wi-Fi settings during sysupgrade
+# ------------------------------------------------------------
+# UCI-default scripts from a new squashfs image also run after a config-
+# preserving sysupgrade. Do not recreate the W1700K default SSIDs when a
+# prior W1700K wireless configuration already exists.
+
+if uci -q get system.@system[0].w1700k_wifi_defaults >/dev/null || \
+   uci -q get wireless.wifinet2g >/dev/null || \
+   uci -q get wireless.wifinet5g >/dev/null || \
+   uci -q get wireless.wifinet6g >/dev/null
+then
+    echo "Keeping existing W1700K Wi-Fi configuration."
+    uci -q set system.@system[0].w1700k_wifi_defaults='1'
+    uci commit system
+    exit 0
+fi
+
+
+# ------------------------------------------------------------
+# Find Wi-Fi radios and create first-boot defaults
 # ------------------------------------------------------------
 
 RADIO_2G=""
@@ -164,6 +183,7 @@ fi
 # Commit
 # ------------------------------------------------------------
 
+uci -q set system.@system[0].w1700k_wifi_defaults='1'
 uci commit system
 uci commit luci
 uci commit wireless

@@ -42,9 +42,9 @@
 | 信道 | 1 | 36 | 37 |
 | 频宽 / 模式 | Wi‑Fi 7（EHT20） | Wi‑Fi 7（EHT160） | Wi‑Fi 7（EHT320） |
 | SSID | `W1700K` | `W1700K` | `W1700K-6G` |
-| 加密 | WPA2-PSK，强制 CCMP（AES） | WPA2-PSK，强制 CCMP（AES） | WPA3-SAE，强制 CCMP（AES） |
+| 加密 | WPA2-PSK | WPA2-PSK | WPA3-SAE |
 | 密码 | `12345678` | `12345678` | `12345678` |
-| 发射功率 | 23 dBm（可在 LuCI 调整） | 23 dBm（可在 LuCI 调整） | 23 dBm（可在 LuCI 调整） |
+| 发射功率 | 23 dBm | 23 dBm | 23 dBm |
 
 ---
 

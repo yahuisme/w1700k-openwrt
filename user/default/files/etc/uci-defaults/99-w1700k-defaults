@@ -10,6 +10,7 @@
 
 uci -q set system.@system[0].zonename='Asia/Hong_Kong'
 uci -q set system.@system[0].timezone='HKT-8'
+uci -q set system.@system[0].hostname='W1700K'
 
 
 # ------------------------------------------------------------

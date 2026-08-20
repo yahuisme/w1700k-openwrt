@@ -69,28 +69,43 @@ echo "Aurora theme configuration app installed successfully."
 
 
 # -------------------------------------------------
-# Install latest HomeProxy
+# Install HomeProxy and sing-box 1.14-compatible packages
 # -------------------------------------------------
+# ImmortalWrt HomeProxy master still generates legacy inbound fields that
+# sing-box 1.13+ rejects. Import the paired, 1.14-compatible packages from
+# VIKINGYFY/packages and remove the upstream sing-box recipe to avoid a
+# duplicate package definition.
 
-echo "Installing latest HomeProxy..."
+echo "Installing HomeProxy and sing-box 1.14-compatible packages..."
 
-rm -rf package/luci-app-homeproxy
+rm -rf \
+    package/luci-app-homeproxy \
+    package/sing-box \
+    feeds/packages/net/sing-box \
+    /tmp/viking-packages
 
 if ! git clone \
     --depth=1 \
-    https://github.com/immortalwrt/homeproxy.git \
-    package/luci-app-homeproxy
+    --single-branch \
+    https://github.com/VIKINGYFY/packages.git \
+    /tmp/viking-packages
 then
-    echo "ERROR: Failed to download HomeProxy!"
+    echo "ERROR: Failed to download VIKINGYFY/packages!"
     exit 1
 fi
 
-if [ ! -f package/luci-app-homeproxy/Makefile ]; then
-    echo "ERROR: HomeProxy was downloaded, but Makefile is missing!"
-    exit 1
-fi
+for package_name in luci-app-homeproxy sing-box; do
+    if [ ! -f "/tmp/viking-packages/$package_name/Makefile" ]; then
+        echo "ERROR: $package_name is missing from VIKINGYFY/packages!"
+        exit 1
+    fi
 
-echo "HomeProxy installed successfully."
+    cp -a "/tmp/viking-packages/$package_name" "package/$package_name"
+done
+
+rm -rf /tmp/viking-packages
+
+echo "HomeProxy and sing-box 1.14-compatible packages installed successfully."
 
 
 # -------------------------------------------------

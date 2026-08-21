@@ -108,7 +108,8 @@ jobs:
         - 机型：Quantum Fiber / Gemtek W1700K
         - 固件分支：\`ubi2\`
         - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
-        - 上游源码：https://github.com/w1700k/builds
+        - 固件源码：https://github.com/OpenWRT-fanboy/OpenW1700k
+        - 构建项目：https://github.com/w1700k/builds
         - 本 Release 仅包含 \`sysupgrade.itb\` 升级镜像。
 
         请确认设备为 W1700K，并在刷写前备份当前配置。
@@ -122,7 +123,8 @@ jobs:
         - 机型：Quantum Fiber / Gemtek W1700K
         - 固件分支：\`ubi2-oc\`
         - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
-        - 上游源码：https://github.com/w1700k/builds
+        - 固件源码：https://github.com/OpenWRT-fanboy/OpenW1700k
+        - 构建项目：https://github.com/w1700k/builds
         - 本 Release 仅包含 \`sysupgrade.itb\` 升级镜像。
 
         超频版本可能增加发热及功耗；如无明确需求，请下载 **ubi2 标准版**。刷写前请确认设备为 W1700K，并备份当前配置。

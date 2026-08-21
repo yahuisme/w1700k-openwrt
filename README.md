@@ -12,7 +12,7 @@
 
 - 🌐 CN LuCI 默认中文
 - 🎨 内置 Aurora LuCI 主题为默认主题
-- 🚀 内置 Momo 透明代理应用（默认禁用）
+- 🚀 内置 Momo 透明代理应用
 - 🕐 系统时区：香港（UTC+8）
 - 📡 默认开启 2.4 GHz / 5 GHz Wi-Fi
 - 📡 默认不开启 6 GHz Wi-Fi

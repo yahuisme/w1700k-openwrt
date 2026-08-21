@@ -69,21 +69,18 @@ echo "Aurora theme configuration app installed successfully."
 
 
 # -------------------------------------------------
-# Install Momo and its compatible sing-box core
+# Install Momo
 # -------------------------------------------------
-# Momo is shipped disabled by default. Import only its two application
-# packages plus the paired sing-box recipe needed by Momo's >= 1.12 core
-# requirement; remove any pre-existing sing-box recipe to avoid duplicates.
+# The upstream OpenWrt packages feed supplies sing-box. Import only Momo's
+# application packages and let its declared dependency select that upstream
+# core, avoiding a second third-party sing-box recipe.
 
-echo "Installing Momo and compatible sing-box packages..."
+echo "Installing Momo..."
 
 rm -rf \
     package/momo \
     package/luci-app-momo \
-    package/sing-box \
-    feeds/packages/net/sing-box \
-    /tmp/openwrt-momo \
-    /tmp/viking-packages
+    /tmp/openwrt-momo
 
 if ! git clone \
     --depth=1 \
@@ -104,25 +101,9 @@ for package_name in momo luci-app-momo; do
     cp -a "/tmp/openwrt-momo/$package_name" "package/$package_name"
 done
 
-if ! git clone \
-    --depth=1 \
-    --single-branch \
-    https://github.com/VIKINGYFY/packages.git \
-    /tmp/viking-packages
-then
-    echo "ERROR: Failed to download VIKINGYFY/packages!"
-    exit 1
-fi
+rm -rf /tmp/openwrt-momo
 
-if [ ! -f /tmp/viking-packages/sing-box/Makefile ]; then
-    echo "ERROR: sing-box is missing from VIKINGYFY/packages!"
-    exit 1
-fi
-
-cp -a /tmp/viking-packages/sing-box package/sing-box
-rm -rf /tmp/openwrt-momo /tmp/viking-packages
-
-echo "Momo and compatible sing-box packages installed successfully."
+echo "Momo installed successfully; sing-box comes from the upstream packages feed."
 
 
 # -------------------------------------------------

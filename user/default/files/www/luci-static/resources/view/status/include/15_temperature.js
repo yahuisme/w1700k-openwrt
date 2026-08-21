@@ -62,19 +62,17 @@ return baseclass.extend({
 					: '');
 		}
 
-		function valueNode(value) {
+		function valueBox(text, tone) {
 			return E('div', {
 				'style':
 					'font-size:20px;' +
 					'line-height:1.2;' +
 					'white-space:nowrap;' +
-					(color(value)
-						? 'color:' + color(value) + ';'
-						: '')
-			}, temp(value));
+					(tone ? 'color:' + tone + ';' : '')
+			}, text);
 		}
 
-		function card(label, valueNode) {
+		function card(label, body) {
 			return E('div', {
 				'style':
 					'padding:14px 12px;' +
@@ -91,7 +89,7 @@ return baseclass.extend({
 						'white-space:nowrap;'
 				}, label),
 
-				valueNode
+				body
 			]);
 		}
 
@@ -106,19 +104,14 @@ return baseclass.extend({
 		sensors.forEach(function(sensor) {
 			var key = sensor[1];
 
-			nodes[key] = valueNode(data[key]);
+			nodes[key] = valueBox(temp(data[key]), color(data[key]));
 
 			root.appendChild(
 				card(sensor[0], nodes[key])
 			);
 		});
 
-		nodes.fan = E('div', {
-			'style':
-				'font-size:20px;' +
-				'line-height:1.2;' +
-				'white-space:nowrap;'
-		}, fan(data));
+		nodes.fan = valueBox(fan(data), '');
 
 		root.appendChild(
 			card('风扇', nodes.fan)

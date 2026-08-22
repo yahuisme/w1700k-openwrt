@@ -69,41 +69,43 @@ echo "Aurora theme configuration app installed successfully."
 
 
 # -------------------------------------------------
-# Install Momo
+# Install HomeProxy and sing-box 1.14-compatible packages
 # -------------------------------------------------
-# The upstream OpenWrt packages feed supplies sing-box. Import only Momo's
-# application packages and let its declared dependency select that upstream
-# core, avoiding a second third-party sing-box recipe.
+# ImmortalWrt HomeProxy master still generates legacy inbound fields that
+# sing-box 1.13+ rejects. Import the paired, 1.14-compatible packages from
+# VIKINGYFY/packages and remove the upstream sing-box recipe to avoid a
+# duplicate package definition.
 
-echo "Installing Momo..."
+echo "Installing HomeProxy and sing-box 1.14-compatible packages..."
 
 rm -rf \
-    package/momo \
-    package/luci-app-momo \
-    /tmp/openwrt-momo
+    package/luci-app-homeproxy \
+    package/sing-box \
+    feeds/packages/net/sing-box \
+    /tmp/viking-packages
 
 if ! git clone \
     --depth=1 \
     --single-branch \
-    https://github.com/nikkinikki-org/OpenWrt-momo.git \
-    /tmp/openwrt-momo
+    https://github.com/VIKINGYFY/packages.git \
+    /tmp/viking-packages
 then
-    echo "ERROR: Failed to download OpenWrt-momo!"
+    echo "ERROR: Failed to download VIKINGYFY/packages!"
     exit 1
 fi
 
-for package_name in momo luci-app-momo; do
-    if [ ! -f "/tmp/openwrt-momo/$package_name/Makefile" ]; then
-        echo "ERROR: $package_name is missing from OpenWrt-momo!"
+for package_name in luci-app-homeproxy sing-box; do
+    if [ ! -f "/tmp/viking-packages/$package_name/Makefile" ]; then
+        echo "ERROR: $package_name is missing from VIKINGYFY/packages!"
         exit 1
     fi
 
-    cp -a "/tmp/openwrt-momo/$package_name" "package/$package_name"
+    cp -a "/tmp/viking-packages/$package_name" "package/$package_name"
 done
 
-rm -rf /tmp/openwrt-momo
+rm -rf /tmp/viking-packages
 
-echo "Momo installed successfully; sing-box comes from the upstream packages feed."
+echo "HomeProxy and sing-box 1.14-compatible packages installed successfully."
 
 
 # -------------------------------------------------

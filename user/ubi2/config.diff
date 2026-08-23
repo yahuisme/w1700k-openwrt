@@ -38,6 +38,8 @@ CONFIG_OPENSSL_WITH_SRP=y
 CONFIG_OPENSSL_WITH_TLS13=y
 CONFIG_OPENSSL_WITH_WHIRLPOOL=y
 CONFIG_PACKAGE_airoha-en7581-npu-firmware=m
+CONFIG_PACKAGE_kmod-br-netfilter=y
+CONFIG_PACKAGE_kmod-tcp-bbr=y
 # CONFIG_PACKAGE_apk-mbedtls is not set
 CONFIG_PACKAGE_apk-openssl=y
 CONFIG_PACKAGE_attendedsysupgrade-common=y

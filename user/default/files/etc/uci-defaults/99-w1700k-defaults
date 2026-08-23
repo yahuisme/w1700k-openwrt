@@ -61,8 +61,8 @@ mkdir -p /etc/sysctl.d
 printf '%s\n' \
     'net.bridge.bridge-nf-filter-vlan-tagged=1' \
     'net.bridge.bridge-nf-filter-pppoe-tagged=1' \
-    > /etc/sysctl.d/15-bridge-offload.conf
-sysctl -p /etc/sysctl.d/15-bridge-offload.conf >/dev/null 2>&1 || true
+    > /etc/sysctl.d/10-bridge-offload.conf
+sysctl -p /etc/sysctl.d/10-bridge-offload.conf >/dev/null 2>&1 || true
 
 
 # ------------------------------------------------------------

@@ -48,6 +48,9 @@ uci -q set dhcp.lan.ra='hybrid'
 uci -q set luci.main.lang='zh-cn'
 uci -q set luci.main.mediaurlbase='/luci-static/aurora'
 
+# Do not show the upstream Attended Sysupgrade check prompt on the overview page.
+uci -q set attendedsysupgrade.client.login_check_for_upgrades='0'
+
 
 # ------------------------------------------------------------
 # Find Wi-Fi radios and create first-boot defaults
@@ -196,6 +199,7 @@ uci commit system
 uci commit network
 uci commit dhcp
 uci commit luci
+uci commit attendedsysupgrade
 uci commit wireless
 
 

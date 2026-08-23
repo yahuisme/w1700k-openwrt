@@ -74,7 +74,7 @@ if ! curl --fail --silent --show-error --location --connect-timeout 10 --max-tim
 fi
 
 ACTUAL_SHA256="$(sha256sum "$DOWNLOAD_FILE" | awk '{print $1}')"
-if [ "${ACTUAL_SHA256,,}" != "${EXPECTED_SHA256,,}" ]; then
+if [ "$(printf '%s' "$ACTUAL_SHA256" | tr 'A-F' 'a-f')" != "$(printf '%s' "$EXPECTED_SHA256" | tr 'A-F' 'a-f')" ]; then
     echo '{"error":"Firmware SHA256 verification failed"}'
     exit 0
 fi

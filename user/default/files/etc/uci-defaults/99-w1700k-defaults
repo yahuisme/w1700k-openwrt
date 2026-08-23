@@ -55,6 +55,15 @@ uci -q set attendedsysupgrade.client.login_check_for_upgrades='0'
 uci -q set firewall.@defaults[0].flow_offloading='1'
 uci -q set firewall.@defaults[0].flow_offloading_hw='1'
 
+# Enable bridge netfilter offload controls for VLAN and PPPoE by default.
+modprobe br_netfilter 2>/dev/null || true
+mkdir -p /etc/sysctl.d
+printf '%s\n' \
+    'net.bridge.bridge-nf-filter-vlan-tagged=1' \
+    'net.bridge.bridge-nf-filter-pppoe-tagged=1' \
+    > /etc/sysctl.d/15-bridge-offload.conf
+sysctl -p /etc/sysctl.d/15-bridge-offload.conf >/dev/null 2>&1 || true
+
 
 # ------------------------------------------------------------
 # Find Wi-Fi radios and create first-boot defaults

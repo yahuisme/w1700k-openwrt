@@ -51,6 +51,10 @@ uci -q set luci.main.mediaurlbase='/luci-static/aurora'
 # Do not show the upstream Attended Sysupgrade check prompt on the overview page.
 uci -q set attendedsysupgrade.client.login_check_for_upgrades='0'
 
+# Enable software and hardware flow offloading by default for the PPPoE router.
+uci -q set firewall.@defaults[0].flow_offloading='1'
+uci -q set firewall.@defaults[0].flow_offloading_hw='1'
+
 
 # ------------------------------------------------------------
 # Find Wi-Fi radios and create first-boot defaults
@@ -200,6 +204,7 @@ uci commit network
 uci commit dhcp
 uci commit luci
 uci commit attendedsysupgrade
+uci commit firewall
 uci commit wireless
 
 

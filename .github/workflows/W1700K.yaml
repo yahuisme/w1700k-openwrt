@@ -45,7 +45,7 @@ jobs:
         echo 'CONFIG_CCACHE_DIR="/ghcache"' >> user/current/config.diff
         sudo tee /etc/docker/daemon.json <<< '{"max-concurrent-downloads":50,"max-concurrent-uploads":50,"experimental":true}'
         sudo systemctl reload docker
-        IMAGE=ghcr.io/w1700k/fastbuild_base:base-builder
+        IMAGE=ghcr.io/w1700k/fastbuild_base:base-builder-${{ matrix.target }}
         docker pull $IMAGE
         docker run -dt --name DK -v $PWD/user:$DK_USER -v $PWD/openwrt_bin:$DK_BIN -v $PWD/ghcache:/ghcache -v $PWD/stcache:/stcache -v $PWD/dlcache:/dlcache $IMAGE
         install -m 755 /dev/stdin /usr/local/bin/docker_exec <<'DKR'

@@ -1,11 +1,11 @@
-name: fastbuild ubi2-oc, ubi2, snapshot
+name: fastbuild ubi2-oc, ubi2
 on: workflow_dispatch
 permissions: write-all
 jobs:
   build:
     name: Build ${{ matrix.target }}
     runs-on: ubuntu-24.04-arm
-    strategy: {fail-fast: false, matrix: {target: [ubi2-oc, ubi2, SNAPSHOT]}}
+    strategy: {fail-fast: false, matrix: {target: [ubi2-oc, ubi2]}}
     env:
       DK_OPENWRT: /bld/openwrt
       DK_BIN: /bld/openwrt_bin
@@ -43,7 +43,7 @@ jobs:
         echo 'CONFIG_CCACHE_DIR="/ghcache"' >> user/current/config.diff
         sudo tee /etc/docker/daemon.json <<< '{"max-concurrent-downloads":50,"max-concurrent-uploads":50,"experimental":true}'
         sudo systemctl reload docker
-        IMAGE=$IMG_INC; docker pull $IMAGE 2>&- || IMAGE=ghcr.io/w1700k/fastbuild_base:base-builder
+        IMAGE=$IMG_INC; docker pull $IMAGE 2>&- || IMAGE=ghcr.io/w1700k/fastbuild_base:base-builder-${{ matrix.target }}
         docker run -dt --name DK -v $PWD/user:$DK_USER -v $PWD/openwrt_bin:$DK_BIN -v $PWD/ghcache:/ghcache -v $PWD/stcache:/stcache -v $PWD/dlcache:/dlcache $IMAGE
         install -m 755 /dev/stdin /usr/local/bin/docker_exec <<'DKR'
         #!/bin/bash

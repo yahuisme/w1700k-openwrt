@@ -69,6 +69,39 @@ echo "Aurora theme configuration app installed successfully."
 
 
 # -------------------------------------------------
+# Add Chinese translations for Airoha LuCI apps
+# -------------------------------------------------
+
+echo "Installing Chinese translations for Airoha LuCI apps..."
+
+translation_targets=(
+    "luci-app-airoha-flowsense|package/luci-app-airoha-flowsense"
+    "luci-app-airoha-npu|package/luci-app-airoha-npu"
+    "luci-app-w1700k-fancontrol|package/luci-app-w1700k-fancontrol"
+)
+
+for translation_target in "${translation_targets[@]}"; do
+    package_name="${translation_target%%|*}"
+    target="${translation_target#*|}"
+    translation="files/po/zh_Hans/${package_name}.po"
+
+    if [ ! -d "$target" ]; then
+        echo "ERROR: Translation target package is missing: $target"
+        exit 1
+    fi
+    if [ ! -f "$translation" ]; then
+        echo "ERROR: Translation file is missing: $translation"
+        exit 1
+    fi
+
+    mkdir -p "$target/po/zh_Hans"
+    cp -f "$translation" "$target/po/zh_Hans/${package_name}.po"
+done
+
+echo "Airoha LuCI translations installed successfully."
+
+
+# -------------------------------------------------
 # Enable Chinese language
 # -------------------------------------------------
 

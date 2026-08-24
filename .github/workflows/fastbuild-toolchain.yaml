@@ -1,7 +1,5 @@
 name: Prepare fastbuild toolchain
 on:
-  schedule:
-    -   cron: '42 21 * * *'
   workflow_dispatch:
 permissions: write-all
 jobs:

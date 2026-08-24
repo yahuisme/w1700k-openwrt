@@ -1,7 +1,5 @@
 name: Prepare fastbuild base image
 on:
-  schedule:
-    -   cron: '42 09 * * *'
   workflow_dispatch:
 permissions: write-all
 jobs:

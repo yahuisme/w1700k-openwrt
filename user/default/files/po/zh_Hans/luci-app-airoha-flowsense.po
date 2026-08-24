@@ -215,9 +215,6 @@ msgid "HW offload is enabled but ISP latency is high. Latency management may be 
 msgstr "硬件加速已启用，但 ISP 延迟较高。延迟管理可能被硬件加速跳过。"
 
 # Band health
-msgid "No clients"
-msgstr "无客户端"
-
 msgid "Drop:"
 msgstr "丢包："
 
@@ -276,3 +273,11 @@ msgstr "错误"
 
 msgid "ERRORS"
 msgstr "错误"
+msgid "NPU Path ACTIVE"
+msgstr "NPU 路径 活动"
+
+msgid "Integrity CLEAN"
+msgstr "完整性 正常"
+
+msgid "HW Buffer HEALTHY"
+msgstr "硬件缓冲 健康"

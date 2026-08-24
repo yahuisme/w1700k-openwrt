@@ -228,4 +228,65 @@ msgstr "WiFi 重启可能需要 60–180 秒，请勿断电"
 
 msgid "Country code changed to "
 msgstr "国家/地区代码已更改为 "
+msgid "SKU regulation inactive -- "
+msgstr "SKU 监管未启用 —— "
 
+msgid "Transmitting without country power limits (up to 27 dBm). Set country + sku_idx on the Radio tab."
+msgstr "当前发射未受国家/地区功率限制（最高 27 dBm）。请在“无线电”选项卡设置 country 和 sku_idx。"
+
+msgid "NOT RUNNING"
+msgstr "未运行"
+
+msgid "MLD SSID, password and encryption are stored in ap_mld_1 UCI section. PMF (ieee80211w=2) is mandatory for MLD and enforced automatically."
+msgstr "MLD SSID、密码和加密方式存储在 ap_mld_1 UCI 区段中。MLD 强制要求 PMF（ieee80211w=2）。"
+
+msgid "required (=2) -- enforced for MLD"
+msgstr "必需（=2）——MLD 强制启用"
+
+msgid "mlo=0 -- disabled"
+msgstr "mlo=0 —— 已禁用"
+
+msgid "Enable MLO (switch to multi-link)"
+msgstr "启用 MLO（切换到多链路）"
+
+msgid "Disable MLO (switch to single-band)"
+msgstr "禁用 MLO（切换到单频段）"
+
+msgid "Country and sku_idx must always be written together and apply to all 3 radios. Country change requires a full reboot -- wifi restart is not sufficient."
+msgstr "country 和 sku_idx 必须始终同时写入，并应用到全部 3 个无线电。更改国家/地区需要完整重启，仅重启 WiFi 不够。"
+
+msgid "skip channel survey -- disabling may cause slow restart (2-3 min) and channel width reduction"
+msgstr "跳过信道扫描——禁用后可能导致重启缓慢（2–3 分钟）并降低信道宽度"
+
+msgid "TWT -- IoT power saving (default: on)"
+msgstr "TWT —— IoT 省电（默认：开启）"
+
+msgid "do not broadcast SSID"
+msgstr "不广播 SSID"
+
+msgid "prevent clients from talking to each other"
+msgstr "禁止客户端互相通信"
+
+msgid "max stations per BSS"
+msgstr "每个 BSS 的最大客户端数"
+
+msgid "required for 802.11n/ac/ax/be"
+msgstr "802.11n/ac/ax/be 必需"
+
+msgid "disables this interface only"
+msgstr "仅禁用此接口"
+
+msgid "Legacy networks are independent from MLD. Open networks disable EHT (WiFi 7). Open on 6 GHz is rejected by hostapd."
+msgstr "传统网络独立于 MLD。开放网络会禁用 EHT（WiFi 7）。6 GHz 不允许使用开放网络，hostapd 会拒绝。"
+
+msgid "dBm  (1-"
+msgstr "dBm（1-"
+
+msgid "0 = default regulation table"
+msgstr "0 = 默认监管表"
+
+msgid "Written to radio0 + radio1 + radio2 simultaneously"
+msgstr "同时写入 radio0、radio1 和 radio2"
+
+msgid "Note"
+msgstr "说明"

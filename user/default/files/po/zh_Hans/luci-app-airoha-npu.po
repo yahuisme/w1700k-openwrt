@@ -273,3 +273,35 @@ msgstr "类型"
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:421
 msgid "Unbound:"
 msgstr "未绑定："
+msgid "Direct PLL. Stock max 1200 MHz. Stable up to 1500 MHz."
+msgstr "直接 PLL。原厂最高 1200 MHz，稳定支持最高 1500 MHz。"
+
+msgid "Internal Switch (1G LAN3/4)"
+msgstr "内部交换机（1G LAN3/4）"
+
+msgid "Manages: "
+msgstr "管理："
+
+msgid "PPE init, WDMA rings, flow stats"
+msgstr "PPE 初始化、WDMA 环、流量统计"
+
+msgid "HW Offload:"
+msgstr "硬件加速："
+
+msgid "CPU DMA 1"
+msgstr "CPU DMA 1"
+
+msgid "Switch 1G"
+msgstr "1G 交换机"
+
+msgid "WAN (USXGMII 10G)"
+msgstr "WAN（USXGMII 10G）"
+
+msgid "LAN2 (USXGMII 10G)"
+msgstr "LAN2（USXGMII 10G）"
+
+msgid "CPU set to "
+msgstr "CPU 设置为 "
+
+msgid "Error: "
+msgstr "错误："

@@ -1,5 +1,23 @@
 --- a/htdocs/luci-static/resources/view/wifi7/index.js
 +++ b/htdocs/luci-static/resources/view/wifi7/index.js
+@@ -79,12 +79,12 @@
+     var style = skuOff   ? 'background:#3a0a0a;border:1px solid #e24b4a;color:#f4a0a0'
+               : partial  ? 'background:#2a1a00;border:1px solid #f5a623;color:#fac775'
+               :            'background:#0a2a0a;border:1px solid #1d9e75;color:#7fff7f';
+-    var label = skuOff  ? 'SKU regulation inactive -- '
+-              : partial ? 'SKU partially configured -- '
++    var label = skuOff  ? _('SKU regulation inactive -- ')
++              : partial ? _('SKU partially configured -- ')
+               :           'SKU regulation active -- ';
+-    var msg   = skuOff  ? 'Transmitting without country power limits (up to 27 dBm). Set country + sku_idx on the Radio tab.'
+-              : partial ? 'sku_disable=0 but sku_idx not set. TX power limits may not be applied. Set sku_idx on the Radio tab.'
+-              :           'TX power limited by country + sku_idx=' + skuIdx + ' regulatory table.';
++    var msg   = skuOff  ? _('Transmitting without country power limits (up to 27 dBm). Set country + sku_idx on the Radio tab.')
++              : partial ? _('sku_disable=0 but sku_idx not set. TX power limits may not be applied. Set sku_idx on the Radio tab.')
++              :           _('TX power limited by country + sku_idx=') + skuIdx + ' regulatory table.';
+     return E('div', { 'style': 'border-radius:6px;padding:9px 13px;margin-bottom:14px;' + style }, [
+         E('strong', {}, label), msg
+     ]);
 @@ -417,12 +417,12 @@
          var self = this;
  
@@ -37,6 +55,15 @@
                  ]));
              }
          });
+@@ -606,7 +606,7 @@
+             E('div', { 'style': 'font-size:12px;margin-bottom:14px;color:#aaa' }, [
+                 'hostapd ap-mld-1: ',
+                 E('strong', { 'style': 'color:' + (hapdOK ? '#1d9e75' : '#e24b4a') },
+-                    hapdOK ? 'ENABLED' : 'NOT RUNNING'),
++                    hapdOK ? 'ENABLED' : _('NOT RUNNING')),
+                 mldNets.length > 1
+                     ? E('span', { 'style': 'margin-left:12px;color:#888' },
+                         mldNets.length + ' MLD networks configured')
 @@ -619,11 +619,11 @@
              E('div', { 'style':
                  'background:#16213e;padding:7px 12px;' +
@@ -135,8 +162,12 @@
                              applyBtn.disabled   = false;
                              discardBtn.disabled = false;
                              setTimeout(function() {
-@@ -801,9 +801,9 @@
-             infoBanner('MLD SSID, password and encryption are stored in ap_mld_1 UCI section. PMF (ieee80211w=2) is mandatory for MLD and enforced automatically.'),
+@@ -798,21 +798,21 @@
+         });
+ 
+         return E('div', {}, [
+-            infoBanner('MLD SSID, password and encryption are stored in ap_mld_1 UCI section. PMF (ieee80211w=2) is mandatory for MLD and enforced automatically.'),
++            infoBanner(_('MLD SSID, password and encryption are stored in ap_mld_1 UCI section. PMF (ieee80211w=2) is mandatory for MLD and enforced automatically.')),
              sectionBox('ap_mld_1 -- network configuration', '#1d9e75', null,
                  E('div', {}, [
 -                    fieldRow('SSID',             ssidInput),
@@ -146,8 +177,28 @@
 +                    fieldRow(_('Password'),         keyWrapMld),
 +                    fieldRow(_('Encryption'),       encSel),
                      fieldRow('RSNO layer',       rsnoSel),
-                     fieldRow('PMF (ieee80211w)', roValue('required (=2) -- enforced for MLD')),
+-                    fieldRow('PMF (ieee80211w)', roValue('required (=2) -- enforced for MLD')),
++                    fieldRow(_('PMF (ieee80211w)'), roValue(_('required (=2) -- enforced for MLD'))),
                      fieldRow('MLO', (function() {
+                         var mloOn = (uciData[mldSID] && uciData[mldSID]['mlo'] !== '0');
+                         var mloBtn = E('button', { 'style':
+                             mloOn
+                                 ? 'background:#3a0a0a;color:#f4a0a0;border:1px solid #e24b4a;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer'
+                                 : 'background:#0a2a0a;color:#7fff7f;border:1px solid #1d9e75;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer' },
+-                            mloOn ? 'Disable MLO (switch to single-band)' : 'Enable MLO (switch to multi-link)');
++                            mloOn ? _('Disable MLO (switch to single-band)') : _('Enable MLO (switch to multi-link)'));
+                         mloBtn.addEventListener('click', function() {
+                             if (!confirm(
+                                 mloOn
+@@ -836,7 +836,7 @@
+                             });
+                         });
+                         var wrap = E('div', { 'style': 'display:flex;align-items:center;gap:10px' }, [
+-                            roValue((mloOn ? 'mlo=1 -- enabled' : 'mlo=0 -- disabled') + '  (reboot required to change)'), 
++                            roValue((mloOn ? _('mlo=1 -- enabled') : _('mlo=0 -- disabled')) + '  (reboot required to change)'), 
+                             mloBtn
+                         ]);
+                         return wrap;
 @@ -845,20 +845,20 @@
              (function() {
                  var mloOn = (uciData[mldSID] && uciData[mldSID]['mlo'] !== '0');
@@ -245,6 +296,15 @@
                          fieldRow('Radios',     radioWrap),
                          fieldRow('PMF',        roValue('required (=2) -- enforced for MLD')),
                          fieldRow('Network',    roValue('lan (default)')),
+@@ -1090,7 +1090,7 @@
+             var inp=E('input',{'type':'number','min':'1','max':String(maxDbm),'value':cur||'','placeholder':'auto',
+                 'style':'background:#1a1a2e;border:1px solid #444;border-radius:4px;color:#fff;padding:4px 8px;font-size:12px;width:80px'});
+             var wrap=E('div',{'style':'display:flex;align-items:center;gap:8px'},[inp,
+-                E('span',{'style':'font-size:11px;color:#666'},'dBm  (1-'+maxDbm+', empty = regulatory max)')]);
++                E('span',{'style':'font-size:11px;color:#666'},_('dBm  (1-'+maxDbm+', empty = regulatory max)'))]);
+             wrap._inp=inp; return wrap;
+         }
+         var r0ch=mkSel(ch2g,r0['channel']||'auto'), r0ht=mkSel(ht2g,r0['htmode']||'EHT40');
 @@ -1141,15 +1141,15 @@
          var callUciCommit=rpc.declare({object:'uci',method:'commit',params:['config'],expect:{}});
          var progressDiv=E('div',{'style':'display:none;margin-top:12px'},[
@@ -295,17 +355,21 @@
                              applyBtn.disabled=false;discardBtn.disabled=false;
                              setTimeout(function(){progressDiv.style.display='none';pbar.style.width='0%';},2000);
                          } else if(tries>=maxTries){pstat.textContent='Timeout! Try: 1) reboot   2) power cycle';
-@@ -1228,39 +1228,39 @@
+@@ -1227,42 +1227,42 @@
+             });
          });
          return E('div',{},[
-             warnBanner('Country and sku_idx must always be written together and apply to all 3 radios. Country change requires a full reboot -- wifi restart is not sufficient.'),
+-            warnBanner('Country and sku_idx must always be written together and apply to all 3 radios. Country change requires a full reboot -- wifi restart is not sufficient.'),
 -            sectionBox('Global -- country & SKU','#f5a623',null,E('div',{},[
 -                fieldRow('Country code',countrySel),
++            warnBanner(_('Country and sku_idx must always be written together and apply to all 3 radios. Country change requires a full reboot -- wifi restart is not sufficient.')),
 +            sectionBox(_('Global -- country & SKU'),'#f5a623',null,E('div',{},[
 +                fieldRow(_('Country code'),countrySel),
                  fieldRow('sku_idx',E('div',{'style':'display:flex;align-items:center;gap:10px'},[skuInput,
-                     E('span',{'style':'font-size:11px;color:#888'},'0 = default regulation table')])),
-                 fieldRow('Note',roValue('Written to radio0 + radio1 + radio2 simultaneously'))
+-                    E('span',{'style':'font-size:11px;color:#888'},'0 = default regulation table')])),
+-                fieldRow('Note',roValue('Written to radio0 + radio1 + radio2 simultaneously'))
++                    E('span',{'style':'font-size:11px;color:#888'},_('0 = default regulation table'))])),
++                fieldRow(_('Note'),roValue(_('Written to radio0 + radio1 + radio2 simultaneously')))
              ])),
              radioCard('2.4 GHz -- radio0','#0a2a1a','#5dcaa5',[
 -                fieldRow('Channel',E('div',{'style':'display:flex;align-items:center;gap:8px'},[
@@ -317,9 +381,10 @@
                          : E('span',{},'')])),
 -                fieldRow('HT mode',r0ht),fieldRow('TX power',r0txp),
 -                chkRow('Disabled',r0dis,''),chkRow('noscan',r0noscan,'skip channel survey -- disabling may cause slow restart (2-3 min) and channel width reduction'),
+-                chkRow('he_twt_responder',r0twt,'TWT -- IoT power saving (default: on)'),
 +                fieldRow(_('HT mode'),r0ht),fieldRow(_('TX power'),r0txp),
-+                chkRow(_('Disabled'),r0dis,''),chkRow('noscan',r0noscan,'skip channel survey -- disabling may cause slow restart (2-3 min) and channel width reduction'),
-                 chkRow('he_twt_responder',r0twt,'TWT -- IoT power saving (default: on)'),
++                chkRow(_('Disabled'),r0dis,''),chkRow('noscan',r0noscan,_('skip channel survey -- disabling may cause slow restart (2-3 min) and channel width reduction')),
++                chkRow('he_twt_responder',r0twt,_('TWT -- IoT power saving (default: on)')),
                  chkRow('legacy_rates',r0legacy,'2.4G legacy rate support (default: on)')]),
              radioCard('5 GHz -- radio1','#0a1a3a','#85b7eb',[
 -                fieldRow('Channel',E('div',{'style':'display:flex;align-items:center;gap:8px'},[
@@ -331,21 +396,28 @@
                          : E('span',{},'')])),
 -                fieldRow('HT mode',r1ht),fieldRow('TX power',r1txp),
 -                chkRow('Disabled',r1dis,''),chkRow('background_radar',r1bgr,'CAC in background -- keeps AP up during DFS'),
+-                chkRow('he_twt_responder',r1twt,'TWT -- IoT power saving (default: on)')]),
 +                fieldRow(_('HT mode'),r1ht),fieldRow(_('TX power'),r1txp),
-+                chkRow(_('Disabled'),r1dis,''),chkRow('background_radar',r1bgr,'CAC in background -- keeps AP up during DFS'),
-                 chkRow('he_twt_responder',r1twt,'TWT -- IoT power saving (default: on)')]),
++                chkRow(_('Disabled'),r1dis,''),chkRow('background_radar',r1bgr,_('CAC in background -- keeps AP up during DFS')),
++                chkRow('he_twt_responder',r1twt,_('TWT -- IoT power saving (default: on)'))]),
              radioCard('6 GHz -- radio2','#1a0a3a','#afa9ec',[
 -                fieldRow('Channel',r2ch),fieldRow('HT mode',r2ht),fieldRow('TX power',r2txp),
 -                chkRow('Disabled',r2dis,''),chkRow('lpi_enable',r2lpi,'Low Power Indoor -- required in some countries'),
-+                fieldRow(_('Channel'),r2ch),fieldRow(_('HT mode'),r2ht),fieldRow(_('TX power'),r2txp),
-+                chkRow(_('Disabled'),r2dis,''),chkRow('lpi_enable',r2lpi,'Low Power Indoor -- required in some countries'),
-                 chkRow('noscan',r2noscan,'6G: normally 0 (PSC channels) -- disabling may cause slow restart'),
-                 chkRow('he_twt_responder',r2twt,'TWT -- IoT power saving (default: on)')]),
+-                chkRow('noscan',r2noscan,'6G: normally 0 (PSC channels) -- disabling may cause slow restart'),
+-                chkRow('he_twt_responder',r2twt,'TWT -- IoT power saving (default: on)')]),
 -            sectionBox('Advanced -- shared (single wiphy)','#444',null,E('div',{},[
+-                chkRow('sr_enable',srEnable,'Spatial Reuse / BSS Coloring (default: on)'),
+-                chkRow('etxbfen',etxbfen,'Explicit TX beamforming (default: on)'),
++                fieldRow(_('Channel'),r2ch),fieldRow(_('HT mode'),r2ht),fieldRow(_('TX power'),r2txp),
++                chkRow(_('Disabled'),r2dis,''),chkRow('lpi_enable',r2lpi,_('Low Power Indoor -- required in some countries')),
++                chkRow('noscan',r2noscan,_('6G: normally 0 (PSC channels) -- disabling may cause slow restart')),
++                chkRow('he_twt_responder',r2twt,_('TWT -- IoT power saving (default: on)'))]),
 +            sectionBox(_('Advanced -- shared (single wiphy)'),'#444',null,E('div',{},[
-                 chkRow('sr_enable',srEnable,'Spatial Reuse / BSS Coloring (default: on)'),
-                 chkRow('etxbfen',etxbfen,'Explicit TX beamforming (default: on)'),
++                chkRow('sr_enable',srEnable,_('Spatial Reuse / BSS Coloring (default: on)')),
++                chkRow('etxbfen',etxbfen,_('Explicit TX beamforming (default: on)')),
                  fieldRow('Note',roValue('sr_enable + etxbfen apply to all bands via single wiphy (phy0)'))
+             ])),
+             E('div',{'style':'display:flex;justify-content:flex-end;margin-top:4px'},[discardBtn,applyBtn]),
 @@ -1336,10 +1336,10 @@
                  'style': inputStyle });
              var newKeyToggle = E('button', { 'style':
@@ -496,7 +568,7 @@
                          // Remove card from DOM
                          var card = removeBtn.closest ? removeBtn.closest('.net-card') : null;
                          if (card) card.parentNode.removeChild(card);
-@@ -1683,19 +1683,19 @@
+@@ -1683,21 +1683,21 @@
                  maxassocClear.addEventListener('click', function() { maxassocInp.value = ''; });
  
                  var bodyRows = [
@@ -507,22 +579,38 @@
                      keyWrap,
 -                    fieldRow('Network bridge', netWrap),
 -                    fieldRow('Hidden SSID', E('div', {'style':'display:flex;align-items:center;gap:8px'},
+-                        [hiddenChk, E('span',{'style':'font-size:11px;color:#666'},'do not broadcast SSID')])),
+-                    fieldRow('Client isolation', E('div', {'style':'display:flex;align-items:center;gap:8px'},
+-                        [isolateChk, E('span',{'style':'font-size:11px;color:#666'},'prevent clients from talking to each other')])),
+-                    fieldRow('Max clients', E('div', {'style':'display:flex;align-items:center;gap:4px'},
+-                        [maxassocInp, maxassocClear, E('span',{'style':'font-size:11px;color:#666;margin-left:4px'},'max stations per BSS')])),
 +                    fieldRow(_('Network bridge'), netWrap),
 +                    fieldRow(_('Hidden SSID'), E('div', {'style':'display:flex;align-items:center;gap:8px'},
-                         [hiddenChk, E('span',{'style':'font-size:11px;color:#666'},'do not broadcast SSID')])),
--                    fieldRow('Client isolation', E('div', {'style':'display:flex;align-items:center;gap:8px'},
++                        [hiddenChk, E('span',{'style':'font-size:11px;color:#666'},_('do not broadcast SSID'))])),
 +                    fieldRow(_('Client isolation'), E('div', {'style':'display:flex;align-items:center;gap:8px'},
-                         [isolateChk, E('span',{'style':'font-size:11px;color:#666'},'prevent clients from talking to each other')])),
--                    fieldRow('Max clients', E('div', {'style':'display:flex;align-items:center;gap:4px'},
++                        [isolateChk, E('span',{'style':'font-size:11px;color:#666'},_('prevent clients from talking to each other'))])),
 +                    fieldRow(_('Max clients'), E('div', {'style':'display:flex;align-items:center;gap:4px'},
-                         [maxassocInp, maxassocClear, E('span',{'style':'font-size:11px;color:#666;margin-left:4px'},'max stations per BSS')])),
++                        [maxassocInp, maxassocClear, E('span',{'style':'font-size:11px;color:#666;margin-left:4px'},_('max stations per BSS'))])),
                      fieldRow('WMM', E('div', {'style':'display:flex;align-items:center;gap:8px'},
-                         [wmmChk, E('span',{'style':'font-size:11px;color:#666'},'required for 802.11n/ac/ax/be')])),
+-                        [wmmChk, E('span',{'style':'font-size:11px;color:#666'},'required for 802.11n/ac/ax/be')])),
 -                    fieldRow('Disabled', E('div', { 'style':'display:flex;align-items:center;gap:8px' }, [
++                        [wmmChk, E('span',{'style':'font-size:11px;color:#666'},_('required for 802.11n/ac/ax/be'))])),
 +                    fieldRow(_('Disabled'), E('div', { 'style':'display:flex;align-items:center;gap:8px' }, [
                          disChk, E('span', {'style':'font-size:11px;color:#666'},
-                             'disables this interface only')])),
+-                            'disables this interface only')])),
++                            _('disables this interface only'))])),
                      fieldRow('UCI section', roValue(sid + '  (device: ' + s['device'] + ')'))
+                 ];
+ 
+@@ -1729,7 +1729,7 @@
+         rebuildCards();
+ 
+         return E('div', {}, [
+-            infoBanner('Legacy networks are independent from MLD. Open networks disable EHT (WiFi 7). Open on 6 GHz is rejected by hostapd.'),
++            infoBanner(_('Legacy networks are independent from MLD. Open networks disable EHT (WiFi 7). Open on 6 GHz is rejected by hostapd.')),
+             container
+         ]);
+     },
 @@ -1843,7 +1843,7 @@
                  net.stations.length ? '#1d9e75' : '#888',
                  net.stations.length + ' connected',

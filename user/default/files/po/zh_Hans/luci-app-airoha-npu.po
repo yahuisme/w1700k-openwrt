@@ -26,7 +26,10 @@ msgstr "未激活"
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:454
 #: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-npu.json:3
 msgid "Airoha SoC Status"
-msgstr "Airoha SoC状态"
+msgstr "Airoha SoC 状态"
+
+msgid "SoC Status"
+msgstr "SoC 状态"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:224
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:233
@@ -123,6 +126,12 @@ msgstr "省电模式"
 
 msgid "performance"
 msgstr "性能模式"
+
+msgid "PSE Shared Buffer"
+msgstr "PSE 共享缓冲区"
+
+msgid "PSE Port Queue Status"
+msgstr "PSE 端口队列状态"
 
 #: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/rpcd/acl.d/luci-app-airoha-npu.json:3
 msgid "Grant access to Airoha NPU status (NPU + CPU + Overclock)"

@@ -103,6 +103,15 @@ msgstr "自动"
 msgid "Balanced"
 msgstr "平衡"
 
+msgid "Fan Control - Status"
+msgstr "风扇控制 - 状态"
+
+msgid "Fan Control - Settings"
+msgstr "风扇控制 - 设置"
+
+msgid "Active Preset"
+msgstr "当前预设"
+
 msgid "Board Temperature"
 msgstr "主板温度"
 

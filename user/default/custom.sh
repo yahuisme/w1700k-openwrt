@@ -17,6 +17,10 @@ mkdir -p feeds/luci/modules/luci-mod-status/patches
 mv files/998-single-wiphy.patch \
     feeds/luci/modules/luci-mod-status/patches/998-single-wiphy.patch
 
+if [ -d package/luci-app-wifi7 ] && [ -f files/998-wifi7-i18n.patch ]; then
+    patch -d package/luci-app-wifi7 -p1 < files/998-wifi7-i18n.patch
+fi
+
 
 # -------------------------------------------------
 # Install latest Aurora LuCI theme
@@ -78,6 +82,7 @@ translation_targets=(
     "luci-app-airoha-flowsense|package/luci-app-airoha-flowsense"
     "luci-app-airoha-npu|package/luci-app-airoha-npu"
     "luci-app-w1700k-fancontrol|package/luci-app-w1700k-fancontrol"
+    "luci-app-wifi7|package/luci-app-wifi7"
 )
 
 for translation_target in "${translation_targets[@]}"; do

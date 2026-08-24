@@ -1,0 +1,606 @@
+--- a/htdocs/luci-static/resources/view/wifi7/index.js
++++ b/htdocs/luci-static/resources/view/wifi7/index.js
+@@ -417,12 +417,12 @@
+         var self = this;
+ 
+         var tabDefs = [
+-            { id: 'overview',    label: 'Overview' },
+-            { id: 'mld',         label: 'MLD config' },
+-            { id: 'radio',       label: 'Radio' },
+-            { id: 'legacy',      label: 'Networks' },
+-            { id: 'stations',    label: 'Stations' },
+-            { id: 'diagnostics', label: 'Diagnostics' }
++            { id: 'overview',    label: _('Overview') },
++            { id: 'mld',         label: _('MLD config') },
++            { id: 'radio',       label: _('Radio') },
++            { id: 'legacy',      label: _('Networks') },
++            { id: 'stations',    label: _('Stations') },
++            { id: 'diagnostics', label: _('Diagnostics') }
+         ];
+ 
+         var tabBar = E('div', { 'style':
+@@ -454,7 +454,7 @@
+ 
+         var container = E('div', { 'style':
+             'font-family:sans-serif;color:#ddd;padding:4px 0' }, [
+-            E('h2', { 'style': 'margin-bottom:14px' }, 'WiFi 7 -- MT7996'),
++            E('h2', { 'style': 'margin-bottom:14px' }, _('WiFi 7 -- MT7996')),
+             tabBar,
+             content
+         ]);
+@@ -582,7 +582,7 @@
+                         'margin-left:auto;font-size:10px;padding:2px 6px;' +
+                         'border-radius:3px;background:#2a2a1a;color:#666;' +
+                         'cursor:default;border:1px solid #333',
+-                        'title': 'Legacy (non-MLD) network' }, 'LEGACY')
++                        'title': _('Legacy (non-MLD) network') }, 'LEGACY')
+                 ]));
+             }
+         });
+@@ -619,11 +619,11 @@
+             E('div', { 'style':
+                 'background:#16213e;padding:7px 12px;' +
+                 'font-size:13px;font-weight:bold' },
+-                'Legacy networks'),
++                _('Legacy networks')),
+             E('div', { 'style': 'padding:8px 12px' },
+                 legacyRows.length ? legacyRows
+                     : [E('div', { 'style': 'font-size:12px;color:#888' },
+-                        'No legacy networks.')])
++                        _('No legacy networks.'))])
+         ]));
+         return E('div', {}, overviewItems);
+     },
+@@ -660,10 +660,10 @@
+         });
+         var keyToggleMld = E('button', { 'style':
+             'background:#2a2a3a;color:#aaa;border:1px solid #444;border-radius:4px;' +
+-            'padding:4px 8px;font-size:11px;cursor:pointer;margin-left:6px' }, 'Show');
++            'padding:4px 8px;font-size:11px;cursor:pointer;margin-left:6px' }, _('Show'));
+         keyToggleMld.addEventListener('click', function() {
+-            if (keyInput.type === 'password') { keyInput.type = 'text'; keyToggleMld.textContent = 'Hide'; }
+-            else { keyInput.type = 'password'; keyToggleMld.textContent = 'Show'; }
++            if (keyInput.type === 'password') { keyInput.type = 'text'; keyToggleMld.textContent = _('Hide'); }
++            else { keyInput.type = 'password'; keyToggleMld.textContent = _('Show'); }
+         });
+         var keyWrapMld = E('div', { 'style': 'display:flex;align-items:center' }, [keyInput, keyToggleMld]);
+ 
+@@ -695,9 +695,9 @@
+                 'padding:12px 14px;text-align:center' }, [
+                 E('div', { 'style':
+                     'font-size:13px;font-weight:bold;margin-bottom:6px' },
+-                    'Applying configuration...'),
++                    _('Applying configuration...')),
+                 E('div', { 'style': 'font-size:11px;color:#f5a623;margin-bottom:10px' },
+-                    'wifi restart may take 60-180 s -- do not power cycle'),
++                    _('wifi restart may take 60-180 s -- do not power cycle')),
+                 E('div', { 'style':
+                     'height:5px;background:#333;border-radius:3px;' +
+                     'overflow:hidden;margin-bottom:8px' }, [
+@@ -706,16 +706,16 @@
+                         'width:0%;transition:width .4s' })
+                 ]),
+                 E('div', { 'id': 'wifi7-pstat',
+-                    'style': 'font-size:11px;color:#888' }, 'Waiting...')
++                    'style': 'font-size:11px;color:#888' }, _('Waiting...'))
+             ])
+         ]);
+ 
+         var applyBtn = E('button', { 'style':
+             'background:#185fa5;color:#fff;border:none;border-radius:4px;' +
+-            'padding:6px 16px;font-size:12px;cursor:pointer' }, 'Save & apply');
++            'padding:6px 16px;font-size:12px;cursor:pointer' }, _('Save & apply'));
+         var discardBtn = E('button', { 'style':
+             'background:#2a2a3a;color:#aaa;border:1px solid #444;border-radius:4px;' +
+-            'padding:6px 16px;font-size:12px;cursor:pointer;margin-right:8px' }, 'Discard');
++            'padding:6px 16px;font-size:12px;cursor:pointer;margin-right:8px' }, _('Discard'));
+ 
+         var callUciSet = rpc.declare({
+             object: 'uci', method: 'set',
+@@ -731,9 +731,9 @@
+             var newKey  = keyInput.value;
+             var newEnc  = encSel.value;
+             var newRsno = rsnoSel.value;
+-            if (!newSSID) { alert('SSID cannot be empty'); return; }
++            if (!newSSID) { alert(_('SSID cannot be empty')); return; }
+             if (newKey.length < 8 && newEnc !== 'owe') {
+-                alert('Password must be at least 8 characters'); return; }
++                alert(_('Password must be at least 8 characters')); return; }
+ 
+             progressDiv.style.display = 'block';
+             applyBtn.disabled   = true;
+@@ -742,11 +742,11 @@
+             var pbar  = document.getElementById('wifi7-pbar');
+             var pstat = document.getElementById('wifi7-pstat');
+             var steps = [
+-                [10, 'Writing UCI config...'],
+-                [25, 'Committing wireless UCI...'],
+-                [40, 'Running wifi restart...'],
+-                [60, 'Waiting for hostapd init...'],
+-                [80, 'Polling hostapd.ap-mld-1 status...']
++                [10, _('Writing UCI config...')],
++                [25, _('Committing wireless UCI...')],
++                [40, _('Running wifi restart...')],
++                [60, _('Waiting for hostapd init...')],
++                [80, _('Polling hostapd.ap-mld-1 status...')]
+             ];
+             var si = 0;
+             function nextStep() {
+@@ -775,7 +775,7 @@
+                     L.resolveDefault(callHostapdStatus(), {}).then(function(st) {
+                         if (st && st.status === 'ENABLED') {
+                             pbar.style.width  = '100%';
+-                            pstat.textContent = 'Done -- WiFi active';
++                            pstat.textContent = _('Done -- WiFi active');
+                             applyBtn.disabled   = false;
+                             discardBtn.disabled = false;
+                             setTimeout(function() {
+@@ -801,9 +801,9 @@
+             infoBanner('MLD SSID, password and encryption are stored in ap_mld_1 UCI section. PMF (ieee80211w=2) is mandatory for MLD and enforced automatically.'),
+             sectionBox('ap_mld_1 -- network configuration', '#1d9e75', null,
+                 E('div', {}, [
+-                    fieldRow('SSID',             ssidInput),
+-                    fieldRow('Password',         keyWrapMld),
+-                    fieldRow('Encryption',       encSel),
++                    fieldRow(_('SSID'),             ssidInput),
++                    fieldRow(_('Password'),         keyWrapMld),
++                    fieldRow(_('Encryption'),       encSel),
+                     fieldRow('RSNO layer',       rsnoSel),
+                     fieldRow('PMF (ieee80211w)', roValue('required (=2) -- enforced for MLD')),
+                     fieldRow('MLO', (function() {
+@@ -845,20 +845,20 @@
+             (function() {
+                 var mloOn = (uciData[mldSID] && uciData[mldSID]['mlo'] !== '0');
+                 if (!mloOn) return null;
+-                return sectionBox('Per-link info (read-only)', '#444', null,
++                return sectionBox(_('Per-link info (read-only)'), '#444', null,
+                     E('div', {}, [
+-                        fieldRow('Link 0 / radio0',
++                        fieldRow(_('Link 0 / radio0'),
+                             roValue('2.4 GHz  |  addr: ' + (stat0['link_addr'] || '?') +
+                                 '  |  Tx max: ' + (stat0['max_txpower'] || '?') + ' dBm')),
+-                        fieldRow('Link 1 / radio1',
++                        fieldRow(_('Link 1 / radio1'),
+                             roValue('5 GHz  |  addr: ' + (stat1['link_addr'] || '?') +
+                                 '  |  Tx max: ' + (stat1['max_txpower'] || '?') + ' dBm')),
+-                        fieldRow('Link 2 / radio2',
++                        fieldRow(_('Link 2 / radio2'),
+                             roValue('6 GHz  |  addr: ' + (stat2['link_addr'] || '?') +
+                                 '  |  Tx max: ' + (stat2['max_txpower'] || '?') + ' dBm')),
+                         fieldRow('MLD MAC',
+                             roValue(stat0['mld_addr[0]'] || '?')),
+-                        fieldRow('Active links',
++                        fieldRow(_('Active links'),
+                             roValue('mld_allowed_links: 0x07  (2G + 5G + 6G)')),
+                         fieldRow('EMLSR',
+                             roValue((function() {
+@@ -901,10 +901,10 @@
+                 var newKey   = inp('password', '');
+                 var newKeyTog = E('button', { 'style':
+                     'background:#2a2a3a;color:#aaa;border:1px solid #444;border-radius:4px;' +
+-                    'padding:4px 8px;font-size:11px;cursor:pointer;margin-left:6px' }, 'Show');
++                    'padding:4px 8px;font-size:11px;cursor:pointer;margin-left:6px' }, _('Show'));
+                 newKeyTog.addEventListener('click', function() {
+                     newKey.type = newKey.type === 'password' ? 'text' : 'password';
+-                    newKeyTog.textContent = newKey.type === 'password' ? 'Show' : 'Hide';
++                    newKeyTog.textContent = newKey.type === 'password' ? _('Show') : _('Hide');
+                 });
+ 
+                 var newEncSel = E('select', { 'style':
+@@ -935,10 +935,10 @@
+                 var addStatusSpan = E('span', { 'style': 'font-size:11px;color:#888;margin-left:10px' });
+                 var doAddBtn = E('button', { 'style':
+                     'background:#185fa5;color:#fff;border:none;border-radius:4px;' +
+-                    'padding:6px 16px;font-size:12px;cursor:pointer' }, 'Create network');
++                    'padding:6px 16px;font-size:12px;cursor:pointer' }, _('Create network'));
+                 var cancelAddBtn = E('button', { 'style':
+                     'background:#2a2a3a;color:#aaa;border:1px solid #444;border-radius:4px;' +
+-                    'padding:6px 16px;font-size:12px;cursor:pointer;margin-right:8px' }, 'Cancel');
++                    'padding:6px 16px;font-size:12px;cursor:pointer;margin-right:8px' }, _('Cancel'));
+ 
+                 cancelAddBtn.addEventListener('click', function() {
+                     addForm.style.display = 'none';
+@@ -953,11 +953,11 @@
+                         .filter(function(r) { return r.chk.checked; })
+                         .map(function(r) { return r.radio; });
+ 
+-                    if (!ssid) { alert('SSID cannot be empty'); return; }
++                    if (!ssid) { alert(_('SSID cannot be empty')); return; }
+                     if (key.length < 8 && enc !== 'owe') {
+-                        alert('Password must be at least 8 characters'); return; }
++                        alert(_('Password must be at least 8 characters')); return; }
+                     if (selectedRadios.length < 2) {
+-                        alert('MLO requires at least 2 radios selected'); return; }
++                        alert(_('MLO requires at least 2 radios selected')); return; }
+ 
+                     var newSID = nextMloName();
+                     doAddBtn.disabled = true;
+@@ -985,23 +985,23 @@
+                     addStatusSpan.textContent = 'Writing UCI (' + newSID + ')...';
+                     L.resolveDefault(callExec('/bin/sh', ['-c', uciScript]), null)
+                     .then(function() {
+-                        addStatusSpan.textContent = 'Running wifi reload...';
++                        addStatusSpan.textContent = _('Running wifi reload...');
+                         return callExec('/sbin/wifi', ['reload']);
+                     })
+                     .then(function() {
+-                        addStatusSpan.textContent = 'Done -- reload page to see new network';
++                        addStatusSpan.textContent = _('Done -- reload page to see new network');
+                         addStatusSpan.style.color = '#1d9e75';
+                         doAddBtn.disabled   = false;
+                         cancelAddBtn.disabled = false;
+                     });
+                 });
+ 
+-                addForm.appendChild(sectionBox('New MLD network', '#185fa5', null,
++                addForm.appendChild(sectionBox(_('New MLD network'), '#185fa5', null,
+                     E('div', {}, [
+-                        fieldRow('SSID',       newSSID),
+-                        fieldRow('Password',   E('div', { 'style': 'display:flex;align-items:center' },
++                        fieldRow(_('SSID'),       newSSID),
++                        fieldRow(_('Password'),   E('div', { 'style': 'display:flex;align-items:center' },
+                             [newKey, newKeyTog])),
+-                        fieldRow('Encryption', newEncSel),
++                        fieldRow(_('Encryption'), newEncSel),
+                         fieldRow('Radios',     radioWrap),
+                         fieldRow('PMF',        roValue('required (=2) -- enforced for MLD')),
+                         fieldRow('Network',    roValue('lan (default)')),
+@@ -1141,15 +1141,15 @@
+         var callUciCommit=rpc.declare({object:'uci',method:'commit',params:['config'],expect:{}});
+         var progressDiv=E('div',{'style':'display:none;margin-top:12px'},[
+             E('div',{'style':'background:#1a1a2e;border:1px solid #444;border-radius:6px;padding:12px 14px;text-align:center'},[
+-                E('div',{'style':'font-size:13px;font-weight:bold;margin-bottom:6px'},'Applying radio configuration...'),
+-                E('div',{'style':'font-size:11px;color:#f5a623;margin-bottom:10px'},'wifi restart may take 60-180 s -- do not power cycle'),
++                E('div',{'style':'font-size:13px;font-weight:bold;margin-bottom:6px'},_('Applying radio configuration...')),
++                E('div',{'style':'font-size:11px;color:#f5a623;margin-bottom:10px'},_('wifi restart may take 60-180 s -- do not power cycle')),
+                 E('div',{'style':'height:5px;background:#333;border-radius:3px;overflow:hidden;margin-bottom:8px'},[
+                     E('div',{'id':'wifi7-radio-pbar','style':'height:100%;background:#185fa5;border-radius:3px;width:0%;transition:width .4s'})]),
+-                E('div',{'id':'wifi7-radio-pstat','style':'font-size:11px;color:#888'},'Waiting...')
++                E('div',{'id':'wifi7-radio-pstat','style':'font-size:11px;color:#888'},_('Waiting...'))
+             ])
+         ]);
+-        var applyBtn=E('button',{'style':'background:#185fa5;color:#fff;border:none;border-radius:4px;padding:6px 16px;font-size:12px;cursor:pointer'},'Save & apply');
+-        var discardBtn=E('button',{'style':'background:#2a2a3a;color:#aaa;border:1px solid #444;border-radius:4px;padding:6px 16px;font-size:12px;cursor:pointer;margin-right:8px'},'Discard');
++        var applyBtn=E('button',{'style':'background:#185fa5;color:#fff;border:none;border-radius:4px;padding:6px 16px;font-size:12px;cursor:pointer'},_('Save & apply'));
++        var discardBtn=E('button',{'style':'background:#2a2a3a;color:#aaa;border:1px solid #444;border-radius:4px;padding:6px 16px;font-size:12px;cursor:pointer;margin-right:8px'},_('Discard'));
+         discardBtn.addEventListener('click',function(){
+             r0ch.value=r0['channel']||'auto'; r0ht.value=r0['htmode']||'EHT40';
+             r0dis.checked=r0['disabled']==='1'; r0noscan.checked=r0['noscan']==='1'; r0txp._inp.value=r0['txpower']||'';
+@@ -1167,7 +1167,7 @@
+             var country=countrySel.value;
+             // Country change requires full reboot -- wifi restart is not sufficient
+             if (country !== (r0['country']||'CZ')) {
+-                if (!confirm('Country code changed to ' + country + '.\n\n' +
++                if (!confirm(_('Country code changed to ') + country + '.\n\n' +
+                     'WARNING: Country change requires a full REBOOT to take effect.\n' +
+                     'wifi restart alone is NOT sufficient.\n\n' +
+                     'Proceed? (Settings will be saved, then you must reboot manually.)')) return;
+@@ -1175,8 +1175,8 @@
+             progressDiv.style.display='block'; applyBtn.disabled=true; discardBtn.disabled=true;
+             var pbar=document.getElementById('wifi7-radio-pbar');
+             var pstat=document.getElementById('wifi7-radio-pstat');
+-            var steps=[[10,'Writing radio0...'],[25,'Writing radio1...'],[40,'Writing radio2...'],
+-                       [55,'Committing UCI...'],[70,'Running wifi restart...'],[80,'Polling hostapd...']];
++            var steps=[[10,_('Writing radio0...')],[25,_('Writing radio1...')],[40,_('Writing radio2...')],
++                       [55,_('Committing UCI...')],[70,_('Running wifi restart...')],[80,_('Polling hostapd...')]];
+             var si=0;
+             function nextStep(){if(si>=steps.length)return;pbar.style.width=steps[si][0]+'%';
+                 pstat.textContent=steps[si][1];si++;if(si<steps.length)setTimeout(nextStep,600);}
+@@ -1215,7 +1215,7 @@
+                 function doPoll(){tries++;pbar.style.width=Math.min(80+tries,98)+'%';
+                     pstat.textContent='Polling hostapd ('+tries+'/'+maxTries+')...';
+                     L.resolveDefault(callHostapdStatus(),{}).then(function(st){
+-                        if(st&&st.status==='ENABLED'){pbar.style.width='100%';pstat.textContent='Done -- WiFi active';
++                        if(st&&st.status==='ENABLED'){pbar.style.width='100%';pstat.textContent=_('Done -- WiFi active');
+                             applyBtn.disabled=false;discardBtn.disabled=false;
+                             setTimeout(function(){progressDiv.style.display='none';pbar.style.width='0%';},2000);
+                         } else if(tries>=maxTries){pstat.textContent='Timeout! Try: 1) reboot   2) power cycle';
+@@ -1228,39 +1228,39 @@
+         });
+         return E('div',{},[
+             warnBanner('Country and sku_idx must always be written together and apply to all 3 radios. Country change requires a full reboot -- wifi restart is not sufficient.'),
+-            sectionBox('Global -- country & SKU','#f5a623',null,E('div',{},[
+-                fieldRow('Country code',countrySel),
++            sectionBox(_('Global -- country & SKU'),'#f5a623',null,E('div',{},[
++                fieldRow(_('Country code'),countrySel),
+                 fieldRow('sku_idx',E('div',{'style':'display:flex;align-items:center;gap:10px'},[skuInput,
+                     E('span',{'style':'font-size:11px;color:#888'},'0 = default regulation table')])),
+                 fieldRow('Note',roValue('Written to radio0 + radio1 + radio2 simultaneously'))
+             ])),
+             radioCard('2.4 GHz -- radio0','#0a2a1a','#5dcaa5',[
+-                fieldRow('Channel',E('div',{'style':'display:flex;align-items:center;gap:8px'},[
++                fieldRow(_('Channel'),E('div',{'style':'display:flex;align-items:center;gap:8px'},[
+                     r0ch,
+                     (r0['channel']==='auto'||!r0['channel'])
+                         ? E('span',{'style':'font-size:11px;color:#888'},
+                             stat0['channel'] ? 'ACS selected: CH ' + stat0['channel'] : 'ACS pending')
+                         : E('span',{},'')])),
+-                fieldRow('HT mode',r0ht),fieldRow('TX power',r0txp),
+-                chkRow('Disabled',r0dis,''),chkRow('noscan',r0noscan,'skip channel survey -- disabling may cause slow restart (2-3 min) and channel width reduction'),
++                fieldRow(_('HT mode'),r0ht),fieldRow(_('TX power'),r0txp),
++                chkRow(_('Disabled'),r0dis,''),chkRow('noscan',r0noscan,'skip channel survey -- disabling may cause slow restart (2-3 min) and channel width reduction'),
+                 chkRow('he_twt_responder',r0twt,'TWT -- IoT power saving (default: on)'),
+                 chkRow('legacy_rates',r0legacy,'2.4G legacy rate support (default: on)')]),
+             radioCard('5 GHz -- radio1','#0a1a3a','#85b7eb',[
+-                fieldRow('Channel',E('div',{'style':'display:flex;align-items:center;gap:8px'},[
++                fieldRow(_('Channel'),E('div',{'style':'display:flex;align-items:center;gap:8px'},[
+                     r1chWrap,
+                     (r1['channel']==='auto'||!r1['channel'])
+                         ? E('span',{'style':'font-size:11px;color:#888'},
+                             stat1['channel'] ? 'ACS selected: CH ' + stat1['channel'] : 'ACS pending')
+                         : E('span',{},'')])),
+-                fieldRow('HT mode',r1ht),fieldRow('TX power',r1txp),
+-                chkRow('Disabled',r1dis,''),chkRow('background_radar',r1bgr,'CAC in background -- keeps AP up during DFS'),
++                fieldRow(_('HT mode'),r1ht),fieldRow(_('TX power'),r1txp),
++                chkRow(_('Disabled'),r1dis,''),chkRow('background_radar',r1bgr,'CAC in background -- keeps AP up during DFS'),
+                 chkRow('he_twt_responder',r1twt,'TWT -- IoT power saving (default: on)')]),
+             radioCard('6 GHz -- radio2','#1a0a3a','#afa9ec',[
+-                fieldRow('Channel',r2ch),fieldRow('HT mode',r2ht),fieldRow('TX power',r2txp),
+-                chkRow('Disabled',r2dis,''),chkRow('lpi_enable',r2lpi,'Low Power Indoor -- required in some countries'),
++                fieldRow(_('Channel'),r2ch),fieldRow(_('HT mode'),r2ht),fieldRow(_('TX power'),r2txp),
++                chkRow(_('Disabled'),r2dis,''),chkRow('lpi_enable',r2lpi,'Low Power Indoor -- required in some countries'),
+                 chkRow('noscan',r2noscan,'6G: normally 0 (PSC channels) -- disabling may cause slow restart'),
+                 chkRow('he_twt_responder',r2twt,'TWT -- IoT power saving (default: on)')]),
+-            sectionBox('Advanced -- shared (single wiphy)','#444',null,E('div',{},[
++            sectionBox(_('Advanced -- shared (single wiphy)'),'#444',null,E('div',{},[
+                 chkRow('sr_enable',srEnable,'Spatial Reuse / BSS Coloring (default: on)'),
+                 chkRow('etxbfen',etxbfen,'Explicit TX beamforming (default: on)'),
+                 fieldRow('Note',roValue('sr_enable + etxbfen apply to all bands via single wiphy (phy0)'))
+@@ -1336,10 +1336,10 @@
+                 'style': inputStyle });
+             var newKeyToggle = E('button', { 'style':
+                 'background:#2a2a3a;color:#aaa;border:1px solid #444;border-radius:4px;' +
+-                'padding:4px 8px;font-size:11px;cursor:pointer;margin-left:6px' }, 'Show');
++                'padding:4px 8px;font-size:11px;cursor:pointer;margin-left:6px' }, _('Show'));
+             newKeyToggle.addEventListener('click', function() {
+                 newKey.type = newKey.type === 'password' ? 'text' : 'password';
+-                newKeyToggle.textContent = newKey.type === 'password' ? 'Show' : 'Hide';
++                newKeyToggle.textContent = newKey.type === 'password' ? _('Show') : _('Hide');
+             });
+ 
+             // Advanced settings (collapsed by default)
+@@ -1397,8 +1397,8 @@
+ 
+             var advBox = E('div', { 'style': 'display:none;border:1px solid #2a2a3a;' +
+                 'border-radius:4px;padding:10px;margin:6px 0;background:#0d0d1a' });
+-            advBox.appendChild(fieldRow('Encryption', newEnc));
+-            advBox.appendChild(fieldRow('HT mode', newHt));
++            advBox.appendChild(fieldRow(_('Encryption'), newEnc));
++            advBox.appendChild(fieldRow(_('HT mode'), newHt));
+ 
+             advToggle.addEventListener('click', function() {
+                 advVisible = !advVisible;
+@@ -1412,10 +1412,10 @@
+             var addStatusSpan = E('span', { 'style': 'font-size:11px;margin-left:8px' });
+             var confirmBtn = E('button', { 'style':
+                 'background:#185fa5;color:#fff;border:none;border-radius:4px;' +
+-                'padding:5px 14px;font-size:12px;cursor:pointer' }, 'Add network');
++                'padding:5px 14px;font-size:12px;cursor:pointer' }, _('Add network'));
+             var cancelBtn = E('button', { 'style':
+                 'background:#2a2a3a;color:#aaa;border:1px solid #444;border-radius:4px;' +
+-                'padding:5px 14px;font-size:12px;cursor:pointer;margin-right:8px' }, 'Cancel');
++                'padding:5px 14px;font-size:12px;cursor:pointer;margin-right:8px' }, _('Cancel'));
+ 
+             cancelBtn.addEventListener('click', function() {
+                 dialog.style.display = 'none';
+@@ -1429,11 +1429,11 @@
+                 var key  = newKey.value;
+                 var dev  = newBand.value;
+                 var ht   = newHt.value;
+-                if (!ssid) { alert('SSID cannot be empty'); return; }
++                if (!ssid) { alert(_('SSID cannot be empty')); return; }
+                 if (enc !== 'none' && key.length < 8) {
+-                    alert('Password must be at least 8 characters'); return; }
++                    alert(_('Password must be at least 8 characters')); return; }
+                 if (dev === 'radio2' && enc === 'none') {
+-                    alert('Open network not allowed on 6 GHz'); return; }
++                    alert(_('Open network not allowed on 6 GHz')); return; }
+ 
+                 confirmBtn.disabled = true; cancelBtn.disabled = true;
+                 addStatusSpan.textContent = 'Creating...';
+@@ -1460,10 +1460,10 @@
+                     addStatusSpan.textContent = 'Committing...';
+                     return L.resolveDefault(callUciCommit('wireless'), null);
+                 }).then(function() {
+-                    addStatusSpan.textContent = 'Running wifi restart...';
++                    addStatusSpan.textContent = _('Running wifi restart...');
+                     return callExec('/sbin/wifi', []);
+                 }).then(function() {
+-                    addStatusSpan.textContent = 'Done';
++                    addStatusSpan.textContent = _('Done');
+                     addStatusSpan.style.color = '#1d9e75';
+                     dialog.style.display = 'none';
+                     addBtn.style.display = '';
+@@ -1478,10 +1478,10 @@
+                 'background:#1a1a2e;margin-bottom:14px' });
+             dialogInner.appendChild(E('div', { 'style':
+                 'font-size:13px;font-weight:bold;margin-bottom:10px;color:#fff' },
+-                'Add new network'));
+-            dialogInner.appendChild(fieldRow('SSID', newSSID));
++                _('Add new network')));
++            dialogInner.appendChild(fieldRow(_('SSID'), newSSID));
+             dialogInner.appendChild(fieldRow('Band', newBand));
+-            dialogInner.appendChild(fieldRow('Password', keyWrapNew));
++            dialogInner.appendChild(fieldRow(_('Password'), keyWrapNew));
+             dialogInner.appendChild(advToggle);
+             dialogInner.appendChild(advBox);
+             dialogInner.appendChild(E('div', { 'style':
+@@ -1505,15 +1505,15 @@
+                     'style':inputStyle });
+                 var keyToggleLeg = E('button', { 'style':
+                     'background:#2a2a3a;color:#aaa;border:1px solid #444;border-radius:4px;' +
+-                    'padding:4px 8px;font-size:11px;cursor:pointer;margin-left:6px' }, 'Show');
++                    'padding:4px 8px;font-size:11px;cursor:pointer;margin-left:6px' }, _('Show'));
+                 keyToggleLeg.addEventListener('click', function() {
+                     keyInp.type = keyInp.type === 'password' ? 'text' : 'password';
+-                    keyToggleLeg.textContent = keyInp.type === 'password' ? 'Show' : 'Hide';
++                    keyToggleLeg.textContent = keyInp.type === 'password' ? _('Show') : _('Hide');
+                 });
+                 var keyInpWrap = E('div', { 'style':'display:flex;align-items:center' },
+                     [keyInp, keyToggleLeg]);
+                 var keyWrap = E('div', {});
+-                keyWrap.appendChild(fieldRow('Password', keyInpWrap));
++                keyWrap.appendChild(fieldRow(_('Password'), keyInpWrap));
+ 
+                 var encOpts = is6g
+                     ? [['sae','WPA3-SAE (required on 6 GHz)'],['sae-mixed','WPA2/WPA3 mixed'],
+@@ -1543,14 +1543,14 @@
+ 
+                 var saveBtn = E('button', { 'style':
+                     'background:#185fa5;color:#fff;border:none;border-radius:4px;' +
+-                    'padding:5px 14px;font-size:12px;cursor:pointer' }, 'Save & apply');
++                    'padding:5px 14px;font-size:12px;cursor:pointer' }, _('Save & apply'));
+                 var discardBtn = E('button', { 'style':
+                     'background:#2a2a3a;color:#aaa;border:1px solid #444;border-radius:4px;' +
+-                    'padding:5px 14px;font-size:12px;cursor:pointer;margin-right:8px' }, 'Discard');
++                    'padding:5px 14px;font-size:12px;cursor:pointer;margin-right:8px' }, _('Discard'));
+                 var removeBtn = E('button', { 'style':
+                     'background:#3a0a0a;color:#f4a0a0;border:1px solid #e24b4a;' +
+                     'border-radius:4px;padding:5px 10px;font-size:11px;cursor:pointer;' +
+-                    'margin-left:auto' }, 'Remove');
++                    'margin-left:auto' }, _('Remove'));
+ 
+                 discardBtn.addEventListener('click', function() {
+                     ssidInp.value = s['ssid']||''; keyInp.value = s['key']||'';
+@@ -1573,9 +1573,9 @@
+                     var newSSIDv = ssidInp.value.trim();
+                     var newEnc  = encSel.value;
+                     var newKey  = keyInp.value;
+-                    if (!newSSIDv) { alert('SSID cannot be empty'); return; }
++                    if (!newSSIDv) { alert(_('SSID cannot be empty')); return; }
+                     if (newEnc !== 'none' && newKey.length < 8) {
+-                        alert('Password must be at least 8 characters'); return; }
++                        alert(_('Password must be at least 8 characters')); return; }
+                     saveBtn.disabled = true; discardBtn.disabled = true;
+                     statusSpan.textContent = 'Writing UCI...';
+                     statusSpan.style.color = '#f5a623';
+@@ -1594,10 +1594,10 @@
+                         statusSpan.textContent = 'Committing...';
+                         return L.resolveDefault(callUciCommit('wireless'), null);
+                     }).then(function() {
+-                        statusSpan.textContent = 'Running wifi restart...';
++                        statusSpan.textContent = _('Running wifi restart...');
+                         return callExec('/sbin/wifi', []);
+                     }).then(function() {
+-                        statusSpan.textContent = 'Done';
++                        statusSpan.textContent = _('Done');
+                         statusSpan.style.color = '#1d9e75';
+                         saveBtn.disabled = false; discardBtn.disabled = false;
+                         setTimeout(function() { statusSpan.textContent = ''; }, 3000);
+@@ -1636,7 +1636,7 @@
+                     }).then(function() {
+                         return callExec('/sbin/wifi', []);
+                     }).then(function() {
+-                        statusSpan.textContent = 'Done -- removed';
++                        statusSpan.textContent = _('Done -- removed');
+                         // Remove card from DOM
+                         var card = removeBtn.closest ? removeBtn.closest('.net-card') : null;
+                         if (card) card.parentNode.removeChild(card);
+@@ -1683,19 +1683,19 @@
+                 maxassocClear.addEventListener('click', function() { maxassocInp.value = ''; });
+ 
+                 var bodyRows = [
+-                    fieldRow('SSID', ssidInp),
+-                    fieldRow('Encryption', encSel),
++                    fieldRow(_('SSID'), ssidInp),
++                    fieldRow(_('Encryption'), encSel),
+                     keyWrap,
+-                    fieldRow('Network bridge', netWrap),
+-                    fieldRow('Hidden SSID', E('div', {'style':'display:flex;align-items:center;gap:8px'},
++                    fieldRow(_('Network bridge'), netWrap),
++                    fieldRow(_('Hidden SSID'), E('div', {'style':'display:flex;align-items:center;gap:8px'},
+                         [hiddenChk, E('span',{'style':'font-size:11px;color:#666'},'do not broadcast SSID')])),
+-                    fieldRow('Client isolation', E('div', {'style':'display:flex;align-items:center;gap:8px'},
++                    fieldRow(_('Client isolation'), E('div', {'style':'display:flex;align-items:center;gap:8px'},
+                         [isolateChk, E('span',{'style':'font-size:11px;color:#666'},'prevent clients from talking to each other')])),
+-                    fieldRow('Max clients', E('div', {'style':'display:flex;align-items:center;gap:4px'},
++                    fieldRow(_('Max clients'), E('div', {'style':'display:flex;align-items:center;gap:4px'},
+                         [maxassocInp, maxassocClear, E('span',{'style':'font-size:11px;color:#666;margin-left:4px'},'max stations per BSS')])),
+                     fieldRow('WMM', E('div', {'style':'display:flex;align-items:center;gap:8px'},
+                         [wmmChk, E('span',{'style':'font-size:11px;color:#666'},'required for 802.11n/ac/ax/be')])),
+-                    fieldRow('Disabled', E('div', { 'style':'display:flex;align-items:center;gap:8px' }, [
++                    fieldRow(_('Disabled'), E('div', { 'style':'display:flex;align-items:center;gap:8px' }, [
+                         disChk, E('span', {'style':'font-size:11px;color:#666'},
+                             'disables this interface only')])),
+                     fieldRow('UCI section', roValue(sid + '  (device: ' + s['device'] + ')'))
+@@ -1843,7 +1843,7 @@
+                 net.stations.length ? '#1d9e75' : '#888',
+                 net.stations.length + ' connected',
+                 E('div', {}, net.stations.length ? els
+-                    : [E('div', { 'style': 'font-size:12px;color:#888;padding:4px 0' }, 'No MLD clients.')])
++                    : [E('div', { 'style': 'font-size:12px;color:#888;padding:4px 0' }, _('No MLD clients.'))])
+             ));
+         });
+ 
+@@ -1864,7 +1864,7 @@
+                 net.stations.length ? '#1d9e75' : '#888',
+                 net.stations.length + ' connected',
+                 E('div', {}, net.stations.length ? els
+-                    : [E('div', { 'style': 'font-size:12px;color:#888;padding:4px 0' }, 'No clients.')])
++                    : [E('div', { 'style': 'font-size:12px;color:#888;padding:4px 0' }, _('No clients.'))])
+             ));
+         });
+ 
+@@ -1928,8 +1928,8 @@
+         return E('div', {}, [
+             E('div', { 'style':
+                 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px' }, [
+-                dcrd('Firmware',     fwRaw),
+-                dcrd('MT76 driver',  driverStr),
++                dcrd(_('Firmware'),     fwRaw),
++                dcrd(_('MT76 driver'),  driverStr),
+                 dcrd('sku_disable',
+                     (function() {
+                         var skuIdxVal = (uciData['radio0'] && uciData['radio0']['sku_idx']) || '';
+@@ -1939,8 +1939,8 @@
+                         return skuRaw + ' -- active (sku_idx=' + skuIdxVal + ')';
+                     })(),
+                     skuBad),
+-                dcrd('Single wiphy', 'phy0 (radio0 + radio1 + radio2)'),
+-                dcrd('Thermal', thermalEl)
++                dcrd(_('Single wiphy'), 'phy0 (radio0 + radio1 + radio2)'),
++                dcrd(_('Thermal'), thermalEl)
+             ]),
+             collapsibleSection('txpower_info -- band 0 (2.4 GHz)', '#444',
+                 E('pre', { 'style':
+@@ -1957,18 +1957,18 @@
+                     'font-size:11px;color:#aaa;margin:0;' +
+                     'white-space:pre-wrap;line-height:1.5' },
+                     tp2 || 'N/A')),
+-            sectionBox('Per-link current TX power', '#444', null,
++            sectionBox(_('Per-link current TX power'), '#444', null,
+                 E('div', {}, [
+                     fieldRow('Link 0 (2.4G)', roValue(ltp0 ? ltp0 + ' dBm' : 'N/A')),
+                     fieldRow('Link 1 (5G)',   roValue(ltp1 ? ltp1 + ' dBm' : 'N/A')),
+                     fieldRow('Link 2 (6G)',   roValue(ltp2 ? ltp2 + ' dBm' : 'N/A'))
+                 ])),
+-            sectionBox('DFS status -- band 1 (5 GHz)', '#444', null,
++            sectionBox(_('DFS status -- band 1 (5 GHz)'), '#444', null,
+                 E('pre', { 'style':
+                     'font-size:11px;color:#aaa;margin:0;' +
+                     'white-space:pre-wrap;line-height:1.5' },
+                     dfsStat || 'N/A')),
+-            sectionBox('MAT table', '#444', null,
++            sectionBox(_('MAT table'), '#444', null,
+                 E('pre', { 'style':
+                     'font-size:11px;color:#aaa;margin:0;' +
+                     'white-space:pre-wrap;line-height:1.5' },
+@@ -1978,15 +1978,15 @@
+                     'font-size:11px;color:#aaa;margin:0;' +
+                     'white-space:pre-wrap;line-height:1.5' },
+                     linksInfoRaw || 'N/A')),
+-            sectionBox('Log collection', '#444', null,
++            sectionBox(_('Log collection'), '#444', null,
+                 E('div', {}, [
+                     E('div', { 'style': 'font-size:12px;color:#aaa;margin-bottom:8px' },
+-                        'Collect kernel + WiFi logs for debugging. Output opens in new tab.'),
++                        _('Collect kernel + WiFi logs for debugging. Output opens in new tab.')),
+                     (function() {
+                         var logBtn = E('button', { 'style':
+                             'background:#2a2a3a;color:#ccc;border:1px solid #444;border-radius:4px;' +
+                             'padding:6px 14px;font-size:12px;cursor:pointer;margin-right:8px' },
+-                            'Collect logs (logread)');
++                            _('Collect logs (logread)'));
+                         var logStatus = E('span', { 'style': 'font-size:11px;color:#888' });
+                         logBtn.addEventListener('click', function() {
+                             logBtn.disabled = true;

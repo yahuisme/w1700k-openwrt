@@ -76,7 +76,6 @@ CONFIG_PACKAGE_luci-app-filemanager=y
 CONFIG_PACKAGE_luci-app-firewall=y
 CONFIG_PACKAGE_luci-app-irqbalance=y
 CONFIG_PACKAGE_luci-app-mlo=y
-CONFIG_PACKAGE_luci-app-netspeedtest=y
 CONFIG_PACKAGE_luci-app-package-manager=y
 CONFIG_PACKAGE_luci-app-ttyd=y
 CONFIG_PACKAGE_luci-app-w1700k-fancontrol=y

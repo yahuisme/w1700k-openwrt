@@ -1,0 +1,231 @@
+msgid ""
+msgstr ""
+"Language: zh_Hans\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Overview"
+msgstr "概览"
+
+msgid "MLD config"
+msgstr "MLD 配置"
+
+msgid "Radio"
+msgstr "无线电"
+
+msgid "Networks"
+msgstr "网络"
+
+msgid "Stations"
+msgstr "客户端"
+
+msgid "Diagnostics"
+msgstr "诊断"
+
+msgid "WiFi 7 -- MT7996"
+msgstr "WiFi 7 —— MT7996"
+
+msgid "Legacy networks"
+msgstr "传统网络"
+
+msgid "Legacy (non-MLD) network"
+msgstr "传统（非 MLD）网络"
+
+msgid "No legacy networks."
+msgstr "没有传统网络。"
+
+msgid "Save & apply"
+msgstr "保存并应用"
+
+msgid "Discard"
+msgstr "放弃修改"
+
+msgid "Show"
+msgstr "显示"
+
+msgid "Hide"
+msgstr "隐藏"
+
+msgid "Create network"
+msgstr "创建网络"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Add network"
+msgstr "添加网络"
+
+msgid "Remove"
+msgstr "删除"
+
+msgid "Add new network"
+msgstr "添加新网络"
+
+msgid "New MLD network"
+msgstr "新建 MLD 网络"
+
+msgid "SSID"
+msgstr "SSID"
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Encryption"
+msgstr "加密方式"
+
+msgid "Network bridge"
+msgstr "网络桥接"
+
+msgid "Hidden SSID"
+msgstr "隐藏 SSID"
+
+msgid "Client isolation"
+msgstr "客户端隔离"
+
+msgid "Max clients"
+msgstr "最大客户端数"
+
+msgid "Disabled"
+msgstr "禁用"
+
+msgid "Country code"
+msgstr "国家/地区代码"
+
+msgid "Channel"
+msgstr "信道"
+
+msgid "HT mode"
+msgstr "HT 模式"
+
+msgid "TX power"
+msgstr "发射功率"
+
+msgid "Global -- country & SKU"
+msgstr "全局设置 —— 国家/地区与 SKU"
+
+msgid "Advanced -- shared (single wiphy)"
+msgstr "高级设置 —— 共享（单一 wiphy）"
+
+msgid "Per-link info (read-only)"
+msgstr "各链路信息（只读）"
+
+msgid "Per-link current TX power"
+msgstr "各链路当前发射功率"
+
+msgid "Link 0 / radio0"
+msgstr "链路 0 / radio0"
+
+msgid "Link 1 / radio1"
+msgstr "链路 1 / radio1"
+
+msgid "Link 2 / radio2"
+msgstr "链路 2 / radio2"
+
+msgid "Active links"
+msgstr "活动链路"
+
+msgid "Single wiphy"
+msgstr "单一 wiphy"
+
+msgid "Thermal"
+msgstr "温度"
+
+msgid "Firmware"
+msgstr "固件"
+
+msgid "MT76 driver"
+msgstr "MT76 驱动"
+
+msgid "DFS status -- band 1 (5 GHz)"
+msgstr "DFS 状态 —— 频段 1（5 GHz）"
+
+msgid "MAT table"
+msgstr "MAT 表"
+
+msgid "Log collection"
+msgstr "日志收集"
+
+msgid "Collect logs (logread)"
+msgstr "收集日志（logread）"
+
+msgid "Collect kernel + WiFi logs for debugging. Output opens in new tab."
+msgstr "收集内核和 WiFi 日志用于调试，输出将在新标签页打开。"
+
+msgid "Waiting..."
+msgstr "等待中……"
+
+msgid "Applying configuration..."
+msgstr "正在应用配置……"
+
+msgid "Writing UCI config..."
+msgstr "正在写入 UCI 配置……"
+
+msgid "Committing wireless UCI..."
+msgstr "正在提交无线 UCI 配置……"
+
+msgid "Running wifi restart..."
+msgstr "正在重启 WiFi……"
+
+msgid "Waiting for hostapd init..."
+msgstr "等待 hostapd 初始化……"
+
+msgid "Polling hostapd.ap-mld-1 status..."
+msgstr "正在查询 hostapd.ap-mld-1 状态……"
+
+msgid "Done -- WiFi active"
+msgstr "完成 —— WiFi 已启用"
+
+msgid "Writing radio0..."
+msgstr "正在写入 radio0……"
+
+msgid "Writing radio1..."
+msgstr "正在写入 radio1……"
+
+msgid "Writing radio2..."
+msgstr "正在写入 radio2……"
+
+msgid "Committing UCI..."
+msgstr "正在提交 UCI 配置……"
+
+msgid "Polling hostapd..."
+msgstr "正在查询 hostapd……"
+
+msgid "Done -- reload page to see new network"
+msgstr "完成 —— 请刷新页面查看新网络"
+
+msgid "Running wifi reload..."
+msgstr "正在重新加载 WiFi……"
+
+msgid "Done"
+msgstr "完成"
+
+msgid "Done -- removed"
+msgstr "完成 —— 已删除"
+
+msgid "SSID cannot be empty"
+msgstr "SSID 不能为空"
+
+msgid "Password must be at least 8 characters"
+msgstr "密码至少需要 8 个字符"
+
+msgid "Open network not allowed on 6 GHz"
+msgstr "6 GHz 不允许使用开放网络"
+
+msgid "MLO requires at least 2 radios selected"
+msgstr "MLO 至少需要选择两个无线电"
+
+msgid "No MLD clients."
+msgstr "没有 MLD 客户端。"
+
+msgid "No clients."
+msgstr "没有客户端。"
+
+msgid "Applying radio configuration..."
+msgstr "正在应用无线配置……"
+
+msgid "wifi restart may take 60-180 s -- do not power cycle"
+msgstr "WiFi 重启可能需要 60–180 秒，请勿断电"
+
+msgid "Country code changed to "
+msgstr "国家/地区代码已更改为 "
+

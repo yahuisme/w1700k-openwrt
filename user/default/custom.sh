@@ -71,6 +71,14 @@ fi
 
 echo "Aurora theme configuration app installed successfully."
 
+# 修改 Aurora 菜单式样（默认侧边栏 + 小圆角）
+if find "package/luci-app-aurora-config/root/usr/share/aurora/" -type f -name '*.template' -exec \
+    sed -i "s/nav_type '.*'/nav_type 'sidebar'/g; s/struct_radius_base '.*'/struct_radius_base '0.125rem'/g" {} +; then
+    echo "theme-aurora nav preset applied!"
+else
+    echo "theme-aurora nav preset failed; continuing!"
+fi
+
 
 # -------------------------------------------------
 # Add Chinese translations for Airoha LuCI apps

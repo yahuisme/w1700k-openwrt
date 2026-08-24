@@ -290,3 +290,27 @@ msgstr "同时写入 radio0、radio1 和 radio2"
 
 msgid "Note"
 msgstr "说明"
+
+msgid "2.4G legacy rate support (default: on)"
+msgstr "2.4G 传统速率支持（默认：开启）"
+
+msgid "CAC in background -- keeps AP up during DFS"
+msgstr "后台执行 CAC —— 在 DFS 期间保持 AP 运行"
+
+msgid "Low Power Indoor -- required in some countries"
+msgstr "低功率室内模式 —— 某些国家/地区要求启用"
+
+msgid "6G: normally 0 (PSC channels) -- disabling may cause slow restart"
+msgstr "6G：通常为 0（PSC 信道）—— 禁用后可能导致重启缓慢"
+
+msgid "Spatial Reuse / BSS Coloring (default: on)"
+msgstr "空间复用 / BSS 着色（默认：开启）"
+
+msgid "Explicit TX beamforming (default: on)"
+msgstr "显式 TX 波束成形（默认：开启）"
+
+msgid "sr_enable + etxbfen apply to all bands via single wiphy (phy0)"
+msgstr "sr_enable + etxbfen 通过单一 wiphy（phy0）应用于所有频段"
+
+msgid "  (reboot required to change)"
+msgstr "（需要重启才能更改）"

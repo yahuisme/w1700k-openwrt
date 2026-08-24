@@ -111,6 +111,18 @@ for translation_target in "${translation_targets[@]}"; do
     cp -f "$translation" "$target/po/zh_Hans/${package_name}.po"
 done
 
+# The upstream menu titles omit the vendor prefix. Keep the user-facing
+# application names explicit without changing application behavior.
+if [ -f package/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-npu.json ]; then
+    sed -i 's/"title": "SoC Status"/"title": "Airoha SoC 状态"/' \
+        package/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-npu.json
+fi
+if [ -d package/luci-app-airoha-flowsense ]; then
+    find package/luci-app-airoha-flowsense -type f \( -name '*.json' -o -name '*.js' \) -exec \
+        sed -i -e 's/"title": "FlowSense"/"title": "Airoha 流量传感器"/g' \
+               -e 's/"title": "Airoha FlowSense"/"title": "Airoha 流量传感器"/g' {} +
+fi
+
 echo "Airoha LuCI translations installed successfully."
 
 # The package index is generated during feeds install, before these

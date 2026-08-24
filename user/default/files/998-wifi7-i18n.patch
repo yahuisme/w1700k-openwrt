@@ -195,7 +195,7 @@
                          });
                          var wrap = E('div', { 'style': 'display:flex;align-items:center;gap:10px' }, [
 -                            roValue((mloOn ? 'mlo=1 -- enabled' : 'mlo=0 -- disabled') + '  (reboot required to change)'), 
-+                            roValue((mloOn ? _('mlo=1 -- enabled') : _('mlo=0 -- disabled')) + '  (reboot required to change)'), 
++                            roValue((mloOn ? _('mlo=1 -- enabled') : _('mlo=0 -- disabled')) + _('  (reboot required to change)'), 
                              mloBtn
                          ]);
                          return wrap;
@@ -355,7 +355,7 @@
                              applyBtn.disabled=false;discardBtn.disabled=false;
                              setTimeout(function(){progressDiv.style.display='none';pbar.style.width='0%';},2000);
                          } else if(tries>=maxTries){pstat.textContent='Timeout! Try: 1) reboot   2) power cycle';
-@@ -1227,42 +1227,42 @@
+@@ -1227,43 +1227,43 @@
              });
          });
          return E('div',{},[
@@ -382,10 +382,11 @@
 -                fieldRow('HT mode',r0ht),fieldRow('TX power',r0txp),
 -                chkRow('Disabled',r0dis,''),chkRow('noscan',r0noscan,'skip channel survey -- disabling may cause slow restart (2-3 min) and channel width reduction'),
 -                chkRow('he_twt_responder',r0twt,'TWT -- IoT power saving (default: on)'),
+-                chkRow('legacy_rates',r0legacy,'2.4G legacy rate support (default: on)')]),
 +                fieldRow(_('HT mode'),r0ht),fieldRow(_('TX power'),r0txp),
 +                chkRow(_('Disabled'),r0dis,''),chkRow('noscan',r0noscan,_('skip channel survey -- disabling may cause slow restart (2-3 min) and channel width reduction')),
 +                chkRow('he_twt_responder',r0twt,_('TWT -- IoT power saving (default: on)')),
-                 chkRow('legacy_rates',r0legacy,'2.4G legacy rate support (default: on)')]),
++                chkRow('legacy_rates',r0legacy,_('2.4G legacy rate support (default: on)'))]),
              radioCard('5 GHz -- radio1','#0a1a3a','#85b7eb',[
 -                fieldRow('Channel',E('div',{'style':'display:flex;align-items:center;gap:8px'},[
 +                fieldRow(_('Channel'),E('div',{'style':'display:flex;align-items:center;gap:8px'},[
@@ -398,7 +399,7 @@
 -                chkRow('Disabled',r1dis,''),chkRow('background_radar',r1bgr,'CAC in background -- keeps AP up during DFS'),
 -                chkRow('he_twt_responder',r1twt,'TWT -- IoT power saving (default: on)')]),
 +                fieldRow(_('HT mode'),r1ht),fieldRow(_('TX power'),r1txp),
-+                chkRow(_('Disabled'),r1dis,''),chkRow('background_radar',r1bgr,_('CAC in background -- keeps AP up during DFS')),
++                chkRow(_('Disabled'),r1dis,''),chkRow('background_radar',r1bgr,_(_('CAC in background -- keeps AP up during DFS'))),
 +                chkRow('he_twt_responder',r1twt,_('TWT -- IoT power saving (default: on)'))]),
              radioCard('6 GHz -- radio2','#1a0a3a','#afa9ec',[
 -                fieldRow('Channel',r2ch),fieldRow('HT mode',r2ht),fieldRow('TX power',r2txp),
@@ -408,16 +409,18 @@
 -            sectionBox('Advanced -- shared (single wiphy)','#444',null,E('div',{},[
 -                chkRow('sr_enable',srEnable,'Spatial Reuse / BSS Coloring (default: on)'),
 -                chkRow('etxbfen',etxbfen,'Explicit TX beamforming (default: on)'),
+-                fieldRow('Note',roValue('sr_enable + etxbfen apply to all bands via single wiphy (phy0)'))
 +                fieldRow(_('Channel'),r2ch),fieldRow(_('HT mode'),r2ht),fieldRow(_('TX power'),r2txp),
-+                chkRow(_('Disabled'),r2dis,''),chkRow('lpi_enable',r2lpi,_('Low Power Indoor -- required in some countries')),
-+                chkRow('noscan',r2noscan,_('6G: normally 0 (PSC channels) -- disabling may cause slow restart')),
++                chkRow(_('Disabled'),r2dis,''),chkRow('lpi_enable',r2lpi,_(_('Low Power Indoor -- required in some countries'))),
++                chkRow('noscan',r2noscan,_(_('6G: normally 0 (PSC channels) -- disabling may cause slow restart'))),
 +                chkRow('he_twt_responder',r2twt,_('TWT -- IoT power saving (default: on)'))]),
 +            sectionBox(_('Advanced -- shared (single wiphy)'),'#444',null,E('div',{},[
-+                chkRow('sr_enable',srEnable,_('Spatial Reuse / BSS Coloring (default: on)')),
-+                chkRow('etxbfen',etxbfen,_('Explicit TX beamforming (default: on)')),
-                 fieldRow('Note',roValue('sr_enable + etxbfen apply to all bands via single wiphy (phy0)'))
++                chkRow('sr_enable',srEnable,_(_('Spatial Reuse / BSS Coloring (default: on)'))),
++                chkRow('etxbfen',etxbfen,_(_('Explicit TX beamforming (default: on)'))),
++                fieldRow('Note',roValue(_('sr_enable + etxbfen apply to all bands via single wiphy (phy0)')))
              ])),
              E('div',{'style':'display:flex;justify-content:flex-end;margin-top:4px'},[discardBtn,applyBtn]),
+             progressDiv
 @@ -1336,10 +1336,10 @@
                  'style': inputStyle });
              var newKeyToggle = E('button', { 'style':

@@ -136,13 +136,17 @@ jobs:
     - name: Delete old caches
       if: always()
       run: |
-        for p in dlcache. cache-${{ matrix.target }}.; do
-          gh cache list --json key,id --jq '.[] | select(.key | startswith("'"$p"'")) | .id' | xargs -r gh cache delete
-        done ||:
+        if [ "${{ matrix.target }}" = "ubi2" ]; then
+          for p in dlcache. cache-${{ matrix.target }}.; do
+            gh cache list --json key,id --jq '.[] | select(.key | startswith("'"$p"'")) | .id' | xargs -r gh cache delete
+          done
+        else
+          gh cache list --json key,id --jq '.[] | select(.key | startswith("cache-${{ matrix.target }}.")) | .id' | xargs -r gh cache delete
+        fi ||:
 
     - uses: actions/cache/save@v5
       if: always()
       with: {path: "ghcache\nstcache", key: '${{ steps.gh.outputs.cache-primary-key }}'}
-    - uses: actions/cache/save@v5
-      if: always()
+    - if: matrix.target == 'ubi2'
+      uses: actions/cache/save@v5
       with: {path: dlcache, key: '${{ steps.dl.outputs.cache-primary-key }}'}

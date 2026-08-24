@@ -100,6 +100,12 @@ done
 
 echo "Airoha LuCI translations installed successfully."
 
+# The package index is generated during feeds install, before these
+# translation files existed. Drop the cached index so make defconfig
+# rescans and registers the new luci-i18n-*-zh-cn packages.
+rm -rf tmp/info 2>/dev/null || true
+rm -f tmp/.packageinfo 2>/dev/null || true
+
 
 # -------------------------------------------------
 # Enable Chinese language

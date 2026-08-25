@@ -1,4 +1,4 @@
-name: fastbuild ubi2-oc, ubi2, snapshot
+name: fastbuild ubi2-oc, ubi2
 on: workflow_dispatch
 permissions: write-all
 jobs:

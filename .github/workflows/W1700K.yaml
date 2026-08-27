@@ -6,7 +6,9 @@ on:
   # GitHub Actions uses UTC; 19:00 Hong Kong time = 11:00 UTC.
   schedule:
     - cron: '0 11 * * *'
-permissions: write-all
+permissions:
+  actions: write
+  contents: write
 jobs:
   build:
     name: Build ${{ matrix.target }}

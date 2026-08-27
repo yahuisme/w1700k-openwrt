@@ -7,7 +7,11 @@ on:
     # Every hour — checks kmods page and only runs full extraction if updated
     - cron: '42 * * * *'
   workflow_dispatch:
-permissions: write-all
+permissions:
+  actions: write
+  contents: read
+  pages: write
+  id-token: write
 env:
   GH_TOKEN: ${{ github.token }}
 jobs:

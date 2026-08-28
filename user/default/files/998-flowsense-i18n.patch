@@ -108,6 +108,17 @@
  		E('span', { 'id': 'mode-banner-status', 'style': 'margin-left:auto;font-size:12px;color:var(--soc-muted)' }, '')
  	]);
  }
+@@ -670,8 +670,8 @@
+ 		return E('div', { 'class': 'alert-item ' + (isErr ? 'alert-error' : 'alert-warning') }, [
+ 			E('span', { 'class': 'alert-icon' }, isErr ? '\u26A0' : '\u26A1'),
+ 			E('div', {}, [
+-				E('div', { 'class': 'alert-title' }, a.title || ''),
+-				E('div', { 'class': 'alert-msg' }, a.message || '')
++				E('div', { 'class': 'alert-title' }, _(a.title || '')),
++				E('div', { 'class': 'alert-msg' }, _(a.message || '') + (a.value ? ' ('+a.value+')' : ''))
+ 			])
+ 		]);
+ 	});
 @@ -830,10 +830,10 @@
  	// West: latency arc
  	'<path id="cp-arc-west" d="'+pWest+'" fill="none" stroke="'+cs.latColor+'" stroke-width="9" stroke-linecap="round" opacity="0.7"/>' +
@@ -319,3 +330,23 @@
  }
  
  /* ── Main View ── */
+--- a/root/usr/libexec/rpcd/luci.airoha_flowsense
++++ b/root/usr/libexec/rpcd/luci.airoha_flowsense
+@@ -1065,7 +1065,7 @@
+ 
+ 	if [ "${rx_errors:-0}" -gt 0 ]; then
+ 		[ -n "$alerts" ] && alerts="${alerts},"
+-		alerts="${alerts}{\"id\":\"physical_bottleneck\",\"severity\":\"error\",\"title\":\"Physical Bottleneck\",\"message\":\"Hardware errors detected on WAN (${rx_errors} rx_errors). Check WAN cable or SFP. Latency stats may be misleading.\"}"
++		alerts="${alerts}{\"id\":\"physical_bottleneck\",\"severity\":\"error\",\"title\":\"Physical Bottleneck\",\"message\":\"Hardware errors detected on WAN. Check WAN cable or SFP. Latency stats may be misleading.\",\"value\":\"${rx_errors} rx_errors\"}"
+ 		alert_count=$((alert_count + 1))
+ 	fi
+ 
+@@ -1079,7 +1079,7 @@
+ 		# Warn if ping > 60ms with hw offload on (something is wrong)
+ 		if [ -n "$last_ping" ] && awk "BEGIN{exit !($last_ping > 60)}"; then
+ 			[ -n "$alerts" ] && alerts="${alerts},"
+-			alerts="${alerts}{\"id\":\"npu_bypass_latency\",\"severity\":\"warning\",\"title\":\"NPU Bypass Detected\",\"message\":\"HW offload is enabled but ISP latency is high (${last_ping}ms). Latency management may be skipped by hardware acceleration.\"}"
++			alerts="${alerts}{\"id\":\"npu_bypass_latency\",\"severity\":\"warning\",\"title\":\"NPU Bypass Detected\",\"message\":\"HW offload is enabled but ISP latency is high. Latency management may be skipped by hardware acceleration.\",\"value\":\"${last_ping}ms\"}"
+ 			alert_count=$((alert_count + 1))
+ 		fi
+ 	fi

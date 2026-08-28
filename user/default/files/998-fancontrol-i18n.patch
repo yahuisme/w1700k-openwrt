@@ -31,16 +31,38 @@
  
  		var modeClass = status.fan_mode === 2 ? 'label-success' : 'label-warning';
 -		var modeText = status.fan_mode_desc || 'Unknown';
-+		var modeText = status.fan_mode_desc || _('Unknown');
++		var modeText = _(status.fan_mode_desc || 'Unknown');
  
  		var viewEl = E('div', { 'class': 'cbi-map' }, [
  			E('h2', {}, _('Fan Control - Status')),
+@@ -109,8 +109,8 @@
+ 						E('div', { 'class': 'cbi-value-field' }, [
+ 							E('span', { 'id': 'fan-preset' },
+ 								status.uci_mode === 'manual' ? _('Manual Override') :
+-								(status.uci_preset || 'balanced').charAt(0).toUpperCase() +
+-								(status.uci_preset || 'balanced').slice(1))
++								_((status.uci_preset || 'balanced').charAt(0).toUpperCase() +
++								(status.uci_preset || 'balanced').slice(1)))
+ 						])
+ 					])
+ 				])
 @@ -164,7 +164,7 @@
  				// Update mode display
  				var modeEl = document.getElementById('fan-mode');
  				if (modeEl) {
 -					modeEl.textContent = status.fan_mode_desc || 'Unknown';
-+					modeEl.textContent = status.fan_mode_desc || _('Unknown');
++					modeEl.textContent = _(status.fan_mode_desc || 'Unknown');
  					modeEl.className = status.fan_mode === 2 ? 'label-success' : 'label-warning';
  				}
  
+@@ -172,8 +172,8 @@
+ 				var presetEl = document.getElementById('fan-preset');
+ 				if (presetEl) {
+ 					presetEl.textContent = status.uci_mode === 'manual' ? _('Manual Override') :
+-						(status.uci_preset || 'balanced').charAt(0).toUpperCase() +
+-						(status.uci_preset || 'balanced').slice(1);
++						_((status.uci_preset || 'balanced').charAt(0).toUpperCase() +
++						(status.uci_preset || 'balanced').slice(1));
+ 				}
+ 			}, this));
+ 		}, this), 3);

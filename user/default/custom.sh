@@ -33,6 +33,10 @@ if [ -d package/luci-app-airoha-flowsense ] && [ -f files/998-flowsense-i18n.pat
     patch -d package/luci-app-airoha-flowsense -p1 --ignore-whitespace < files/998-flowsense-i18n.patch
 fi
 
+if [ -d feeds/luci/applications/luci-app-irqbalance ] && [ -f files/998-irqbalance-i18n.patch ]; then
+    patch -d feeds/luci/applications/luci-app-irqbalance -p1 --ignore-whitespace < files/998-irqbalance-i18n.patch
+fi
+
 
 # -------------------------------------------------
 # Install latest Aurora LuCI theme
@@ -122,6 +126,15 @@ for translation_target in "${translation_targets[@]}"; do
     mkdir -p "$target/po/zh_Hans"
     cp -f "$translation" "$target/po/zh_Hans/${package_name}.po"
 done
+
+# luci-app-irqbalance is a standard feed package (feeds/luci). Its upstream
+# translation domain is "irqbalance" (the LUCI_BASENAME), so the PO must be
+# named "irqbalance.po" rather than "luci-app-irqbalance.po".
+if [ -d feeds/luci/applications/luci-app-irqbalance ]; then
+    mkdir -p feeds/luci/applications/luci-app-irqbalance/po/zh_Hans
+    cp -f files/po/zh_Hans/irqbalance.po \
+        feeds/luci/applications/luci-app-irqbalance/po/zh_Hans/irqbalance.po
+fi
 
 # The upstream menu titles omit the vendor prefix. Keep the user-facing
 # application names explicit without changing application behavior.

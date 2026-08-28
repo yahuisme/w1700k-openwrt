@@ -18,7 +18,7 @@ mv files/998-single-wiphy.patch \
     feeds/luci/modules/luci-mod-status/patches/998-single-wiphy.patch
 
 if [ -d package/luci-app-wifi7 ] && [ -f files/998-wifi7-i18n.patch ]; then
-    patch -d package/luci-app-wifi7 -p1 < files/998-wifi7-i18n.patch
+    patch -d package/luci-app-wifi7 -p1 --ignore-whitespace < files/998-wifi7-i18n.patch
 fi
 
 

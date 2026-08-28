@@ -194,8 +194,8 @@
                              });
                          });
                          var wrap = E('div', { 'style': 'display:flex;align-items:center;gap:10px' }, [
--                            roValue((mloOn ? 'mlo=1 -- enabled' : 'mlo=0 -- disabled') + '  (reboot required to change)'),
-+                            roValue((mloOn ? _('mlo=1 -- enabled') : _('mlo=0 -- disabled')) + _('  (reboot required to change)'),
+-                            roValue((mloOn ? 'mlo=1 -- enabled' : 'mlo=0 -- disabled') + '  (reboot required to change)'), 
++                            roValue((mloOn ? _('mlo=1 -- enabled') : _('mlo=0 -- disabled')) + _('  (reboot required to change)'), 
                              mloBtn
                          ]);
                          return wrap;

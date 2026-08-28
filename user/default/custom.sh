@@ -148,6 +148,19 @@ if [ -d package/luci-app-airoha-flowsense ]; then
                -e 's/"title": "Airoha FlowSense"/"title": "Airoha 流量传感器"/g' {} +
 fi
 
+# Move Airoha Fan Control from the System menu into the Status menu, between
+# Airoha SoC Status (npu) and Airoha FlowSense. The dispatcher types menu
+# order as int, so use consecutive integers: npu 15, fan 16, flowsense 17.
+if [ -f package/luci-app-w1700k-fancontrol/root/usr/share/luci/menu.d/luci-app-w1700k-fancontrol.json ]; then
+    sed -i -e 's#admin/system/fan#admin/status/fan#g' \
+           -e 's#"order": 90#"order": 16#' \
+        package/luci-app-w1700k-fancontrol/root/usr/share/luci/menu.d/luci-app-w1700k-fancontrol.json
+fi
+if [ -f package/luci-app-airoha-flowsense/root/usr/share/luci/menu.d/luci-app-airoha-flowsense.json ]; then
+    sed -i 's#"order": 16#"order": 17#' \
+        package/luci-app-airoha-flowsense/root/usr/share/luci/menu.d/luci-app-airoha-flowsense.json
+fi
+
 echo "Airoha LuCI translations installed successfully."
 
 # The package index is generated during feeds install, before these

@@ -21,6 +21,18 @@ if [ -d package/luci-app-wifi7 ] && [ -f files/998-wifi7-i18n.patch ]; then
     patch -d package/luci-app-wifi7 -p1 --ignore-whitespace < files/998-wifi7-i18n.patch
 fi
 
+if [ -d package/luci-app-w1700k-fancontrol ] && [ -f files/998-fancontrol-i18n.patch ]; then
+    patch -d package/luci-app-w1700k-fancontrol -p1 --ignore-whitespace < files/998-fancontrol-i18n.patch
+fi
+
+if [ -d package/luci-app-airoha-npu ] && [ -f files/998-npu-i18n.patch ]; then
+    patch -d package/luci-app-airoha-npu -p1 --ignore-whitespace < files/998-npu-i18n.patch
+fi
+
+if [ -d package/luci-app-airoha-flowsense ] && [ -f files/998-flowsense-i18n.patch ]; then
+    patch -d package/luci-app-airoha-flowsense -p1 --ignore-whitespace < files/998-flowsense-i18n.patch
+fi
+
 
 # -------------------------------------------------
 # Install latest Aurora LuCI theme

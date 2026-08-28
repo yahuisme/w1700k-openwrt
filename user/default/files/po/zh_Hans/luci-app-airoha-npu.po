@@ -5,7 +5,7 @@ msgstr ""
 "PO-Revision-Date: \n"
 "Last-Translator: \n"
 "Language-Team: \n"
-"Language: zh_CN\n"
+"Language: zh_Hans\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -302,3 +302,74 @@ msgstr "CPU 设置为 "
 
 msgid "Error: "
 msgstr "错误："
+msgid "Airoha SoC Status"
+msgstr "Airoha SoC 状态"
+
+msgid "Healthy"
+msgstr "健康"
+
+msgid "Warning"
+msgstr "警告"
+
+msgid "Critical"
+msgstr "严重"
+
+msgid "No clients"
+msgstr "无客户端"
+
+msgid "Idle"
+msgstr "空闲"
+
+msgid "Poor"
+msgstr "较差"
+
+msgid "Fair"
+msgstr "一般"
+
+msgid "Good"
+msgstr "良好"
+
+msgid "devmem not available on this build"
+msgstr "此构建上 devmem 不可用"
+
+msgid "TX"
+msgstr "发送"
+
+msgid "RX"
+msgstr "接收"
+
+msgid "TX Drop"
+msgstr "发送丢包"
+
+msgid "RX Drop"
+msgstr "接收丢包"
+
+msgid "HW Offload: "
+msgstr "硬件加速："
+
+msgid "CPU: "
+msgstr "CPU："
+
+msgid "HWF: "
+msgstr "硬件转发："
+
+msgid "TX: "
+msgstr "发送："
+
+msgid "ACTIVE"
+msgstr "已激活"
+
+msgid "OFF"
+msgstr "未激活"
+
+msgid "Bound "
+msgstr "已绑定"
+
+msgid "Total "
+msgstr "总计"
+
+msgid "CPU DMA 2"
+msgstr "CPU DMA 2"
+
+msgid "Frequencies above 1400 MHz may be unstable. Continue?"
+msgstr "超过 1400 MHz 可能不稳定。是否继续？"

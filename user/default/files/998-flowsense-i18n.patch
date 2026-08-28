@@ -1,0 +1,321 @@
+--- a/htdocs/luci-static/resources/view/airoha_flowsense/status.js
++++ b/htdocs/luci-static/resources/view/airoha_flowsense/status.js
+@@ -150,9 +150,9 @@
+ 
+ function pleHealth(free) {
+ 	if (typeof free !== 'number' || free < 0) return { text: 'N/A', color: '#888' };
+-	if (free >= 1000000) return { text: 'OK',   color: '#4caf50' };
+-	if (free >=  100000) return { text: 'WARN', color: '#ff9800' };
+-	return { text: 'CRIT', color: '#f44336' };
++	if (free >= 1000000) return { text: _('OK'),   color: '#4caf50' };
++	if (free >=  100000) return { text: _('WARN'), color: '#ff9800' };
++	return { text: _('CRIT'), color: '#f44336' };
+ }
+ 
+ function formatPleCount(free) {
+@@ -188,10 +188,10 @@
+ }
+ 
+ function bandHealth(s) {
+-	if (!s || s.count===0) return { text:'No clients', color:'#888' };
+-	if (!s.tx_packets) return { text:'Idle', color:'#888' };
++	if (!s || s.count===0) return { text:_('No clients'), color:'#888' };
++	if (!s.tx_packets) return { text:_('Idle'), color:'#888' };
+ 	var r = (s.retry_pct || 0) / 100;
+-	return r>0.5 ? {text:'Poor',color:'#f44336'} : r>0.2 ? {text:'Fair',color:'#ff9800'} : {text:'Good',color:'#4caf50'};
++	return r>0.5 ? {text:_('Poor'),color:'#f44336'} : r>0.2 ? {text:_('Fair'),color:'#ff9800'} : {text:_('Good'),color:'#4caf50'};
+ }
+ 
+ function retryPct(s) {
+@@ -230,10 +230,10 @@
+ 	];
+ 	rows.push(E('div', { 'id': id+'-txstats', 'style': 'display:flex;gap:10px;font-size:11px;margin-top:5px;padding-top:4px;border-top:1px solid var(--soc-border)' },
+ 		(txs && txs.attempts > 0) ? [
+-			E('span', { 'class': 'soc-muted' }, 'Drop:'),
++			E('span', { 'class': 'soc-muted' }, _('Drop:')),
+ 			E('span', { 'style': 'color:'+(txs.drops > 0 ? '#f44336' : '#4caf50') }, fmtK(txs.drops)),
+ 			E('span', { 'style': 'color:'+perColor(txs.per) }, txs.per+'%')
+-		] : [ E('span', { 'class': 'soc-muted' }, 'Drop: -') ]
++		] : [ E('span', { 'class': 'soc-muted' }, _('Drop:') + ' -') ]
+ 	));
+ 	return E('div', { 'id': id, 'style': 'background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:2px solid '+info.accent+';border-radius:6px;padding:10px 12px' }, rows);
+ }
+@@ -334,7 +334,7 @@
+ 		]));
+ 	}
+ 
+-	var countText = total + ' entries' + (total > 25 ? ' (showing 25)' : '');
++	var countText = total + ' ' + _('entries') + (total > 25 ? ' (' + _('showing 25') + ')' : '');
+ 	return E('div', { 'style': 'flex:1;min-width:0' }, [
+ 		E('div', { 'style': 'display:flex;align-items:baseline;gap:8px;margin-bottom:6px' }, [
+ 			E('span', { 'style': 'font-weight:700;font-size:13px;color:'+labelColor }, label),
+@@ -361,7 +361,7 @@
+ 
+ 	function refreshPanel(tableId, countId, entries, total, showNew, stateLabel, stateClass) {
+ 		var el = document.getElementById(countId);
+-		if (el) el.textContent = total + ' entries' + (total > 25 ? ' (showing 25)' : '');
++		if (el) el.textContent = total + ' ' + _('entries') + (total > 25 ? ' (' + _('showing 25') + ')' : '');
+ 		var tb = document.getElementById(tableId);
+ 		if (!tb) return;
+ 		while (tb.rows.length > 1) tb.deleteRow(1);
+@@ -370,7 +370,7 @@
+ 			var cell = row.insertCell(-1); cell.className = 'td soc-muted';
+ 			cell.colSpan = showNew ? 5 : 4;
+ 			cell.style.textAlign = 'center'; cell.style.padding = '12px';
+-			cell.textContent = 'No entries';
++			cell.textContent = _('No entries');
+ 			return;
+ 		}
+ 		entries.forEach(function(e) {
+@@ -416,8 +416,8 @@
+ 	UNB_SCALE = Math.max(UNB_SCALE, 8);
+ 	var unbLit = Math.min(TICKS, Math.round((unbTot / UNB_SCALE) * TICKS));
+ 
+-	var modeText   = mode === 'ap' ? 'AP MODE' : 'ROUTER';
+-	var statusText = cs.npuActive ? 'HW ACCELERATED' : (cs.hwEnabled ? 'NPU IDLE' : 'CPU PATH');
++	var modeText   = mode === 'ap' ? _('AP MODE') : _('ROUTER');
++	var statusText = cs.npuActive ? _('HW ACCELERATED') : (cs.hwEnabled ? _('NPU IDLE') : _('CPU PATH'));
+ 	var statusCol  = cs.npuActive ? '#00c8ff' : (cs.hwEnabled ? '#888' : '#ff6b35');
+ 	var bndColor   = bndTot > 0 ? '#00c8ff' : 'var(--soc-muted)';
+ 	var unbColor   = unbTot > 0 ? '#ff9800' : 'var(--soc-muted)';
+@@ -473,11 +473,11 @@
+ 	p.push('<text x="150" y="113" text-anchor="middle" fill="var(--soc-text)" font-size="9" font-weight="700" font-family="monospace" letter-spacing="2">'+modeText+'</text>');
+ 	p.push('<text x="150" y="124" text-anchor="middle" fill="'+statusCol+'" font-size="7" font-family="monospace" letter-spacing="1">'+statusText+'</text>');
+ 	p.push('<text x="150" y="144" text-anchor="middle" fill="'+bndColor+'" font-size="22" font-weight="700" font-family="monospace">'+bndTot+'</text>');
+-	p.push('<text x="150" y="155" text-anchor="middle" fill="var(--soc-muted)" font-size="7" font-family="monospace" letter-spacing="2">BND FLOWS</text>');
++	p.push('<text x="150" y="155" text-anchor="middle" fill="var(--soc-muted)" font-size="7" font-family="monospace" letter-spacing="2">' + _('BND FLOWS') + '</text>');
+ 	p.push('<text x="117" y="175" text-anchor="middle" fill="#00c8ff"  font-size="8" font-family="monospace">v4: '+n4+'</text>');
+ 	p.push('<text x="183" y="175" text-anchor="middle" fill="#9c27b0"  font-size="8" font-family="monospace">v6: '+n6+'</text>');
+ 	p.push('<text x="150" y="189" text-anchor="middle" fill="'+unbColor+'" font-size="13" font-weight="700" font-family="monospace">'+unbTot+'</text>');
+-	p.push('<text x="150" y="200" text-anchor="middle" fill="var(--soc-muted)" font-size="7" font-family="monospace" letter-spacing="1.5">UNB FLOWS</text>');
++	p.push('<text x="150" y="200" text-anchor="middle" fill="var(--soc-muted)" font-size="7" font-family="monospace" letter-spacing="1.5">' + _('UNB FLOWS') + '</text>');
+ 
+ 	return p.join('');
+ }
+@@ -651,12 +651,12 @@
+ function renderModeBanner(dm) {
+ 	var mode = dm.mode || 'router';
+ 	var reason = dm.reason || '';
+-	var reasonMap = { dhcp_disabled: 'DHCP disabled in UCI', no_wan: 'No WAN IP detected', local_gateway: 'Local gateway detected' };
++	var reasonMap = { dhcp_disabled: _('DHCP disabled in UCI'), no_wan: _('No WAN IP detected'), local_gateway: _('Local gateway detected') };
+ 	var reasonText = reasonMap[reason] || '';
+ 	return E('div', { 'class': 'mode-banner' }, [
+ 		E('span', { 'class': 'mode-badge ' + (mode==='ap' ? 'mode-ap' : 'mode-router') },
+-			mode === 'ap' ? 'AP MODE' : 'ROUTER MODE'),
+-		E('span', { 'class': 'soc-muted', 'style': 'font-size:12px' }, 'Auto-detected' + (reasonText ? ' \u2014 '+reasonText : '')),
++			mode === 'ap' ? _('AP MODE') : _('ROUTER MODE')),
++		E('span', { 'class': 'soc-muted', 'style': 'font-size:12px' }, _('Auto-detected') + (reasonText ? ' \u2014 '+reasonText : '')),
+ 		E('span', { 'id': 'mode-banner-status', 'style': 'margin-left:auto;font-size:12px;color:var(--soc-muted)' }, '')
+ 	]);
+ }
+@@ -830,10 +830,10 @@
+ 	// West: latency arc
+ 	'<path id="cp-arc-west" d="'+pWest+'" fill="none" stroke="'+cs.latColor+'" stroke-width="9" stroke-linecap="round" opacity="0.7"/>' +
+ 	// Quadrant labels — curved textPath following each arc
+-	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" fill="#00c8ff"><textPath href="#tp-north" startOffset="50%" text-anchor="middle">NPU PATH</textPath></text>' +
+-	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-south"><textPath href="#tp-south" startOffset="50%" text-anchor="middle">HW BUFFER</textPath></text>' +
+-	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-east"><textPath href="#tp-east"  startOffset="50%" text-anchor="middle">INTEGRITY</textPath></text>' +
+-	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-west"><textPath href="#tp-west"  startOffset="50%" text-anchor="middle">LATENCY</textPath></text>' +
++	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" fill="#00c8ff"><textPath href="#tp-north" startOffset="50%" text-anchor="middle">' + _('NPU PATH') + '</textPath></text>' +
++	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-south"><textPath href="#tp-south" startOffset="50%" text-anchor="middle">' + _('HW BUFFER') + '</textPath></text>' +
++	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-east"><textPath href="#tp-east"  startOffset="50%" text-anchor="middle">' + _('INTEGRITY') + '</textPath></text>' +
++	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-west"><textPath href="#tp-west"  startOffset="50%" text-anchor="middle">' + _('LATENCY') + '</textPath></text>' +
+ 	// Latency needle
+ 	'<line id="cp-needle" x1="150" y1="150" x2="'+tip[0].toFixed(1)+'" y2="'+tip[1].toFixed(1)+'" stroke="'+cs.latColor+'" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>' +
+ 	'<circle id="cp-needle-pivot" cx="150" cy="150" r="4" fill="'+cs.latColor+'" opacity="0.9"/>' +
+@@ -913,7 +913,7 @@
+ 
+ 	// Colours
+ 	var npuStatusCol = cs.npuActive ? '#00c8ff' : (cs.hwEnabled ? '#888' : '#ff6b35');
+-	var npuStatus    = cs.npuActive ? 'HW ACCELERATED' : (cs.hwEnabled ? 'NPU IDLE' : 'CPU PATH');
++	var npuStatus    = cs.npuActive ? _('HW ACCELERATED') : (cs.hwEnabled ? _('NPU IDLE') : _('CPU PATH'));
+ 	var npuColor     = offloadPct > 60 ? '#00c8ff' : offloadPct > 30 ? '#f5a623' : '#888';
+ 
+ 	var TICKS = 90;
+@@ -966,10 +966,10 @@
+ 	if (governor) p.push('<text x="150" y="118" text-anchor="middle" fill="var(--soc-text)" font-size="7" font-family="monospace" letter-spacing="1">'+governor+'</text>');
+ 	if (freqMhz)  p.push('<text x="150" y="130" text-anchor="middle" fill="#00cc44" font-size="9" font-weight="700" font-family="monospace">'+freqMhz+' MHz</text>');
+ 	p.push('<text x="150" y="148" text-anchor="middle" fill="var(--soc-load)" font-size="22" font-weight="700" font-family="monospace">'+cpuPct+'%</text>');
+-	p.push('<text x="150" y="159" text-anchor="middle" fill="var(--soc-load)" font-size="7" font-family="monospace" letter-spacing="2">CPU LOAD</text>');
++	p.push('<text x="150" y="159" text-anchor="middle" fill="var(--soc-load)" font-size="7" font-family="monospace" letter-spacing="2">' + _('CPU LOAD') + '</text>');
+ 	p.push('<text x="150" y="175" text-anchor="middle" fill="'+npuStatusCol+'" font-size="8" font-family="monospace">'+npuStatus+'</text>');
+ 	p.push('<text x="150" y="190" text-anchor="middle" fill="'+npuColor+'" font-size="13" font-weight="700" font-family="monospace">'+offloadPct+'%</text>');
+-	p.push('<text x="150" y="200" text-anchor="middle" fill="var(--soc-muted)" font-size="7" font-family="monospace" letter-spacing="1.5">OFFLOADED</text>');
++	p.push('<text x="150" y="200" text-anchor="middle" fill="var(--soc-muted)" font-size="7" font-family="monospace" letter-spacing="1.5">' + _('OFFLOADED') + '</text>');
+ 
+ 	// PLE pool — curved textPath at r=91, south arc (CCW 160°→20°), outside the freq ring.
+ 	// Matches the "UNB/BND FLOWS" curved-text style used on the WiFi band gauges.
+@@ -1043,11 +1043,11 @@
+ /* ── WiFi Band Tachometers ── */
+ function _wifiBandHealth(ws) {
+ 	var stations = ws ? (ws.stations || 0) : 0;
+-	if (stations === 0) return { text: 'NO CLIENTS', color: '#888' };
++	if (stations === 0) return { text: _('NO CLIENTS'), color: '#888' };
+ 	var rty = ws.retry_pct || 0;
+-	if (rty > 50) return { text: 'WEAK', color: '#f44336' };
+-	if (rty > 20) return { text: 'FAIR', color: '#ff9800' };
+-	return { text: 'GOOD', color: '#4caf50' };
++	if (rty > 50) return { text: _('WEAK'), color: '#f44336' };
++	if (rty > 20) return { text: _('FAIR'), color: '#ff9800' };
++	return { text: _('GOOD'), color: '#4caf50' };
+ }
+ 
+ // WiFi band SPEEDOMETER: orange needle on a fixed 0→band-max MBPS scale (needle = tx+rx byte-rate;
+@@ -1123,7 +1123,7 @@
+ 	// band name + HW-accel status
+ 	p.push('<text x="150" y="118" text-anchor="middle" font-family="monospace" font-size="10" font-weight="700" letter-spacing="1" fill="' + col + '">' + info.name.toUpperCase() + '</text>');
+ 	var hwCol = hwOn ? '#00c8ff' : '#666';
+-	p.push('<text x="150" y="140" text-anchor="middle" font-family="monospace" font-size="7" letter-spacing="1" fill="' + hwCol + '">' + (hwOn ? 'HW ACCELERATED' : (npu ? 'NPU IDLE' : 'CPU PATH')) + '</text>');
++	p.push('<text x="150" y="140" text-anchor="middle" font-family="monospace" font-size="7" letter-spacing="1" fill="' + hwCol + '">' + (hwOn ? _('HW ACCELERATED') : (npu ? _('NPU IDLE') : _('CPU PATH'))) + '</text>');
+ 
+ 	// needle + hub
+ 	var nth = theta(mbps), tip = pt(96, nth), a = nth * Math.PI / 180, dx = Math.cos(a), dy = Math.sin(a), px = -dy, py = dx;
+@@ -1276,7 +1276,7 @@
+ 	return m[iface] || iface.toUpperCase();
+ }
+ function _ethSpeed(speed) {
+-	if (!speed || speed <= 0) return 'NO LINK';
++	if (!speed || speed <= 0) return _('NO LINK');
+ 	if (speed >= 10000) return '10G';
+ 	if (speed >= 5000)  return '5G';
+ 	if (speed >= 2500)  return '2.5G';
+@@ -1337,12 +1337,12 @@
+ 	'<text x="16" y="16" fill="'+portClr+'" font-size="12" font-weight="700" font-family="monospace">'+label+'</text>' +
+ 	'<text x="234" y="16" text-anchor="end" fill="'+portClr+'" font-size="10" font-family="monospace">'+spLbl+'</text>' +
+ 	'<line x1="12" y1="21" x2="229" y2="21" stroke="#333" stroke-width="0.5"/>' +
+-	'<text x="12" y="35" fill="#00c8ff" font-size="9" font-family="monospace" letter-spacing="1" opacity="'+dimOp+'">TX</text>' +
++	'<text x="12" y="35" fill="#00c8ff" font-size="9" font-family="monospace" letter-spacing="1" opacity="'+dimOp+'">' + _('TX') + '</text>' +
+ 	'<rect x="30" y="26" width="'+barW+'" height="13" rx="3" fill="var(--soc-border)" opacity="'+dimOp+'"/>' +
+ 	(txPct > 0 ? '<rect x="30" y="26" width="'+txW+'" height="13" rx="3" fill="#00c8ff" opacity="'+dimOp+'"/>' : '') +
+ 	'<text x="218" y="35" text-anchor="end" fill="var(--soc-text)" font-size="10" font-weight="700" font-family="monospace" opacity="'+dimOp+'">'+txVal+'</text>' +
+ 	'<text x="234" y="35" text-anchor="end" fill="var(--soc-muted)" font-size="7" font-family="monospace" opacity="'+dimOp+'">Mb</text>' +
+-	'<text x="12" y="59" fill="#ff6b35" font-size="9" font-family="monospace" letter-spacing="1" opacity="'+dimOp+'">RX</text>' +
++	'<text x="12" y="59" fill="#ff6b35" font-size="9" font-family="monospace" letter-spacing="1" opacity="'+dimOp+'">' + _('RX') + '</text>' +
+ 	'<rect x="30" y="50" width="'+barW+'" height="13" rx="3" fill="var(--soc-border)" opacity="'+dimOp+'"/>' +
+ 	(rxPct > 0 ? '<rect x="30" y="50" width="'+rxW+'" height="13" rx="3" fill="#ff6b35" opacity="'+dimOp+'"/>' : '') +
+ 	'<text x="218" y="59" text-anchor="end" fill="var(--soc-text)" font-size="10" font-weight="700" font-family="monospace" opacity="'+dimOp+'">'+rxVal+'</text>' +
+@@ -1375,41 +1375,41 @@
+ 	var rawBridgeDrops = bridge.tx_dropped || 0;
+ 	var bridgeDelta = (_prevBridgeDrops !== null && rawBridgeDrops >= _prevBridgeDrops) ? (rawBridgeDrops - _prevBridgeDrops) : 0;
+ 	_prevBridgeDrops = rawBridgeDrops;
+-	var northVal   = cs.npuActive ? 'ACTIVE' : (cs.hwEnabled ? 'IDLE' : 'CPU PATH');
++	var northVal   = cs.npuActive ? _('ACTIVE') : (cs.hwEnabled ? _('IDLE') : _('CPU PATH'));
+ 	var northColor = cs.npuActive ? '#00c8ff' : (cs.hwEnabled ? '#888' : '#ff6b35');
+ 	var northSub   = mode === 'ap'
+-		? 'CPU: '+cs.cpuPct+'%  |  Bridge drops Δ: '+bridgeDelta
+-		: 'CPU: '+cs.cpuPct+'%  |  WAN: '+cs.wanMbps+' Mbps';
++		? _('CPU: ')+cs.cpuPct+'%  |  ' + _('Bridge drops Δ: ')+bridgeDelta
++		: _('CPU: ')+cs.cpuPct+'%  |  ' + _('WAN: ')+cs.wanMbps+' Mbps';
+ 
+ 	// East card: Integrity
+ 	var eastVal, eastSub;
+ 	if (mode === 'router') {
+-		eastVal = cs.eastAlarm ? cs.errCount+' ERROR'+(cs.errCount>1?'S':'') : 'CLEAN';
+-		eastSub = 'RX errors: '+(wan.rx_errors||0)+'  TX errors: '+(wan.tx_errors||0);
++		eastVal = cs.eastAlarm ? cs.errCount+' '+(cs.errCount>1?_('ERRORS'):_('ERROR')) : _('CLEAN');
++		eastSub = _('RX errors: ')+(wan.rx_errors||0)+'  ' + _('TX errors: ')+(wan.tx_errors||0);
+ 	} else {
+ 		var ws = cs.worstSignal;
+ 		eastVal = cs.wbDelta.length === 0 ? 'NO CLIENTS'
+-		        : ws === 0               ? 'NO DATA'
+-		        : ws < -82               ? 'POOR'
+-		        : ws < -75               ? 'WEAK'
++		        : ws === 0               ? _('NO DATA')
++		        : ws < -82               ? _('POOR')
++		        : ws < -75               ? _('WEAK')
+ 		        :                          'CLEAN';
+ 		var bnames = ['2.4G','5G','6G'];
+ 		eastSub = cs.wbDelta.length > 0
+-			? 'Signal: '+cs.wbDelta.map(function(b){ return (bnames[b.band]||('B'+b.band))+': '+b.signal+' dBm'; }).join('  |  ')
+-			: 'No connected clients';
++			? _('Signal: ')+cs.wbDelta.map(function(b){ return (bnames[b.band]||('B'+b.band))+': '+b.signal+' dBm'; }).join('  |  ')
++			: _('No connected clients');
+ 	}
+ 	var eastColor = cs.eastColor;
+ 
+ 	// South card: HW Buffer Health
+ 	var hb = cs.hwBuf || {};
+-	var southVal   = hb.activeDrop ? 'DROPPING' : 'HEALTHY';
++	var southVal   = hb.activeDrop ? _('DROPPING') : _('HEALTHY');
+ 	var southColor = hb.color || '#00cc44';
+-	var southSub   = 'PSE Δ: '+hb.pseDelta+' CDM Δ: '+hb.cdmHwfDelta+' | PPE: '+hb.ppePct+'% BND ('+hb.ppeBound+'/'+hb.ppeTotal+')';
++	var southSub   = _('PSE Δ: ')+hb.pseDelta+' ' + _('CDM Δ: ')+hb.cdmHwfDelta+' | PPE: '+hb.ppePct+'% BND ('+hb.ppeBound+'/'+hb.ppeTotal+')';
+ 
+ 	// West card: Latency
+ 	var latVal   = cs.latMs > 0 ? cs.latMs.toFixed(1)+'ms' : (jitter.available===false ? 'N/A' : '---');
+ 	var latColor = cs.latColor;
+-	var latSub   = 'Jitter: '+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  '+(jitter.target||'1.1.1.1');
++	var latSub   = _('Jitter: ')+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  '+(jitter.target||'1.1.1.1');
+ 
+ 	function card(title, val, color, sub) {
+ 		return E('div', { 'class': 'compass-card' }, [
+@@ -1420,10 +1420,10 @@
+ 	}
+ 
+ 	return E('div', { 'class': 'compass-cards', 'id': 'compass-cards' }, [
+-		card('NPU Path',    northVal, northColor, northSub),
+-		card('Integrity',   eastVal,  eastColor,  eastSub),
+-		card('Latency',     latVal,   latColor,   latSub),
+-		card('HW Buffer',   southVal, southColor, southSub)
++		card(_('NPU Path'),    northVal, northColor, northSub),
++		card(_('Integrity'),   eastVal,  eastColor,  eastSub),
++		card(_('Latency'),     latVal,   latColor,   latSub),
++		card(_('HW Buffer'),   southVal, southColor, southSub)
+ 	]);
+ }
+ 
+@@ -1446,40 +1446,40 @@
+ 	var bridgeDelta2 = (_prevBridgeDrops !== null && rawBridgeDrops2 >= _prevBridgeDrops) ? (rawBridgeDrops2 - _prevBridgeDrops) : 0;
+ 	_prevBridgeDrops = rawBridgeDrops2;
+ 
+-	setCard(divs[0], cs.npuActive?'ACTIVE':(cs.hwEnabled?'IDLE':'CPU PATH'),
++	setCard(divs[0], cs.npuActive?_('ACTIVE'):(cs.hwEnabled?_('IDLE'):_('CPU PATH')),
+ 		cs.npuActive?'#00c8ff':(cs.hwEnabled?'#888':'#ff6b35'),
+ 		mode==='ap'
+-			?'CPU: '+cs.cpuPct+'%  |  Bridge drops Δ: '+bridgeDelta2
+-			:'CPU: '+cs.cpuPct+'%  |  WAN: '+cs.wanMbps+' Mbps');
++			?_('CPU: ')+cs.cpuPct+'%  |  ' + _('Bridge drops Δ: ')+bridgeDelta2
++			:_('CPU: ')+cs.cpuPct+'%  |  ' + _('WAN: ')+cs.wanMbps+' Mbps');
+ 
+ 	if (mode === 'router') {
+-		setCard(divs[1], cs.eastAlarm?cs.errCount+' ERROR'+(cs.errCount>1?'S':''):'CLEAN',
++		setCard(divs[1], cs.eastAlarm?cs.errCount+' '+(cs.errCount>1?_('ERRORS'):_('ERROR')):_('CLEAN'),
+ 			cs.eastColor,
+-			'RX errors: '+(wan.rx_errors||0)+'  TX errors: '+(wan.tx_errors||0));
++			_('RX errors: ')+(wan.rx_errors||0)+'  ' + _('TX errors: ')+(wan.tx_errors||0));
+ 	} else {
+ 		var ws2 = cs.worstSignal;
+ 		var bnames2 = ['2.4G','5G','6G'];
+ 		setCard(divs[1],
+ 			cs.wbDelta.length === 0 ? 'NO CLIENTS'
+-			: ws2 === 0             ? 'NO DATA'
+-			: ws2 < -82             ? 'POOR'
+-			: ws2 < -75             ? 'WEAK'
+-			:                         'CLEAN',
++			: ws2 === 0             ? _('NO DATA')
++			: ws2 < -82             ? _('POOR')
++			: ws2 < -75             ? _('WEAK')
++			:                         _('CLEAN'),
+ 			cs.eastColor,
+ 			cs.wbDelta.length > 0
+-				? 'Signal: '+cs.wbDelta.map(function(b){ return (bnames2[b.band]||('B'+b.band))+': '+b.signal+' dBm'; }).join('  |  ')
+-				: 'No connected clients');
++				? _('Signal: ')+cs.wbDelta.map(function(b){ return (bnames2[b.band]||('B'+b.band))+': '+b.signal+' dBm'; }).join('  |  ')
++				: _('No connected clients'));
+ 	}
+ 
+ 	var latVal = cs.latMs > 0 ? cs.latMs.toFixed(1)+'ms' : (jitter.available===false?'N/A':'---');
+ 	setCard(divs[2], latVal, cs.latColor,
+-		'Jitter: '+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  '+(jitter.target||'1.1.1.1'));
++		_('Jitter: ')+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  '+(jitter.target||'1.1.1.1'));
+ 
+ 	var hb = cs.hwBuf || {};
+ 	setCard(divs[3],
+-		hb.activeDrop?'DROPPING':'HEALTHY',
++		hb.activeDrop?_('DROPPING'):_('HEALTHY'),
+ 		hb.color||'#00cc44',
+-		'PSE Δ: '+hb.pseDelta+' CDM Δ: '+hb.cdmHwfDelta+' | PPE: '+hb.ppePct+'% BND ('+hb.ppeBound+'/'+hb.ppeTotal+')');
++		_('PSE Δ: ')+hb.pseDelta+' ' + _('CDM Δ: ')+hb.cdmHwfDelta+' | PPE: '+hb.ppePct+'% BND ('+hb.ppeBound+'/'+hb.ppeTotal+')');
+ }
+ 
+ /* ── Main View ── */

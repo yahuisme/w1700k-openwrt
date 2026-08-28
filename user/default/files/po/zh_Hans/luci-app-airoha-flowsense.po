@@ -278,3 +278,47 @@ msgstr "完整性 正常"
 
 msgid "HW Buffer HEALTHY"
 msgstr "硬件缓冲 健康"
+msgid "Poor"
+msgstr "较差"
+
+msgid "Fair"
+msgstr "一般"
+
+msgid "Good"
+msgstr "良好"
+
+msgid "showing 25"
+msgstr "显示 25 条"
+
+msgid "ROUTER"
+msgstr "路由模式"
+
+msgid "CPU: "
+msgstr "CPU："
+
+msgid "Bridge drops Δ: "
+msgstr "桥接丢包 Δ："
+
+msgid "WAN: "
+msgstr "WAN："
+
+msgid "RX errors: "
+msgstr "接收错误："
+
+msgid "TX errors: "
+msgstr "发送错误："
+
+msgid "Signal: "
+msgstr "信号："
+
+msgid "No connected clients"
+msgstr "无已连接客户端"
+
+msgid "PSE Δ: "
+msgstr "PSE Δ："
+
+msgid "CDM Δ: "
+msgstr "CDM Δ："
+
+msgid "Jitter: "
+msgstr "抖动："

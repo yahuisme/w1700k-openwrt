@@ -1,0 +1,46 @@
+--- a/htdocs/luci-static/resources/view/fan/settings.js
++++ b/htdocs/luci-static/resources/view/fan/settings.js
+@@ -55,12 +55,12 @@
+ 	ctx.fillStyle = '#333';
+ 	ctx.font = '12px sans-serif';
+ 	ctx.textAlign = 'center';
+-	ctx.fillText('Temperature (\u00B0C)', width / 2, height - 5);
++	ctx.fillText(_('Temperature (\u00B0C)'), width / 2, height - 5);
+ 
+ 	ctx.save();
+ 	ctx.translate(12, height / 2);
+ 	ctx.rotate(-Math.PI / 2);
+-	ctx.fillText('PWM (0-255)', 0, 0);
++	ctx.fillText(_('PWM (0-255)'), 0, 0);
+ 	ctx.restore();
+ 
+ 	ctx.textAlign = 'center';
+@@ -121,7 +121,7 @@
+ 		ctx.fillRect(width - 100, legendY, 15, 15);
+ 		ctx.fillStyle = '#333';
+ 		ctx.textAlign = 'left';
+-		ctx.fillText(preset.charAt(0).toUpperCase() + preset.slice(1), width - 80, legendY + 12);
++		ctx.fillText(_(preset.charAt(0).toUpperCase() + preset.slice(1)), width - 80, legendY + 12);
+ 		legendY += 20;
+ 	});
+ }
+--- a/htdocs/luci-static/resources/view/fan/status.js
++++ b/htdocs/luci-static/resources/view/fan/status.js
+@@ -88,7 +88,7 @@
+ 		status = status || {};
+ 
+ 		var modeClass = status.fan_mode === 2 ? 'label-success' : 'label-warning';
+-		var modeText = status.fan_mode_desc || 'Unknown';
++		var modeText = status.fan_mode_desc || _('Unknown');
+ 
+ 		var viewEl = E('div', { 'class': 'cbi-map' }, [
+ 			E('h2', {}, _('Fan Control - Status')),
+@@ -164,7 +164,7 @@
+ 				// Update mode display
+ 				var modeEl = document.getElementById('fan-mode');
+ 				if (modeEl) {
+-					modeEl.textContent = status.fan_mode_desc || 'Unknown';
++					modeEl.textContent = status.fan_mode_desc || _('Unknown');
+ 					modeEl.className = status.fan_mode === 2 ? 'label-success' : 'label-warning';
+ 				}
+ 

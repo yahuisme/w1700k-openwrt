@@ -14,7 +14,7 @@
 -              :           'TX power limited by country + sku_idx=' + skuIdx + ' regulatory table.';
 +    var msg   = skuOff  ? _('Transmitting without country power limits (up to 27 dBm). Set country + sku_idx on the Radio tab.')
 +              : partial ? _('sku_disable=0 but sku_idx not set. TX power limits may not be applied. Set sku_idx on the Radio tab.')
-+              :           _('TX power limited by country + sku_idx=') + skuIdx + ' regulatory table.';
++              :           _('TX power limited by country + sku_idx=%s regulatory table.').format(skuIdx);
      return E('div', { 'style': 'border-radius:6px;padding:9px 13px;margin-bottom:14px;' + style }, [
          E('strong', {}, label), msg
      ]);
@@ -301,7 +301,7 @@
                  'style':'background:#1a1a2e;border:1px solid #444;border-radius:4px;color:#fff;padding:4px 8px;font-size:12px;width:80px'});
              var wrap=E('div',{'style':'display:flex;align-items:center;gap:8px'},[inp,
 -                E('span',{'style':'font-size:11px;color:#666'},'dBm  (1-'+maxDbm+', empty = regulatory max)')]);
-+                E('span',{'style':'font-size:11px;color:#666'},_('dBm  (1-'+maxDbm+', empty = regulatory max)'))]);
++                E('span',{'style':'font-size:11px;color:#666'},_('dBm  (1-%d, empty = regulatory max)').format(maxDbm))]);
              wrap._inp=inp; return wrap;
          }
          var r0ch=mkSel(ch2g,r0['channel']||'auto'), r0ht=mkSel(ht2g,r0['htmode']||'EHT40');
@@ -399,7 +399,7 @@
 -                chkRow('Disabled',r1dis,''),chkRow('background_radar',r1bgr,'CAC in background -- keeps AP up during DFS'),
 -                chkRow('he_twt_responder',r1twt,'TWT -- IoT power saving (default: on)')]),
 +                fieldRow(_('HT mode'),r1ht),fieldRow(_('TX power'),r1txp),
-+                chkRow(_('Disabled'),r1dis,''),chkRow('background_radar',r1bgr,_(_('CAC in background -- keeps AP up during DFS'))),
++                chkRow(_('Disabled'),r1dis,''),chkRow('background_radar',r1bgr,_('CAC in background -- keeps AP up during DFS'),
 +                chkRow('he_twt_responder',r1twt,_('TWT -- IoT power saving (default: on)'))]),
              radioCard('6 GHz -- radio2','#1a0a3a','#afa9ec',[
 -                fieldRow('Channel',r2ch),fieldRow('HT mode',r2ht),fieldRow('TX power',r2txp),
@@ -411,12 +411,12 @@
 -                chkRow('etxbfen',etxbfen,'Explicit TX beamforming (default: on)'),
 -                fieldRow('Note',roValue('sr_enable + etxbfen apply to all bands via single wiphy (phy0)'))
 +                fieldRow(_('Channel'),r2ch),fieldRow(_('HT mode'),r2ht),fieldRow(_('TX power'),r2txp),
-+                chkRow(_('Disabled'),r2dis,''),chkRow('lpi_enable',r2lpi,_(_('Low Power Indoor -- required in some countries'))),
-+                chkRow('noscan',r2noscan,_(_('6G: normally 0 (PSC channels) -- disabling may cause slow restart'))),
++                chkRow(_('Disabled'),r2dis,''),chkRow('lpi_enable',r2lpi,_('Low Power Indoor -- required in some countries'),
++                chkRow('noscan',r2noscan,_('6G: normally 0 (PSC channels) -- disabling may cause slow restart'),
 +                chkRow('he_twt_responder',r2twt,_('TWT -- IoT power saving (default: on)'))]),
 +            sectionBox(_('Advanced -- shared (single wiphy)'),'#444',null,E('div',{},[
-+                chkRow('sr_enable',srEnable,_(_('Spatial Reuse / BSS Coloring (default: on)'))),
-+                chkRow('etxbfen',etxbfen,_(_('Explicit TX beamforming (default: on)'))),
++                chkRow('sr_enable',srEnable,_('Spatial Reuse / BSS Coloring (default: on)'),
++                chkRow('etxbfen',etxbfen,_('Explicit TX beamforming (default: on)'),
 +                fieldRow('Note',roValue(_('sr_enable + etxbfen apply to all bands via single wiphy (phy0)')))
              ])),
              E('div',{'style':'display:flex;justify-content:flex-end;margin-top:4px'},[discardBtn,applyBtn]),

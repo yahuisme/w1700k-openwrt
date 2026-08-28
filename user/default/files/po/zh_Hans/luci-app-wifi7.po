@@ -279,9 +279,6 @@ msgstr "仅禁用此接口"
 msgid "Legacy networks are independent from MLD. Open networks disable EHT (WiFi 7). Open on 6 GHz is rejected by hostapd."
 msgstr "传统网络独立于 MLD。开放网络会禁用 EHT（WiFi 7）。6 GHz 不允许使用开放网络，hostapd 会拒绝。"
 
-msgid "dBm  (1-"
-msgstr "dBm（1-"
-
 msgid "0 = default regulation table"
 msgstr "0 = 默认监管表"
 
@@ -314,3 +311,20 @@ msgstr "sr_enable + etxbfen 通过单一 wiphy（phy0）应用于所有频段"
 
 msgid "  (reboot required to change)"
 msgstr "（需要重启才能更改）"
+msgid "SKU partially configured -- "
+msgstr "SKU 部分配置 —— "
+
+msgid "sku_disable=0 but sku_idx not set. TX power limits may not be applied. Set sku_idx on the Radio tab."
+msgstr "sku_disable=0 但未设置 sku_idx，TX 功率限制可能未生效。请在“无线电”选项卡设置 sku_idx。"
+
+msgid "TX power limited by country + sku_idx=%s regulatory table."
+msgstr "TX 功率受 country + sku_idx=%s 监管表限制"
+
+msgid "PMF (ieee80211w)"
+msgstr "PMF（ieee80211w）"
+
+msgid "mlo=1 -- enabled"
+msgstr "mlo=1 —— 已启用"
+
+msgid "dBm  (1-%d, empty = regulatory max)"
+msgstr "dBm（1-%d，留空 = 使用监管上限）"

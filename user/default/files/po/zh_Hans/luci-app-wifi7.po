@@ -328,3 +328,99 @@ msgstr "mlo=1 —— 已启用"
 
 msgid "dBm  (1-%d, empty = regulatory max)"
 msgstr "dBm（1-%d，留空 = 使用监管上限）"
+
+msgid "Polling hostapd (%d/%d)..."
+msgstr "正在轮询 hostapd（%d/%d）..."
+
+msgid "Timeout! Try: 1) reboot   2) power cycle if no response"
+msgstr "超时！请尝试：1) 重启   2) 断电重启（若无响应）"
+
+msgid "Timeout! Try: 1) reboot   2) power cycle"
+msgstr "超时！请尝试：1) 重启   2) 断电重启"
+
+msgid "Writing UCI..."
+msgstr "正在写入 UCI..."
+
+msgid "Creating %s..."
+msgstr "正在创建 %s..."
+
+msgid "Writing UCI (%s)..."
+msgstr "正在写入 UCI（%s）..."
+
+msgid "Creating..."
+msgstr "正在创建..."
+
+msgid "Committing..."
+msgstr "正在提交..."
+
+msgid "Removing..."
+msgstr "正在删除..."
+
+msgid "Collecting..."
+msgstr "正在收集..."
+
+msgid "Done -- log downloaded"
+msgstr "完成 -- 日志已下载"
+
+msgid "Done -- REBOOT REQUIRED"
+msgstr "完成 -- 需要重启"
+
+msgid "Unknown tab"
+msgstr "未知标签页"
+
+msgid " Advanced settings"
+msgstr " 高级设置"
+
+msgid "connected: "
+msgstr "已连接："
+
+msgid "signal: "
+msgstr "信号："
+
+msgid "  |  Tx: "
+msgstr "  |  发送："
+
+msgid "  |  Rx: "
+msgstr "  |  接收："
+
+msgid "idle (STR)  |  peer: "
+msgstr "空闲（STR）  |  对端："
+
+msgid "DFS weather radar -- CAC 10 min (ETSI)"
+msgstr "DFS 气象雷达 -- CAC 10 分钟（ETSI）"
+
+msgid "DFS -- CAC 60s required before TX"
+msgstr "DFS -- 发射前需 CAC 60 秒"
+
+msgid "Country code changed to %s."
+msgstr "国家代码已更改为 %s。"
+
+msgid "WARNING: Country change requires a full REBOOT to take effect."
+msgstr "警告：更改国家代码需要完全重启才能生效。"
+
+msgid "wifi restart alone is NOT sufficient."
+msgstr "仅重启 WiFi 是不够的。"
+
+msgid "Proceed? (Settings will be saved, then you must reboot manually.)"
+msgstr "是否继续？（设置将被保存，之后您必须手动重启。）"
+
+msgid "WARNING: This is the last legacy interface on %s."
+msgstr "警告：这是 %s 上最后一个传统接口。"
+
+msgid "WARNING: MLD network (ap_mld_1) uses %s. Removing this interface may cause the MLD link on this band to stop working!"
+msgstr "警告：MLD 网络（ap_mld_1）正在使用 %s。删除此接口可能导致该频段的 MLD 链路停止工作！"
+
+msgid "Remove network \"%s\"?"
+msgstr "删除网络 \"%s\"？"
+
+msgid "This will delete the UCI section and restart WiFi."
+msgstr "这将删除 UCI 配置节并重启 WiFi。"
+
+msgid "Radios"
+msgstr "无线"
+
+msgid "Band"
+msgstr "频段"
+
+msgid "Network"
+msgstr "网络"

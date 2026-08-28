@@ -54,7 +54,7 @@
  				E('span', { 'class': 'soc-label' }, label)
  			]),
 -			E('div', { 'class': 'soc-text', 'style': 'font-size:12px;margin-bottom:4px' }, 'HW Offload: '+pct+'%'),
-+			E('div', { 'class': 'soc-text', 'style': 'font-size:12px;margin-bottom:4px' }, _('HW Offload: ')+pct+'%'),
++			E('div', { 'class': 'soc-text', 'style': 'font-size:12px;margin-bottom:4px' }, _('HW Offload:')+pct+'%'),
  			E('div', { 'class': 'soc-bar-track', 'style': 'height:6px' }, [
  				E('div', { 'style': 'background:'+barCol+';height:100%;width:'+pct+'%;transition:width .5s;border-radius:4px' })
  			]),
@@ -62,9 +62,9 @@
 -				E('span', { 'class': 'soc-muted' }, 'CPU: '+fmtK(d.rx_cpu||0)),
 -				E('span', { 'class': 'soc-muted' }, 'HWF: '+fmtK(d.rx_hwf||0)),
 -				E('span', { 'class': 'soc-muted' }, 'TX: '+fmtK(d.tx||0))
-+				E('span', { 'class': 'soc-muted' }, _('CPU: ')+fmtK(d.rx_cpu||0)),
-+				E('span', { 'class': 'soc-muted' }, _('HWF: ')+fmtK(d.rx_hwf||0)),
-+				E('span', { 'class': 'soc-muted' }, _('TX: ')+fmtK(d.tx||0))
++				E('span', { 'class': 'soc-muted' }, _('CPU:')+fmtK(d.rx_cpu||0)),
++				E('span', { 'class': 'soc-muted' }, _('HWF:')+fmtK(d.rx_hwf||0)),
++				E('span', { 'class': 'soc-muted' }, _('TX:')+fmtK(d.tx||0))
  			])
  		]);
  	}
@@ -79,7 +79,7 @@
  		E('div', { 'style': 'font-size:11px' }, [
 -			E('span', { 'class': 'soc-muted' }, 'Manages: '),
 -			E('span', { 'class': 'soc-text', 'style': 'font-size:11px' }, 'PPE init, WDMA rings, flow stats')
-+			E('span', { 'class': 'soc-muted' }, _('Manages: ')),
++			E('span', { 'class': 'soc-muted' }, _('Manages:')),
 +			E('span', { 'class': 'soc-text', 'style': 'font-size:11px' }, _('PPE init, WDMA rings, flow stats'))
  		])
  	]);
@@ -89,12 +89,12 @@
  		E('div', { 'style': 'display:flex;gap:16px;font-size:12px' }, [
  			E('span', {}, [
 -				E('span', { 'class': 'soc-muted' }, 'Bound '),
-+				E('span', { 'class': 'soc-muted' }, _('Bound ')),
++				E('span', { 'class': 'soc-muted' }, _('Bound')),
  				E('span', { 'class': 'soc-text', 'style': 'font-weight:bold', 'id': 'fe-ppe-bound' }, (st.offload_bound||0).toString())
  			]),
  			E('span', {}, [
 -				E('span', { 'class': 'soc-muted' }, 'Total '),
-+				E('span', { 'class': 'soc-muted' }, _('Total ')),
++				E('span', { 'class': 'soc-muted' }, _('Total')),
  				E('span', { 'class': 'soc-text', 'id': 'fe-ppe-total' }, (st.offload_total||0).toString())
  			])
  		])
@@ -136,16 +136,27 @@
  		E('div', { 'class': 'soc-pse-grid' }, portCells)
  	]);
  }
-@@ -357,7 +357,7 @@
+@@ -356,8 +356,8 @@
+ 	if (!gs.length) return E('span',{},'N/A');
  	return E('select', { 'id':'cpu-governor-select','class':'cbi-input-select','style':'min-width:140px','change':function(ev){
  		var g=ev.target.value; ev.target.disabled=true;
- 		callSetGovernor(g).then(function(r){ev.target.disabled=false;if(r&&r.error) ui.addNotification(null,E('p',{},_('Error: ')+r.error),'error');}).catch(function(){ev.target.disabled=false;});
+-		callSetGovernor(g).then(function(r){ev.target.disabled=false;if(r&&r.error) ui.addNotification(null,E('p',{},_('Error: ')+r.error),'error');}).catch(function(){ev.target.disabled=false;});
 -	}}, gs.map(function(g){return E('option',{'value':g,'selected':g===active?'':null},g);}));
++		callSetGovernor(g).then(function(r){ev.target.disabled=false;if(r&&r.error) ui.addNotification(null,E('p',{},_('Error:')+r.error),'error');}).catch(function(){ev.target.disabled=false;});
 +	}}, gs.map(function(g){return E('option',{'value':g,'selected':g===active?'':null},_(g));}));
  }
  
  function renderMaxFreqSelect(avail, cur) {
-@@ -374,7 +374,7 @@
+@@ -365,7 +365,7 @@
+ 	if (!fs.length) return E('span',{},'N/A');
+ 	return E('select', { 'id':'cpu-maxfreq-select','class':'cbi-input-select','style':'min-width:140px','change':function(ev){
+ 		var f=ev.target.value; ev.target.disabled=true;
+-		callSetMaxFreq(parseInt(f)).then(function(r){ev.target.disabled=false;if(r&&r.error) ui.addNotification(null,E('p',{},_('Error: ')+r.error),'error');}).catch(function(){ev.target.disabled=false;});
++		callSetMaxFreq(parseInt(f)).then(function(r){ev.target.disabled=false;if(r&&r.error) ui.addNotification(null,E('p',{},_('Error:')+r.error),'error');}).catch(function(){ev.target.disabled=false;});
+ 	}}, fs.map(function(f){return E('option',{'value':f,'selected':parseInt(f)===parseInt(cur)?'':null},(parseInt(f)/1000).toFixed(0)+' MHz');}));
+ }
+ 
+@@ -374,11 +374,11 @@
  	var btn = E('button',{'class':'cbi-button cbi-button-action','style':'margin-left:8px','click':function(){
  		var f=parseInt(document.getElementById('oc-freq-input').value);
  		if(isNaN(f)||f<500||f>1600){ui.addNotification(null,E('p',{},_('Must be 500-1600 MHz')),'error');return;}
@@ -153,4 +164,10 @@
 +		if(f>1400&&!confirm(_('Frequencies above 1400 MHz may be unstable. Continue?'))) return;
  		btn.disabled=true;btn.textContent=_('Applying...');
  		callSetOverclock(f).then(function(r){btn.disabled=false;btn.textContent=_('Apply');
- 			if(r&&r.error) ui.addNotification(null,E('p',{},_('Failed: ')+r.error),'error');
+-			if(r&&r.error) ui.addNotification(null,E('p',{},_('Failed: ')+r.error),'error');
+-			else if(r&&r.result==='ok') ui.addNotification(null,E('p',{},_('CPU set to ')+r.actual_mhz+' MHz'),'info');
++			if(r&&r.error) ui.addNotification(null,E('p',{},_('Failed:')+r.error),'error');
++			else if(r&&r.result==='ok') ui.addNotification(null,E('p',{},_('CPU set to')+r.actual_mhz+' MHz'),'info');
+ 		}).catch(function(e){btn.disabled=false;btn.textContent=_('Apply');});
+ 	}},_('Apply'));
+ 	return E('div',{'style':'display:flex;align-items:center;gap:8px;flex-wrap:wrap'},[

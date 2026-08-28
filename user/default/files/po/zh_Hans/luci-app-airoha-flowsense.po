@@ -7,7 +7,7 @@ msgid "Airoha FlowSense"
 msgstr "Airoha 流量传感器"
 
 msgid "AP Mode Acceleration"
-msgstr "AP模式加速"
+msgstr "AP 模式加速"
 
 msgid "Disabled"
 msgstr "已禁用"
@@ -15,11 +15,11 @@ msgstr "已禁用"
 msgid "Enabled"
 msgstr "已启用"
 
-msgid "Error: "
+msgid "Error:"
 msgstr "错误："
 
 msgid "HW Flow Offload"
-msgstr "硬件流量加速"
+msgstr "硬件流量卸载"
 
 msgid "Index"
 msgstr "索引"
@@ -34,7 +34,7 @@ msgid "Pause"
 msgstr "暂停"
 
 msgid "PPPoE Offload"
-msgstr "PPPoE 加速"
+msgstr "PPPoE 卸载"
 
 msgid "Resume"
 msgstr "继续"
@@ -49,7 +49,7 @@ msgid "Type"
 msgstr "类型"
 
 msgid "VLAN Offload"
-msgstr "VLAN 加速"
+msgstr "VLAN 卸载"
 
 # Compass labels
 msgid "NPU PATH"
@@ -59,7 +59,7 @@ msgid "HW BUFFER"
 msgstr "硬件缓冲"
 
 msgid "INTEGRITY"
-msgstr "信号质量"
+msgstr "完整性"
 
 msgid "LATENCY"
 msgstr "延迟"
@@ -171,10 +171,10 @@ msgid "NO LINK"
 msgstr "无连接"
 
 msgid "TX"
-msgstr "发送"
+msgstr "TX"
 
 msgid "RX"
-msgstr "接收"
+msgstr "RX"
 
 msgid "Mb"
 msgstr "Mb"
@@ -197,7 +197,7 @@ msgid "Ghost Shaper Active"
 msgstr "Ghost Shaper 活动"
 
 msgid "NPU HW offload is bypassing CAKE SQM. Offloaded flows skip bufferbloat management — latency protection is inactive under load."
-msgstr "NPU 硬件加速绕过了 CAKE SQM。加速的流量跳过了缓冲区管理——负载下的延迟保护未激活。"
+msgstr "NPU 硬件卸载绕过了 CAKE SQM。已卸载的流量跳过缓冲区管理——负载下的延迟保护未激活。"
 
 msgid "Physical Bottleneck"
 msgstr "物理瓶颈"
@@ -209,7 +209,7 @@ msgid "NPU Bypass Detected"
 msgstr "检测到 NPU 绕过"
 
 msgid "HW offload is enabled but ISP latency is high. Latency management may be skipped by hardware acceleration."
-msgstr "硬件加速已启用，但 ISP 延迟较高。延迟管理可能被硬件加速跳过。"
+msgstr "硬件卸载已启用，但 ISP 延迟较高，延迟管理可能被硬件卸载跳过。"
 
 # Band health
 msgid "Drop:"
@@ -238,16 +238,16 @@ msgid "no entries"
 msgstr "无条目"
 
 msgid "VLAN offload not supported on this device"
-msgstr "此设备不支持 VLAN 加速"
+msgstr "此设备不支持 VLAN 卸载"
 
 msgid "PPPoE offload not supported on this device"
-msgstr "此设备不支持 PPPoE 加速"
+msgstr "此设备不支持 PPPoE 卸载"
 
 msgid "failed to set VLAN offload"
-msgstr "设置 VLAN 加速失败"
+msgstr "设置 VLAN 卸载失败"
 
 msgid "failed to set PPPoE offload"
-msgstr "设置 PPPoE 加速失败"
+msgstr "设置 PPPoE 卸载失败"
 
 msgid "MODE detecting..."
 msgstr "MODE 探测中..."
@@ -257,7 +257,7 @@ msgid "NPU Path"
 msgstr "NPU 路径"
 
 msgid "Integrity"
-msgstr "信号质量"
+msgstr "完整性"
 
 msgid "Latency"
 msgstr "延迟"
@@ -293,32 +293,32 @@ msgstr "显示 25 条"
 msgid "ROUTER"
 msgstr "路由模式"
 
-msgid "CPU: "
+msgid "CPU:"
 msgstr "CPU："
 
-msgid "Bridge drops Δ: "
+msgid "Bridge drops Δ:"
 msgstr "桥接丢包 Δ："
 
-msgid "WAN: "
+msgid "WAN:"
 msgstr "WAN："
 
-msgid "RX errors: "
-msgstr "接收错误："
+msgid "RX errors:"
+msgstr "RX 错误："
 
-msgid "TX errors: "
-msgstr "发送错误："
+msgid "TX errors:"
+msgstr "TX 错误："
 
-msgid "Signal: "
+msgid "Signal:"
 msgstr "信号："
 
 msgid "No connected clients"
 msgstr "无已连接客户端"
 
-msgid "PSE Δ: "
+msgid "PSE Δ:"
 msgstr "PSE Δ："
 
-msgid "CDM Δ: "
+msgid "CDM Δ:"
 msgstr "CDM Δ："
 
-msgid "Jitter: "
+msgid "Jitter:"
 msgstr "抖动："

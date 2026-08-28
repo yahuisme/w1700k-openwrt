@@ -40,6 +40,33 @@
  	));
  	return E('div', { 'id': id, 'style': 'background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:2px solid '+info.accent+';border-radius:6px;padding:10px 12px' }, rows);
  }
+@@ -268,7 +268,7 @@
+ 		ev.target.disabled = true;
+ 		callSetVlanOffload(v).then(function(r) {
+ 			ev.target.disabled = false;
+-			if (r && r.error) ui.addNotification(null, E('p', {}, _('Error: ') + r.error), 'error');
++			if (r && r.error) ui.addNotification(null, E('p', {}, _('Error:') + r.error), 'error');
+ 		}).catch(function() { ev.target.disabled = false; });
+ 	}}, [
+ 		E('option', { 'value': '0', 'selected': cur === '0' ? '' : null }, _('Disabled')),
+@@ -283,7 +283,7 @@
+ 		ev.target.disabled = true;
+ 		callSetFlowOffload(v).then(function(r) {
+ 			ev.target.disabled = false;
+-			if (r && r.error) ui.addNotification(null, E('p', {}, _('Error: ') + r.error), 'error');
++			if (r && r.error) ui.addNotification(null, E('p', {}, _('Error:') + r.error), 'error');
+ 		}).catch(function() { ev.target.disabled = false; });
+ 	}}, [
+ 		E('option', { 'value': '0', 'selected': cur === '0' ? '' : null }, _('Disabled')),
+@@ -298,7 +298,7 @@
+ 		ev.target.disabled = true;
+ 		callSetPppoeOffload(v).then(function(r) {
+ 			ev.target.disabled = false;
+-			if (r && r.error) ui.addNotification(null, E('p', {}, _('Error: ') + r.error), 'error');
++			if (r && r.error) ui.addNotification(null, E('p', {}, _('Error:') + r.error), 'error');
+ 		}).catch(function() { ev.target.disabled = false; });
+ 	}}, [
+ 		E('option', { 'value': '0', 'selected': cur === '0' ? '' : null }, _('Disabled')),
 @@ -334,7 +334,7 @@
  		]));
  	}
@@ -215,8 +242,8 @@
  	var northSub   = mode === 'ap'
 -		? 'CPU: '+cs.cpuPct+'%  |  Bridge drops Δ: '+bridgeDelta
 -		: 'CPU: '+cs.cpuPct+'%  |  WAN: '+cs.wanMbps+' Mbps';
-+		? _('CPU: ')+cs.cpuPct+'%  |  ' + _('Bridge drops Δ: ')+bridgeDelta
-+		: _('CPU: ')+cs.cpuPct+'%  |  ' + _('WAN: ')+cs.wanMbps+' Mbps';
++		? _('CPU:')+cs.cpuPct+'%  |  ' + _('Bridge drops Δ:')+bridgeDelta
++		: _('CPU:')+cs.cpuPct+'%  |  ' + _('WAN:')+cs.wanMbps+' Mbps';
  
  	// East card: Integrity
  	var eastVal, eastSub;
@@ -224,7 +251,7 @@
 -		eastVal = cs.eastAlarm ? cs.errCount+' ERROR'+(cs.errCount>1?'S':'') : 'CLEAN';
 -		eastSub = 'RX errors: '+(wan.rx_errors||0)+'  TX errors: '+(wan.tx_errors||0);
 +		eastVal = cs.eastAlarm ? cs.errCount+' '+(cs.errCount>1?_('ERRORS'):_('ERROR')) : _('CLEAN');
-+		eastSub = _('RX errors: ')+(wan.rx_errors||0)+'  ' + _('TX errors: ')+(wan.tx_errors||0);
++		eastSub = _('RX errors:')+(wan.rx_errors||0)+'  ' + _('TX errors:')+(wan.tx_errors||0);
  	} else {
  		var ws = cs.worstSignal;
  		eastVal = cs.wbDelta.length === 0 ? 'NO CLIENTS'
@@ -239,7 +266,7 @@
  		eastSub = cs.wbDelta.length > 0
 -			? 'Signal: '+cs.wbDelta.map(function(b){ return (bnames[b.band]||('B'+b.band))+': '+b.signal+' dBm'; }).join('  |  ')
 -			: 'No connected clients';
-+			? _('Signal: ')+cs.wbDelta.map(function(b){ return (bnames[b.band]||('B'+b.band))+': '+b.signal+' dBm'; }).join('  |  ')
++			? _('Signal:')+cs.wbDelta.map(function(b){ return (bnames[b.band]||('B'+b.band))+': '+b.signal+' dBm'; }).join('  |  ')
 +			: _('No connected clients');
  	}
  	var eastColor = cs.eastColor;
@@ -250,13 +277,13 @@
 +	var southVal   = hb.activeDrop ? _('DROPPING') : _('HEALTHY');
  	var southColor = hb.color || '#00cc44';
 -	var southSub   = 'PSE Δ: '+hb.pseDelta+' CDM Δ: '+hb.cdmHwfDelta+' | PPE: '+hb.ppePct+'% BND ('+hb.ppeBound+'/'+hb.ppeTotal+')';
-+	var southSub   = _('PSE Δ: ')+hb.pseDelta+' ' + _('CDM Δ: ')+hb.cdmHwfDelta+' | PPE: '+hb.ppePct+'% BND ('+hb.ppeBound+'/'+hb.ppeTotal+')';
++	var southSub   = _('PSE Δ:')+hb.pseDelta+' ' + _('CDM Δ:')+hb.cdmHwfDelta+' | PPE: '+hb.ppePct+'% BND ('+hb.ppeBound+'/'+hb.ppeTotal+')';
  
  	// West card: Latency
  	var latVal   = cs.latMs > 0 ? cs.latMs.toFixed(1)+'ms' : (jitter.available===false ? 'N/A' : '---');
  	var latColor = cs.latColor;
 -	var latSub   = 'Jitter: '+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  '+(jitter.target||'1.1.1.1');
-+	var latSub   = _('Jitter: ')+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  '+(jitter.target||'1.1.1.1');
++	var latSub   = _('Jitter:')+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  '+(jitter.target||'1.1.1.1');
  
  	function card(title, val, color, sub) {
  		return E('div', { 'class': 'compass-card' }, [
@@ -285,15 +312,15 @@
  		mode==='ap'
 -			?'CPU: '+cs.cpuPct+'%  |  Bridge drops Δ: '+bridgeDelta2
 -			:'CPU: '+cs.cpuPct+'%  |  WAN: '+cs.wanMbps+' Mbps');
-+			?_('CPU: ')+cs.cpuPct+'%  |  ' + _('Bridge drops Δ: ')+bridgeDelta2
-+			:_('CPU: ')+cs.cpuPct+'%  |  ' + _('WAN: ')+cs.wanMbps+' Mbps');
++			?_('CPU:')+cs.cpuPct+'%  |  ' + _('Bridge drops Δ:')+bridgeDelta2
++			:_('CPU:')+cs.cpuPct+'%  |  ' + _('WAN:')+cs.wanMbps+' Mbps');
  
  	if (mode === 'router') {
 -		setCard(divs[1], cs.eastAlarm?cs.errCount+' ERROR'+(cs.errCount>1?'S':''):'CLEAN',
 +		setCard(divs[1], cs.eastAlarm?cs.errCount+' '+(cs.errCount>1?_('ERRORS'):_('ERROR')):_('CLEAN'),
  			cs.eastColor,
 -			'RX errors: '+(wan.rx_errors||0)+'  TX errors: '+(wan.tx_errors||0));
-+			_('RX errors: ')+(wan.rx_errors||0)+'  ' + _('TX errors: ')+(wan.tx_errors||0));
++			_('RX errors:')+(wan.rx_errors||0)+'  ' + _('TX errors:')+(wan.tx_errors||0));
  	} else {
  		var ws2 = cs.worstSignal;
  		var bnames2 = ['2.4G','5G','6G'];
@@ -311,14 +338,14 @@
  			cs.wbDelta.length > 0
 -				? 'Signal: '+cs.wbDelta.map(function(b){ return (bnames2[b.band]||('B'+b.band))+': '+b.signal+' dBm'; }).join('  |  ')
 -				: 'No connected clients');
-+				? _('Signal: ')+cs.wbDelta.map(function(b){ return (bnames2[b.band]||('B'+b.band))+': '+b.signal+' dBm'; }).join('  |  ')
++				? _('Signal:')+cs.wbDelta.map(function(b){ return (bnames2[b.band]||('B'+b.band))+': '+b.signal+' dBm'; }).join('  |  ')
 +				: _('No connected clients'));
  	}
  
  	var latVal = cs.latMs > 0 ? cs.latMs.toFixed(1)+'ms' : (jitter.available===false?'N/A':'---');
  	setCard(divs[2], latVal, cs.latColor,
 -		'Jitter: '+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  '+(jitter.target||'1.1.1.1'));
-+		_('Jitter: ')+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  '+(jitter.target||'1.1.1.1'));
++		_('Jitter:')+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  '+(jitter.target||'1.1.1.1'));
  
  	var hb = cs.hwBuf || {};
  	setCard(divs[3],
@@ -326,7 +353,7 @@
 +		hb.activeDrop?_('DROPPING'):_('HEALTHY'),
  		hb.color||'#00cc44',
 -		'PSE Δ: '+hb.pseDelta+' CDM Δ: '+hb.cdmHwfDelta+' | PPE: '+hb.ppePct+'% BND ('+hb.ppeBound+'/'+hb.ppeTotal+')');
-+		_('PSE Δ: ')+hb.pseDelta+' ' + _('CDM Δ: ')+hb.cdmHwfDelta+' | PPE: '+hb.ppePct+'% BND ('+hb.ppeBound+'/'+hb.ppeTotal+')');
++		_('PSE Δ:')+hb.pseDelta+' ' + _('CDM Δ:')+hb.cdmHwfDelta+' | PPE: '+hb.ppePct+'% BND ('+hb.ppeBound+'/'+hb.ppeTotal+')');
  }
  
  /* ── Main View ── */

@@ -49,7 +49,7 @@ msgstr "字节"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:470
 msgid "Control Settings"
-msgstr "CPU控制设置"
+msgstr "CPU 控制设置"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:310
 msgid "CPU Cores"
@@ -66,10 +66,6 @@ msgstr "核心数量"
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:288
 msgid "CPU Frequency"
 msgstr "CPU 频率"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:229
-msgid "CPU set to"
-msgstr "CPU 设置为"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:291
 msgid "Current Frequency"
@@ -95,7 +91,7 @@ msgstr "以太网"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:85
 msgid "Failed to set governor:"
-msgstr "设置调速器失败："
+msgstr "设置运行模式失败："
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:112
 msgid "Failed to set max frequency:"
@@ -160,7 +156,7 @@ msgstr "NPU 信息"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:325
 msgid "NPU & Offload Engine"
-msgstr "NPU硬件引擎"
+msgstr "NPU 与卸载引擎"
 
 msgid "NPU Status"
 msgstr "NPU 状态"
@@ -183,19 +179,19 @@ msgid "Offload Statistics"
 msgstr "卸载统计"
 
 msgid "AP Mode Acceleration"
-msgstr "AP模式加速"
+msgstr "AP 模式加速"
 
 msgid "Flow Offload"
-msgstr "硬件流量加速"
+msgstr "流量卸载"
 
 msgid "PPPoE Offload"
-msgstr "PPPoE 加速"
+msgstr "PPPoE 卸载"
 
 msgid "VLAN Offload"
-msgstr "VLAN 加速"
+msgstr "VLAN 卸载"
 
 msgid "HW Offload"
-msgstr "硬件加速"
+msgstr "硬件卸载"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:358
 msgid "Original Flow"
@@ -212,7 +208,7 @@ msgstr "超频失败："
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:347
 msgid "PPE Flow Offload Entries"
-msgstr "PPE 硬件加速表"
+msgstr "PPE 流量卸载表"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:631
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:635
@@ -246,7 +242,7 @@ msgstr "已启用"
 msgid "Disabled"
 msgstr "已禁用"
 
-msgid "Failed: "
+msgid "Failed:"
 msgstr "失败："
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:387
@@ -276,14 +272,14 @@ msgstr "直接 PLL。原厂最高 1200 MHz，稳定支持最高 1500 MHz。"
 msgid "Internal Switch (1G LAN3/4)"
 msgstr "内部交换机（1G LAN3/4）"
 
-msgid "Manages: "
+msgid "Manages:"
 msgstr "管理："
 
 msgid "PPE init, WDMA rings, flow stats"
 msgstr "PPE 初始化、WDMA 环、流量统计"
 
 msgid "HW Offload:"
-msgstr "硬件加速："
+msgstr "硬件卸载："
 
 msgid "CPU DMA 1"
 msgstr "CPU DMA 1"
@@ -297,10 +293,10 @@ msgstr "WAN（USXGMII 10G）"
 msgid "LAN2 (USXGMII 10G)"
 msgstr "LAN2（USXGMII 10G）"
 
-msgid "CPU set to "
+msgid "CPU set to"
 msgstr "CPU 设置为 "
 
-msgid "Error: "
+msgid "Error:"
 msgstr "错误："
 msgid "Airoha SoC Status"
 msgstr "Airoha SoC 状态"
@@ -333,28 +329,25 @@ msgid "devmem not available on this build"
 msgstr "此构建上 devmem 不可用"
 
 msgid "TX"
-msgstr "发送"
+msgstr "TX"
 
 msgid "RX"
-msgstr "接收"
+msgstr "RX"
 
 msgid "TX Drop"
-msgstr "发送丢包"
+msgstr "TX 丢包"
 
 msgid "RX Drop"
-msgstr "接收丢包"
+msgstr "RX 丢包"
 
-msgid "HW Offload: "
-msgstr "硬件加速："
-
-msgid "CPU: "
+msgid "CPU:"
 msgstr "CPU："
 
-msgid "HWF: "
+msgid "HWF:"
 msgstr "硬件转发："
 
-msgid "TX: "
-msgstr "发送："
+msgid "TX:"
+msgstr "TX："
 
 msgid "ACTIVE"
 msgstr "已激活"
@@ -362,11 +355,11 @@ msgstr "已激活"
 msgid "OFF"
 msgstr "未激活"
 
-msgid "Bound "
-msgstr "已绑定"
+msgid "Bound"
+msgstr "已绑定 "
 
-msgid "Total "
-msgstr "总计"
+msgid "Total"
+msgstr "总计 "
 
 msgid "CPU DMA 2"
 msgstr "CPU DMA 2"

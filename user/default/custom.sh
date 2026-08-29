@@ -136,6 +136,14 @@ if [ -d feeds/luci/applications/luci-app-irqbalance ]; then
         feeds/luci/applications/luci-app-irqbalance/po/zh_Hans/irqbalance.po
 fi
 
+# The GitHub firmware install UI ships as files/overview.js inside
+# luci-app-attendedsysupgrade. Append its custom strings to the upstream
+# translation file so the Chinese UI does not fall back to English for them.
+ASU_PO="feeds/luci/applications/luci-app-attendedsysupgrade/po/zh_Hans/attendedsysupgrade.po"
+if [ -f "$ASU_PO" ] && [ -f files/po/zh_Hans/attendedsysupgrade-custom.po ]; then
+    cat files/po/zh_Hans/attendedsysupgrade-custom.po >> "$ASU_PO"
+fi
+
 # The upstream menu titles omit the vendor prefix. Keep the user-facing
 # application names explicit without changing application behavior.
 if [ -f package/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-npu.json ]; then

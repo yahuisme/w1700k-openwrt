@@ -3,9 +3,9 @@ name: W1700K OpenWrt Builds
 on:
   workflow_dispatch:
 
-  # GitHub Actions uses UTC; 17:00 Hong Kong time = 09:00 UTC.
+  # GitHub Actions uses UTC; 12:00 Hong Kong time = 04:00 UTC, every 3 days.
   schedule:
-    - cron: '0 9 * * *'
+    - cron: '0 4 */3 * *'
 permissions:
   actions: write
   contents: write

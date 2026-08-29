@@ -40,8 +40,8 @@ jobs:
 
     - name: Initialize environment
       run: |
-        curl -Z --create-dirs -Lo user/default/files/etc/apk/repositories.d/distfeeds.list https://w1700k.github.io/builds/distfeeds.list
-        curl -Z -Lo user/default/files/etc/vermagic.txt https://w1700k.github.io/builds/vermagic.txt
+        curl --fail -Z --create-dirs -Lo user/default/files/etc/apk/repositories.d/distfeeds.list https://w1700k.github.io/builds/distfeeds.list
+        curl --fail -Z -Lo user/default/files/etc/vermagic.txt https://w1700k.github.io/builds/vermagic.txt
         [ -f "user/${{ matrix.target }}/config.diff" ] || { echo "::error::config.diff not found for ${{ matrix.target }}"; exit 1; }
         rsync -aI --mkpath user/default/ user/${{ matrix.target }}/ user/current/ 2>&-
         echo 'CONFIG_CCACHE_DIR="/ghcache"' >> user/current/config.diff
@@ -76,8 +76,7 @@ jobs:
           rm -rf feeds/* &>/dev/null; ./scripts/feeds update -a &>/dev/null; ./scripts/feeds install -a
           mv /tmp/feeds.bak $fc &>/dev/null ||:
           cp $bp/config.diff .config
-          cat $bp/patches/*.patch 2>&- | patch -d . -p0 --forward ||:
-          cp -r $bp/files/ . &>/dev/null ||:
+          cp -r $bp/files/ .
           bash $DK_PROFILE/custom.sh
           make defconfig; echo "CONFIG_VERSION_NUMBER=${{ matrix.target }}" >> .config
           make download -j8 2>&1 | tee /dev/stderr | grep -q "ERROR:" || [ $PIPESTATUS -ne 0 ] && exit 1 ||:
@@ -132,11 +131,12 @@ jobs:
         超频版本可能增加发热及功耗；如无明确需求，请下载 **ubi2 标准版**。刷写前请确认设备为 W1700K，并备份当前配置。
         EOF
         fi
-        gh release list --json tagName --jq '.[].tagName' | grep "^W1700K-${{ matrix.target }}_" | xargs -r gh release delete --cleanup-tag -y ||:
         gh release create "$VERSION" firmware/*sysupgrade.itb --title "$VERSION" --notes-file "$RELEASE_NOTES"
+        # Remove older releases for this target, but never the one just created.
+        gh release list --json tagName --jq '.[].tagName' | grep "^W1700K-${{ matrix.target }}_" | grep -vxF "$VERSION" | xargs -r gh release delete --cleanup-tag -y ||:
 
     - name: Delete old caches
-      if: always()
+      if: success()
       run: |
         if [ "${{ matrix.target }}" = "ubi2" ]; then
           for p in dlcache. cache-${{ matrix.target }}.; do
@@ -147,8 +147,8 @@ jobs:
         fi ||:
 
     - uses: actions/cache/save@v5
-      if: always()
+      if: success()
       with: {path: "ghcache\nstcache", key: '${{ steps.gh.outputs.cache-primary-key }}'}
-    - if: matrix.target == 'ubi2'
+    - if: ${{ matrix.target == 'ubi2' && success() }}
       uses: actions/cache/save@v5
       with: {path: dlcache, key: '${{ steps.dl.outputs.cache-primary-key }}'}

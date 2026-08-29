@@ -1,0 +1,8 @@
+msgid "Temperature & Fan"
+msgstr "温度与风扇"
+
+msgid "Motherboard"
+msgstr "主板"
+
+msgid "Fan"
+msgstr "风扇"

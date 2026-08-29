@@ -149,6 +149,14 @@ if [ -f "$ASU_PO" ] && [ -f files/po/zh_Hans/attendedsysupgrade-custom.po ]; the
     cat files/po/zh_Hans/attendedsysupgrade-custom.po >> "$ASU_PO"
 fi
 
+# The temperature & fan overview widget ships as 15_temperature.js inside
+# luci-mod-status. Core modules translate via luci-base's "base" domain, so
+# append its strings to the upstream base.po for the Chinese UI.
+BASE_PO="feeds/luci/modules/luci-base/po/zh_Hans/base.po"
+if [ -f "$BASE_PO" ] && [ -f files/po/zh_Hans/base-custom.po ]; then
+    cat files/po/zh_Hans/base-custom.po >> "$BASE_PO"
+fi
+
 # The upstream menu titles omit the vendor prefix. Keep the user-facing
 # application names explicit without changing application behavior.
 if [ -f package/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-npu.json ]; then

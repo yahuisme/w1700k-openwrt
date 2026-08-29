@@ -10,7 +10,7 @@ var callFanStatus = rpc.declare({
 });
 
 return baseclass.extend({
-	title: _('温度与风扇'),
+	title: _('Temperature & Fan'),
 
 	load: function() {
 		return L.resolveDefault(callFanStatus(), {});
@@ -19,7 +19,7 @@ return baseclass.extend({
 	render: function(data) {
 		var sensors = [
 			['CPU', 'temp_cpu'],
-			['主板', 'temp_board'],
+			[_('Motherboard'), 'temp_board'],
 			['10G WAN', 'temp_phy2'],
 			['10G LAN', 'temp_phy1'],
 			['2.4 GHz', 'wifi_24g'],
@@ -114,7 +114,7 @@ return baseclass.extend({
 		nodes.fan = valueBox(fan(data), '');
 
 		root.appendChild(
-			card('风扇', nodes.fan)
+			card(_('Fan'), nodes.fan)
 		);
 
 		poll.add(function() {

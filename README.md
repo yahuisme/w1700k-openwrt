@@ -76,7 +76,7 @@ LuCI 状态首页增加「温度与风扇」信息：
 
 ## 🔄 自动构建
 
-GitHub Actions 每天 **香港时间 19:00** 自动构建：
+GitHub Actions 每天 **香港时间 17:00** 自动构建：
 
 ```text
 W1700K-ubi2

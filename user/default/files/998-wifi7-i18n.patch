@@ -646,7 +646,7 @@
 +            sectionBox(_('Advanced -- shared (single wiphy)'),'#444',null,E('div',{},[
 +                chkRow('sr_enable',srEnable,_('Spatial Reuse / BSS Coloring (default: on)')),
 +                chkRow('etxbfen',etxbfen,_('Explicit TX beamforming (default: on)')),
-+                fieldRow('Note',roValue(_('sr_enable + etxbfen apply to all bands via single wiphy (phy0)')))
++                fieldRow(_('Note'),roValue(_('sr_enable + etxbfen apply to all bands via single wiphy (phy0)')))
              ])),
              E('div',{'style':'display:flex;justify-content:flex-end;margin-top:4px'},[discardBtn,applyBtn]),
              progressDiv

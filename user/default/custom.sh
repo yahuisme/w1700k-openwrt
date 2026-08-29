@@ -88,11 +88,16 @@ fi
 echo "Aurora theme configuration app installed successfully."
 
 # 修改 Aurora 菜单式样（默认侧边栏 + 小圆角）
-if find "package/luci-app-aurora-config/root/usr/share/aurora/" -type f -name '*.template' -exec \
-    sed -i "s/nav_type '.*'/nav_type 'sidebar'/g; s/struct_radius_base '.*'/struct_radius_base '0.125rem'/g" {} +; then
-    echo "theme-aurora nav preset applied!"
+TPL_DIR="package/luci-app-aurora-config/root/usr/share/aurora/"
+if ls "$TPL_DIR"/*.template >/dev/null 2>&1; then
+    sed -i "s/nav_type '.*'/nav_type 'sidebar'/g; s/struct_radius_base '.*'/struct_radius_base '0.125rem'/g" "$TPL_DIR"/*.template
+    if grep -q "nav_type 'sidebar'" "$TPL_DIR"/*.template; then
+        echo "theme-aurora nav preset applied!"
+    else
+        echo "theme-aurora nav preset failed; continuing!"
+    fi
 else
-    echo "theme-aurora nav preset failed; continuing!"
+    echo "theme-aurora nav preset skipped (no templates); continuing!"
 fi
 
 
@@ -199,13 +204,6 @@ grep -qxF 'CONFIG_PACKAGE_luci-theme-aurora=y' .config || \
 
 grep -qxF 'CONFIG_PACKAGE_luci-app-aurora-config=y' .config || \
     echo 'CONFIG_PACKAGE_luci-app-aurora-config=y' >> .config
-
-
-# -------------------------------------------------
-# Clean LuCI temporary files
-# -------------------------------------------------
-
-rm -rf /tmp/luci-*
 
 
 echo "=============================================="

@@ -173,7 +173,7 @@ return view.extend({
 		response = response.json();
 		let image = this.selectImage(response.images, data, firmware);
 
-		if (image.name != undefined) {
+		if (image) {
 			this.sha256_unsigned = image.sha256_unsigned;
 			let sysupgrade_url = `${data.url}/store/${response.bin_dir}/${image.name}`;
 
@@ -252,6 +252,18 @@ return view.extend({
 			if (data.rebuilder) {
 				this.handleRebuilder(content, data, firmware);
 			}
+		} else {
+			ui.showModal(_('No sysupgrade image found'), [
+				E('p', _('The image builder did not return a usable sysupgrade image for this device (image types: %s).').format(
+					response.images.map((i) => i.type).join(', '))),
+				E('p', [
+					_('Please report this in'), ' ',
+					support_link, '.',
+				]),
+				E('div', { class: 'right' }, [
+					E('div', { class: 'btn', click: ui.hideModal }, _('Close')),
+				]),
+			]);
 		}
 	},
 
@@ -598,9 +610,9 @@ return view.extend({
 					'request',
 					'',
 					'',
-					'Use defaults for the safest update'
+					_('Use defaults for the safest update')
 				);
-				o = s.option(form.ListValue, 'version', 'Select firmware version');
+				o = s.option(form.ListValue, 'version', _('Select firmware version'));
 				for (let candidate of candidates) {
 					if (candidate[0] == version && candidate[1] == revision) {
 						o.value(

@@ -9,12 +9,12 @@ echo "Running custom commands"
 # Existing W1700K custom files
 # -------------------------------------------------
 
-mv $DK_PROFILE/overview.js \
+cp -f $DK_PROFILE/overview.js \
     feeds/luci/applications/luci-app-attendedsysupgrade/htdocs/luci-static/resources/view/attendedsysupgrade/overview.js
 
 mkdir -p feeds/luci/modules/luci-mod-status/patches
 
-mv $DK_PROFILE/patches/998-single-wiphy.patch \
+cp -f $DK_PROFILE/patches/998-single-wiphy.patch \
     feeds/luci/modules/luci-mod-status/patches/998-single-wiphy.patch
 
 if [ -d package/luci-app-wifi7 ] && [ -f $DK_PROFILE/patches/998-wifi7-i18n.patch ]; then
@@ -31,10 +31,6 @@ fi
 
 if [ -d package/luci-app-airoha-flowsense ] && [ -f $DK_PROFILE/patches/998-flowsense-i18n.patch ]; then
     patch -d package/luci-app-airoha-flowsense -p1 --ignore-whitespace < $DK_PROFILE/patches/998-flowsense-i18n.patch
-fi
-
-if [ -d feeds/luci/applications/luci-app-irqbalance ] && [ -f $DK_PROFILE/patches/998-irqbalance-i18n.patch ]; then
-    patch -d feeds/luci/applications/luci-app-irqbalance -p1 --ignore-whitespace < $DK_PROFILE/patches/998-irqbalance-i18n.patch
 fi
 
 
@@ -132,13 +128,20 @@ for translation_target in "${translation_targets[@]}"; do
     cp -f "$translation" "$target/po/zh_Hans/${package_name}.po"
 done
 
-# luci-app-irqbalance is a standard feed package (feeds/luci). Its upstream
-# translation domain is "irqbalance" (the LUCI_BASENAME), so the PO must be
-# named "irqbalance.po" rather than "luci-app-irqbalance.po".
-if [ -d feeds/luci/applications/luci-app-irqbalance ]; then
-    mkdir -p feeds/luci/applications/luci-app-irqbalance/po/zh_Hans
-    cp -f $DK_PROFILE/po/zh_Hans/irqbalance.po \
-        feeds/luci/applications/luci-app-irqbalance/po/zh_Hans/irqbalance.po
+# luci-app-irqbalance ships its own complete zh_Hans translation in the
+# OpenWrt luci feed (rewritten upstream UI), so no PO is copied from
+# po/zh_Hans. The feed PO leaves the menu title "irqbalance" untranslated,
+# so fix the msgstr in place for the Services menu.
+IRQ_PO="feeds/luci/applications/luci-app-irqbalance/po/zh_Hans/irqbalance.po"
+if [ -f "$IRQ_PO" ]; then
+    sed -i '/^msgid "irqbalance"$/{n;s/^msgstr "irqbalance"$/msgstr "IRQ 平衡"/}' "$IRQ_PO"
+    if grep -q 'msgstr "IRQ 平衡"' "$IRQ_PO"; then
+        echo "irqbalance menu title localized (IRQ 平衡)"
+    else
+        echo "WARN: irqbalance zh_Hans msgid not found; skip"
+    fi
+else
+    echo "WARN: irqbalance zh_Hans PO not found; skip"
 fi
 
 # The GitHub firmware install UI ships as overview.js inside

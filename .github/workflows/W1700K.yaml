@@ -124,7 +124,7 @@ jobs:
         - 固件源码：https://github.com/OpenWRT-fanboy/OpenW1700k
         - 本 Release 仅包含 \`sysupgrade.itb\` 升级镜像。
 
-        超频版本可能增加发热及功耗；如无明确需求，请下载 **ubi2 标准版**。刷写前请确认设备为 W1700K，并备份当前配置。
+        刷写前请确认设备为 W1700K，并备份当前配置。
         EOF
         fi
         gh release create "$VERSION" firmware/*sysupgrade.itb --title "$VERSION" --notes-file "$RELEASE_NOTES"

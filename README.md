@@ -2,7 +2,7 @@
 
 适用于 **Quantum Fiber W1700K** 路由器的定制 OpenWrt 固件构建项目。
 
-本项目基于 [W1700K OpenWrt Builds](https://github.com/w1700k/builds) Fork，在原版固件基础上加入多项定制功能。
+基于 [W1700K OpenWrt Builds](https://github.com/w1700k/builds) Fork。
 
 > ⚠️ **仅适用于 Quantum Fiber W1700K，请勿刷入其他型号设备。**
 
@@ -10,15 +10,10 @@
 
 ## ✨ 主要特性
 
-- 🌐 LuCI 默认中文
-- 📝 内置专属应用已添加中文汉化
-- 🎨 内置 Aurora LuCI 主题为默认主题
+- 🌐 LuCI 及内置应用默认中文
+- 🎨 默认 Aurora LuCI 主题
 - 🕐 系统时区：香港（UTC+8）
-- 📡 默认开启 2.4 GHz / 5 GHz Wi-Fi
-- 📡 默认不开启 6 GHz Wi-Fi
 - 🌡️ LuCI 首页增加设备温度及风扇转速显示
-- 🔄 每日自动构建最新固件
-- 📦 提供 `ubi2` 和 `ubi2-oc` 两种版本
 
 ---
 
@@ -28,8 +23,6 @@
 | --- | --- |
 | `ubi2` | 常规版本，使用标准 CPU 工作参数 |
 | `ubi2-oc` | 超频版本，使用项目提供的超频配置 |
-
-一般情况下推荐使用 **`ubi2` 常规版本**。
 
 ---
 
@@ -68,5 +61,6 @@ LuCI 状态首页显示 CPU、主板、10G WAN/LAN PHY、2.4/5/6 GHz WiFi 温度
 GitHub Actions 每日 **香港时间 17:00** 自动构建：
 
 ```text
-W1700K-ubi2
-W1700K-ubi2-oc
+W1700K-ubi2_<构建时间>_r<版本号>
+W1700K-ubi2-oc_<构建时间>_r<版本号>
+```

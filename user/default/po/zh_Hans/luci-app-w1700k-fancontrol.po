@@ -15,11 +15,6 @@ msgstr ""
 msgid "Configure fan control mode and speed curves."
 msgstr "配置风扇控制模式和速度曲线。"
 
-#: htdocs/luci-static/resources/view/fan/status.js:93
-msgid "View real-time fan speed and system temperatures."
-msgstr "查看实时风扇转速和系统温度。"
-
-#: htdocs/luci-static/resources/view/fan/status.js:42
 msgid "Fan Speed"
 msgstr "风扇转速"
 
@@ -79,18 +74,6 @@ msgstr "性能 - 更高转速，更低温度"
 msgid "Custom - Define your own curve"
 msgstr "自定义 - 定义你自己的曲线"
 
-msgid "quiet"
-msgstr "静音"
-
-msgid "balanced"
-msgstr "平衡"
-
-msgid "performance"
-msgstr "性能"
-
-msgid "custom"
-msgstr "自定义"
-
 msgid "Full Speed"
 msgstr "全速"
 
@@ -112,50 +95,14 @@ msgstr "风扇控制 - 设置"
 msgid "Active Preset"
 msgstr "当前预设"
 
-msgid "Board Temperature"
-msgstr "主板温度"
-
-msgid "Cooling priority"
-msgstr "优先散热"
-
-msgid "Curve is paused"
-msgstr "曲线已暂停"
-
 msgid "Custom"
 msgstr "自定义"
-
-msgid "Custom temperature curve"
-msgstr "自定义温度曲线"
-
-msgid "Fixed PWM output"
-msgstr "固定 PWM 输出"
-
-msgid "Fan PWM"
-msgstr "风扇 PWM"
-
-msgid "Following fan curve"
-msgstr "按风扇曲线自动调速"
-
-msgid "Low noise priority"
-msgstr "优先降低噪声"
-
-msgid "Noise and cooling balanced"
-msgstr "噪声与散热平衡"
 
 msgid "Performance"
 msgstr "性能"
 
-msgid "Preview"
-msgstr "预览"
-
-msgid "PWM output"
-msgstr "PWM 输出"
-
 msgid "Quiet"
 msgstr "静音"
-
-msgid "Real-time Trends"
-msgstr "实时趋势"
 
 msgid "Auto (Closed Loop)"
 msgstr "自动（闭环）"
@@ -247,15 +194,8 @@ msgstr "状态"
 msgid "Settings"
 msgstr "设置"
 
-msgid "auto"
-msgstr "自动"
-
-#: root/usr/share/rpcd/acl.d/luci-app-airoha-fancontrol.json:3
-msgid "Grant access to Airoha fan control"
-msgstr "授予 Airoha 风扇控制权限"
+msgid "Grant access to W1700K fan control"
+msgstr "授予 W1700K 风扇控制权限"
 
 msgid "Manual Override"
 msgstr "手动覆盖"
-
-msgid "Point %d Temperature (\u00B0C)"
-msgstr "第 %d 点温度（\u00B0C）"

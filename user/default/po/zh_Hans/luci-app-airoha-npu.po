@@ -16,15 +16,6 @@ msgstr ""
 msgid "Active"
 msgstr "已激活"
 
-msgid "Activated"
-msgstr "已激活"
-
-msgid "Not Activated"
-msgstr "未激活"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:284
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:454
-#: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-npu.json:3
 msgid "SoC Status"
 msgstr "SoC 状态"
 
@@ -38,32 +29,9 @@ msgstr "应用"
 msgid "Applying..."
 msgstr "正在应用..."
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:350
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:420
-msgid "Bound:"
-msgstr "已绑定："
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:362
-msgid "Bytes"
-msgstr "字节"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:470
-msgid "Control Settings"
-msgstr "CPU 控制设置"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:310
 msgid "CPU Cores"
 msgstr "CPU 核心"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:460
-msgid "CPU Info"
-msgstr "CPU 信息"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:467
-msgid "Core Count"
-msgstr "核心数量"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:288
 msgid "CPU Frequency"
 msgstr "CPU 频率"
 
@@ -71,37 +39,9 @@ msgstr "CPU 频率"
 msgid "Current Frequency"
 msgstr "当前频率"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:399
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:505
-msgid "<=1200 MHz uses kernel cpufreq (safe). >1200 MHz uses direct PLL without voltage adjustment (risky)."
-msgstr "<=1200 MHz 使用内核 cpufreq（安全）。>1200 MHz 使用直接 PLL，无电压调整（有风险）。"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:510
-msgid "<=1200 MHz: safe (kernel cpufreq). >1200 MHz: risky (direct PLL, no voltage adjustment)."
-msgstr "<=1200 MHz：安全（内核 cpufreq）。>1200 MHz：有风险（直接 PLL，无电压调整）。"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:390
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:498
-msgid "Frequencies above 1200 MHz bypass BL31 voltage control and may cause system crash or reboot. Continue?"
-msgstr "超过 1200 MHz 将绕过 BL31 电压控制，可能导致系统崩溃或重启。是否继续？"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:360
 msgid "Ethernet"
 msgstr "以太网"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:85
-msgid "Failed to set governor:"
-msgstr "设置运行模式失败："
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:112
-msgid "Failed to set max frequency:"
-msgstr "设置最大频率失败："
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:212
-msgid "Frequency must be 500-1600 MHz"
-msgstr "频率必须介于 500–1600 MHz 之间"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:296
 msgid "Governor"
 msgstr "运行模式"
 
@@ -127,8 +67,8 @@ msgid "PSE Port Queue Status"
 msgstr "PSE 端口队列状态"
 
 #: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/rpcd/acl.d/luci-app-airoha-npu.json:3
-msgid "Grant access to Airoha NPU status (NPU + CPU + Overclock)"
-msgstr "授予访问 Airoha NPU 状态（NPU + CPU + 超频）的权限"
+msgid "Grant access to Airoha SoC status (NPU + CPU + Overclock)"
+msgstr "授予访问 Airoha SoC 状态（NPU + CPU + 超频）的权限"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:355
 msgid "Index"
@@ -138,23 +78,6 @@ msgstr "索引"
 msgid "Max Frequency"
 msgstr "最大频率"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:476
-msgid "Max Freq"
-msgstr "最大频率"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:331
-msgid "NPU Clock / Cores"
-msgstr "NPU 时钟 / 核心"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:321
-msgid "NPU Firmware Version"
-msgstr "NPU 固件版本"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:318
-msgid "NPU Information"
-msgstr "NPU 信息"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:325
 msgid "NPU & Offload Engine"
 msgstr "NPU 与卸载引擎"
 
@@ -170,30 +93,6 @@ msgstr "新连接"
 msgid "Not Active"
 msgstr "未激活"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:322
-msgid "Not available"
-msgstr "不可用"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:339
-msgid "Offload Statistics"
-msgstr "卸载统计"
-
-msgid "AP Mode Acceleration"
-msgstr "AP 模式加速"
-
-msgid "Flow Offload"
-msgstr "流量卸载"
-
-msgid "PPPoE Offload"
-msgstr "PPPoE 卸载"
-
-msgid "VLAN Offload"
-msgstr "VLAN 卸载"
-
-msgid "HW Offload"
-msgstr "硬件卸载"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:358
 msgid "Original Flow"
 msgstr "原始连接"
 
@@ -201,30 +100,9 @@ msgstr "原始连接"
 msgid "Overclock"
 msgstr "超频"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:226
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:234
-msgid "Overclock failed:"
-msgstr "超频失败："
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:347
 msgid "PPE Flow Offload Entries"
 msgstr "PPE 流量卸载表"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:631
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:635
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:644
-msgid "Pause"
-msgstr "暂停"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:635
-msgid "Resume"
-msgstr "继续"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:361
-msgid "Packets"
-msgstr "数据包"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:335
 msgid "Reserved Memory"
 msgstr "NPU 内存"
 
@@ -235,12 +113,6 @@ msgstr "固件 / 时钟 / 核心"
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:497
 msgid "Frame Engine"
 msgstr "帧引擎"
-
-msgid "Enabled"
-msgstr "已启用"
-
-msgid "Disabled"
-msgstr "已禁用"
 
 msgid "Failed:"
 msgstr "失败："
@@ -253,19 +125,9 @@ msgstr "必须在 500-1600 MHz 之间"
 msgid "State"
 msgstr "状态"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:349
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:419
-msgid "Total:"
-msgstr "总计："
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:357
 msgid "Type"
 msgstr "类型"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:351
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:421
-msgid "Unbound:"
-msgstr "未绑定："
 msgid "Direct PLL. Stock max 1200 MHz. Stable up to 1500 MHz."
 msgstr "直接 PLL。原厂最高 1200 MHz，稳定支持最高 1500 MHz。"
 
@@ -283,9 +145,6 @@ msgstr "硬件卸载："
 
 msgid "CPU DMA 1"
 msgstr "CPU DMA 1"
-
-msgid "Switch 1G"
-msgstr "1G 交换机"
 
 msgid "WAN (USXGMII 10G)"
 msgstr "WAN（USXGMII 10G）"

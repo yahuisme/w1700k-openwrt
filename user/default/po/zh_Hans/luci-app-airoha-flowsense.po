@@ -6,9 +6,6 @@ msgstr ""
 msgid "Airoha FlowSense"
 msgstr "Airoha 流量传感器"
 
-msgid "AP Mode Acceleration"
-msgstr "AP 模式加速"
-
 msgid "Disabled"
 msgstr "已禁用"
 
@@ -30,14 +27,8 @@ msgstr "无条目"
 msgid "Original"
 msgstr "原始"
 
-msgid "Pause"
-msgstr "暂停"
-
 msgid "PPPoE Offload"
 msgstr "PPPoE 卸载"
-
-msgid "Resume"
-msgstr "继续"
 
 msgid "State"
 msgstr "状态"
@@ -129,10 +120,6 @@ msgstr "丢包"
 msgid "HEALTHY"
 msgstr "健康"
 
-msgid "N/A"
-msgstr "N/A"
-
-# Band labels
 msgid "BND FLOWS"
 msgstr "BND 流"
 
@@ -145,28 +132,6 @@ msgstr "CPU 负载"
 msgid "OFFLOADED"
 msgstr "已卸载"
 
-msgid "MBPS"
-msgstr "Mbps"
-
-msgid "STA"
-msgstr "客户端"
-
-# Ethernet
-msgid "WAN"
-msgstr "WAN"
-
-msgid "LAN 1"
-msgstr "LAN 1"
-
-msgid "LAN 2"
-msgstr "LAN 2"
-
-msgid "LAN 3"
-msgstr "LAN 3"
-
-msgid "LAN 4"
-msgstr "LAN 4"
-
 msgid "NO LINK"
 msgstr "无连接"
 
@@ -176,10 +141,6 @@ msgstr "TX"
 msgid "RX"
 msgstr "RX"
 
-msgid "Mb"
-msgstr "Mb"
-
-# Offload settings
 msgid "Auto-detected"
 msgstr "自动检测"
 
@@ -219,40 +180,9 @@ msgstr "丢包："
 msgid "entries"
 msgstr "条目"
 
-msgid "showing"
-msgstr "显示"
-
-msgid "flows"
-msgstr "流"
-
-msgid "v4"
-msgstr "v4"
-
-msgid "v6"
-msgstr "v6"
-
-msgid "more"
-msgstr "更多"
-
 msgid "no entries"
 msgstr "无条目"
 
-msgid "VLAN offload not supported on this device"
-msgstr "此设备不支持 VLAN 卸载"
-
-msgid "PPPoE offload not supported on this device"
-msgstr "此设备不支持 PPPoE 卸载"
-
-msgid "failed to set VLAN offload"
-msgstr "设置 VLAN 卸载失败"
-
-msgid "failed to set PPPoE offload"
-msgstr "设置 PPPoE 卸载失败"
-
-msgid "MODE detecting..."
-msgstr "MODE 探测中..."
-
-# Compass card titles (mixed case)
 msgid "NPU Path"
 msgstr "NPU 路径"
 
@@ -270,14 +200,6 @@ msgstr "错误"
 
 msgid "ERRORS"
 msgstr "错误"
-msgid "NPU Path ACTIVE"
-msgstr "NPU 路径 活动"
-
-msgid "Integrity CLEAN"
-msgstr "完整性 正常"
-
-msgid "HW Buffer HEALTHY"
-msgstr "硬件缓冲 健康"
 msgid "Poor"
 msgstr "较差"
 

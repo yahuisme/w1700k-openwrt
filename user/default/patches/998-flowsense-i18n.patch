@@ -119,6 +119,16 @@
  
  	return p.join('');
  }
+@@ -580,3 +580,3 @@
+ 	if (bndTot === 0) {
+-		s += sp(mute,'  no entries') + '\n';
++		s += sp(mute, _('no entries')) + '\n';
+ 	} else {
+@@ -595,3 +595,3 @@
+ 	if (unbTot === 0) {
+-		s += sp(mute,'  no entries') + '\n';
++		s += sp(mute, _('no entries')) + '\n';
+ 	} else {
 @@ -651,12 +651,12 @@
  function renderModeBanner(dm) {
  	var mode = dm.mode || 'router';

@@ -77,6 +77,7 @@ jobs:
           mv /tmp/feeds.bak $fc &>/dev/null ||:
           cp $bp/config.diff .config
           cp -r $bp/files/ .
+          rm -f files/build_info  # clear build_info pre-seeded in the base-builder image
           bash $DK_PROFILE/custom.sh
           make defconfig; echo "CONFIG_VERSION_NUMBER=${{ matrix.target }}" >> .config
           make download -j8 2>&1 | tee /dev/stderr | grep -q "ERROR:" || [ $PIPESTATUS -ne 0 ] && exit 1 ||:

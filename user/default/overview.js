@@ -51,12 +51,6 @@ const callUpgradeStart = rpc.declare({
 	params: ['keep'],
 });
 
-const callFileExec = rpc.declare({
-	object: 'file',
-	method: 'exec',
-	params: ['command', 'params'],
-});
-
 /**
  * Returns the branch of a given version. This helps to offer upgrades
  * for point releases (aka within the branch).
@@ -166,7 +160,20 @@ return view.extend({
 				return (e.type == 'sysupgrade' || e.type == 'combined');
 			}
 		}
-		return images.filter(filesystemFilter).filter(typeFilter)[0];
+		let candidates = images.filter(filesystemFilter);
+		let image = candidates.filter(typeFilter)[0];
+
+		if (!image) {
+			/* Some devices ship a single image used for both factory
+			 * install and sysupgrade under a device specific type, e.g.
+			 * 'trx' on bcm53xx. Like owut, fall back to the remaining
+			 * non-factory type if it is unambiguous. */
+			let remaining = candidates.filter((e) => !e.type.includes('factory'));
+			if (remaining.length && remaining.every((e) => e.type == remaining[0].type))
+				image = remaining[0];
+		}
+
+		return image;
 	},
 
 	handle200: function (response, content, data, firmware) {
@@ -301,6 +308,9 @@ return view.extend({
 			...firmware
 		};
 		const request_str = JSON.stringify(request_data, null, 4);
+		if (typeof response.detail != "string") {
+			response.detail = JSON.stringify(response.detail, null, 4);
+		}
 		let body = [
 			E('p', {}, [
 				_('First, check'), ' ',
@@ -410,7 +420,9 @@ return view.extend({
 							response = response.json();
 							let view = document.getElementById(server);
 							let image = this.selectImage(response.images, data, firmware);
-							if (image.sha256_unsigned == this.sha256_unsigned) {
+							if (!image) {
+								view.innerText = '⚠️ %s'.format(server);
+							} else if (image.sha256_unsigned == this.sha256_unsigned) {
 								view.innerText = '✅ %s'.format(server);
 							} else {
 								view.innerHTML = `⚠️ ${server} (<a href="${server}/store/${
@@ -474,7 +486,7 @@ return view.extend({
 				let form_data = new FormData();
 				form_data.append('sessionid', rpc.getSessionID());
 				form_data.append('filename', '/tmp/firmware.bin');
-				form_data.append('filemode', 600);
+				form_data.append('filemode', 0o600);
 				form_data.append('filedata', response.blob());
 
 				ui.showModal(_('Uploading...'), [
@@ -763,218 +775,13 @@ return view.extend({
 			E(
 				'button',
 				{
-					class: 'btn cbi-button cbi-button-action important',
+					class: 'btn cbi-button cbi-button-positive important',
 					click: ui.createHandlerFn(this, this.handleCheck, data, firmware),
 				},
-				_('Search for official firmware upgrade')
-			),
-			' ',
-			E(
-				'button',
-				{
-					class: 'btn cbi-button cbi-button-positive important',
-					click: ui.createHandlerFn(this, this.handleGithubFirmware, firmware),
-				},
-				_('Check for GitHub firmware')
+				_('Search for firmware upgrade')
 			),
 		]);
 	},
-
-	handleGithubFirmware: function(firmware) {
-		ui.showModal(_('Fetching GitHub firmware info...'), [
-			E(
-				'p',
-				{ class: 'spinning' },
-				_('Fetching available firmware releases from GitHub')
-			),
-		]);
-
-		// Call the CGI script to get the list of available firmware releases
-		fetch('/cgi-bin/github_check')
-			.then(response => response.json())
-			.then(data => {
-				if (data.error) {
-					ui.showModal(_('Error'), [
-						E('p', _('Error fetching firmware info: %s').format(data.error)),
-						E('div', { class: 'right' }, [
-							E('div', { class: 'btn', click: ui.hideModal }, _('Close')),
-						]),
-					]);
-					return;
-				}
-
-				// Check if data is an array (multiple releases) or single object
-				let releases = Array.isArray(data) ? data : [data];
-
-				if (releases.length === 0) {
-					ui.showModal(_('No releases found'), [
-						E('p', _('No firmware releases found on GitHub')),
-						E('div', { class: 'right' }, [
-							E('div', { class: 'btn', click: ui.hideModal }, _('Close')),
-						]),
-					]);
-					return;
-				}
-
-				// Create a dropdown to select the release
-				let releaseSelect = E('select', { 'class': 'cbi-input-select' });
-
-				// Populate the dropdown with available releases
-				releases.forEach((release, index) => {
-					let optionText = release.tag ? `${release.tag} (${release.version})` : release.version;
-					releaseSelect.appendChild(E('option', { 'value': index }, optionText));
-				});
-
-				let keep = E('input', { type: 'checkbox' });
-				keep.checked = true;
-
-				// Create element for the URL
-				const urlElement = E('td', { class: 'td left' });
-
-				// Function to update the URL based on selected release
-				const updateDetails = function() {
-					const selectedIndex = releaseSelect.value;
-					const selectedRelease = releases[selectedIndex];
-
-					if (selectedRelease) {
-						// Clear previous link and create a new one
-						urlElement.innerHTML = '';
-						urlElement.appendChild(E('a', { href: 'https://github.com/yahuisme/w1700k-openwrt/releases/tag/' + selectedRelease.tag, target: '_blank' }, _('View on GitHub')));
-					}
-				};
-
-				// Add event listener to update details when selection changes
-				releaseSelect.addEventListener('change', updateDetails);
-
-				let modal_body = [
-					E('p', _('Select a firmware release to install:')),
-					E('div', { class: 'table' }, [
-						E('tr', { class: 'tr' }, [
-							E('td', { class: 'td left', width: '33%' }, _('Release')),
-							E('td', { class: 'td left' }, [releaseSelect])
-						])
-					]),
-					E('div', { class: 'table mt-2' }, [
-						E('tr', { class: 'tr' }, [
-							E('td', { class: 'td left', width: '33%' }, _('URL')),
-							urlElement
-						])
-					]),
-					E(
-						'p',
-						{ class: 'mt-2' },
-						E('label', { class: 'btn' }, [
-							keep,
-							' ',
-							_('Keep settings and retain the current configuration'),
-						])
-					),
-					E('div', { class: 'right' }, [
-						E('div', { class: 'btn', click: ui.hideModal }, _('Cancel')),
-						' ',
-						E(
-							'button',
-							{
-								class: 'btn cbi-button cbi-button-positive important',
-								click: ui.createHandlerFn(this, function () {
-									const selectedIndex = releaseSelect.value;
-									const selectedRelease = releases[selectedIndex];
-
-									if (selectedRelease && selectedRelease.tag) {
-										this.handleGithubInstall(selectedRelease.tag, keep.checked);
-									} else {
-										ui.showModal(_('Error'), [
-											E('p', _('Invalid release selected')),
-											E('div', { class: 'right' }, [
-												E('div', { class: 'btn', click: ui.hideModal }, _('Close')),
-											]),
-										]);
-									}
-								}),
-							},
-							_('Install selected firmware')
-						),
-					]),
-				];
-
-				// Initialize details for the initially selected release (first option)
-				updateDetails();
-
-				ui.showModal(_('Available GitHub Releases'), modal_body);
-			})
-			.catch(error => {
-				ui.showModal(_('Error'), [
-					E('p', _('Error fetching firmware info: %s').format(error.message)),
-					E('div', { class: 'right' }, [
-						E('div', { class: 'btn', click: ui.hideModal }, _('Close')),
-					]),
-				]);
-			});
-	},
-
-	handleGithubInstall: function(tag, keep) {
-		ui.showModal(_('Downloading from GitHub...'), [
-			E(
-				'p',
-				{ class: 'spinning' },
-				_('Downloading firmware from GitHub to device')
-			),
-		]);
-
-		// Call the CGI script to download the firmware to /tmp/firmware.bin
-		// Pass the selected tag as a parameter to the github_fetch script
-		fetch(`/cgi-bin/github_fetch?tag=${encodeURIComponent(tag)}`)
-			.then(response => response.json())
-			.then(data => {
-				if (data.error) {
-					ui.showModal(_('Error'), [
-						E('p', _('Error downloading firmware: %s').format(data.error)),
-						E('div', { class: 'right' }, [
-							E('div', { class: 'btn', click: ui.hideModal }, _('Close')),
-						]),
-					]);
-					return;
-				}
-
-				if (data.success) {
-					// Firmware is already downloaded to the device and SHA256 verified by the CGI script
-					// Path returned by the CGI script: ${data.path || '/tmp/firmware.bin'}
-					ui.showModal(_('Installing...'), [
-						E('div', { class: 'spinning' }, [
-							E('p', _('Installing the sysupgrade image...')),
-							E('p',
-							_('Once the image is written, the system will reboot.')
-							+ ' ' +
-							_('This should take at least a minute, so please wait for the login screen.')
-							),
-							E('b', _('While you are waiting, do not unpower device!')),
-						]),
-					]);
-
-					L.resolveDefault(callUpgradeStart(keep), {}).then((response) => {
-						// Wait 10 seconds before we try to reconnect...
-						let hosts = keep ? [] : ['192.168.8.1', 'openwrt.lan'];
-						setTimeout(() => { ui.awaitReconnect(...hosts); }, 10000);
-					});
-				} else {
-					ui.showModal(_('Error'), [
-						E('p', _('Unexpected response from firmware download script')),
-						E('div', { class: 'right' }, [
-							E('div', { class: 'btn', click: ui.hideModal }, _('Close')),
-						]),
-					]);
-				}
-			})
-			.catch(error => {
-				ui.showModal(_('Download Error'), [
-					E('p', _('Error downloading firmware from GitHub: %s').format(error.message)),
-					E('div', { class: 'right' }, [
-						E('div', { class: 'btn', click: ui.hideModal }, _('Close')),
-					]),
-				]);
-			});
-	},
-
 	handleSaveApply: null,
 	handleSave: null,
 	handleReset: null,

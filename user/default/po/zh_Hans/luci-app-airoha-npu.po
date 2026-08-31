@@ -366,3 +366,12 @@ msgstr "CPU DMA 2"
 
 msgid "Frequencies above 1400 MHz may be unstable. Continue?"
 msgstr "超过 1400 MHz 可能不稳定。是否继续？"
+
+msgid "Error: "
+msgstr "错误："
+
+msgid "Failed: "
+msgstr "失败："
+
+msgid "CPU set to "
+msgstr "CPU 已设置为 "

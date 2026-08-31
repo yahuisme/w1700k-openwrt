@@ -322,3 +322,6 @@ msgstr "CDM Δ："
 
 msgid "Jitter:"
 msgstr "抖动："
+
+msgid "Error: "
+msgstr "错误："

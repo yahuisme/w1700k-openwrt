@@ -78,7 +78,7 @@ msgid "IRQ work interrupts"
 msgstr "IRQ 工作中断"
 
 msgid "irqbalance"
-msgstr "中断均衡"
+msgstr "IRQ 平衡"
 
 msgid "KGDB roundup interrupts"
 msgstr "KGDB 汇总中断"

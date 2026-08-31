@@ -36,9 +36,9 @@ uci -q set system.@system[0].hostname='W1700K'
 uci -q delete network.lan.ipaddr
 uci -q add_list network.lan.ipaddr='192.168.8.1/24'
 
-# Keep IPv6 Router Advertisements in hybrid mode, but do not provide DHCPv6.
+# IPv6: RA server mode, DHCPv6 disabled.
 uci -q set dhcp.lan.dhcpv6='disabled'
-uci -q set dhcp.lan.ra='hybrid'
+uci -q set dhcp.lan.ra='server'
 
 
 # ------------------------------------------------------------
@@ -122,7 +122,7 @@ if [ -n "$RADIO_5G" ]; then
     uci -q set wireless.${RADIO_5G}.country='US'
     uci -q set wireless.${RADIO_5G}.channel='36'
     uci -q set wireless.${RADIO_5G}.htmode='EHT160'
-    uci -q set wireless.${RADIO_5G}.txpower='23'
+    uci -q set wireless.${RADIO_5G}.txpower='25'
 fi
 
 
@@ -137,7 +137,7 @@ if [ -n "$RADIO_6G" ]; then
     uci -q set wireless.${RADIO_6G}.country='US'
     uci -q set wireless.${RADIO_6G}.channel='37'
     uci -q set wireless.${RADIO_6G}.htmode='EHT320'
-    uci -q set wireless.${RADIO_6G}.txpower='23'
+    uci -q set wireless.${RADIO_6G}.txpower='25'
 fi
 
 

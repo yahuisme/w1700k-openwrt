@@ -67,9 +67,8 @@ jobs:
           if [ ! -d .git ]; then git init; fi
           git remote set-url origin $REPO_URL 2>&- || git remote add origin $REPO_URL
           git fetch && git checkout $REPO_BRANCH && git pull --rebase
-          { git log origin/main..$REPO_BRANCH --oneline || echo "(no commits ahead of main)"; } > files/build_info
           mountpoint $DK_BIN || { echo "::error::not mounted" >&2; exit 1; }
-          cp files/build_info $DK_BIN
+          { git log origin/main..$REPO_BRANCH --oneline || echo "(no commits ahead of main)"; } > $DK_BIN/build_info
           ln -sf $DK_BIN bin && ln -sf /dlcache dl && ln -sf /stcache staging_dir
           bp=$DK_PROFILE fc=feeds.conf
           cp $bp/$fc $fc 2>&- && cp $fc /tmp/feeds.bak

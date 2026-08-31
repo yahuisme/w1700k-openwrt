@@ -104,7 +104,7 @@ msgid "PPE Flow Offload Entries"
 msgstr "PPE 流量卸载表"
 
 msgid "Reserved Memory"
-msgstr "NPU 内存"
+msgstr "NPU 预留内存"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:476
 msgid "Firmware / Clock / Cores"

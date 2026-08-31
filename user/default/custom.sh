@@ -165,8 +165,8 @@ if [ -f package/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-n
 fi
 if [ -d package/luci-app-airoha-flowsense ]; then
     find package/luci-app-airoha-flowsense -type f \( -name '*.json' -o -name '*.js' \) -exec \
-        sed -i -e 's/"title": "FlowSense"/"title": "Airoha 流量传感器"/g' \
-               -e 's/"title": "Airoha FlowSense"/"title": "Airoha 流量传感器"/g' {} +
+        sed -i -e 's/"title": "FlowSense"/"title": "Airoha 流量感知"/g' \
+               -e 's/"title": "Airoha FlowSense"/"title": "Airoha 流量感知"/g' {} +
 fi
 
 # Move Airoha Fan Control from the System menu into the Status menu, between

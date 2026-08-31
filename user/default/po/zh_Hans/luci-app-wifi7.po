@@ -122,7 +122,7 @@ msgid "Link 2 / radio2"
 msgstr "链路 2 / radio2"
 
 msgid "Active links"
-msgstr "活动链路"
+msgstr "活跃链路"
 
 msgid "Single wiphy"
 msgstr "单一 wiphy"

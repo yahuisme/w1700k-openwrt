@@ -4,7 +4,7 @@ msgstr ""
 "Language: zh_Hans\n"
 
 msgid "Airoha FlowSense"
-msgstr "Airoha 流量传感器"
+msgstr "Airoha 流量感知"
 
 msgid "Disabled"
 msgstr "已禁用"
@@ -109,7 +109,7 @@ msgid "NO CLIENTS"
 msgstr "无客户端"
 
 msgid "ACTIVE"
-msgstr "活动"
+msgstr "活跃"
 
 msgid "IDLE"
 msgstr "空闲"
@@ -155,7 +155,7 @@ msgstr "检测到本地网关"
 
 # Alert messages
 msgid "Ghost Shaper Active"
-msgstr "Ghost Shaper 活动"
+msgstr "Ghost Shaper 生效中"
 
 msgid "NPU HW offload is bypassing CAKE SQM. Offloaded flows skip bufferbloat management — latency protection is inactive under load."
 msgstr "NPU 硬件卸载绕过了 CAKE SQM。已卸载的流量跳过缓冲区管理——负载下的延迟保护未激活。"

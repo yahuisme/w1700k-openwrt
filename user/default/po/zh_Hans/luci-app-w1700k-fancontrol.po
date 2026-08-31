@@ -152,7 +152,7 @@ msgstr "系统"
 
 #: htdocs/luci-static/resources/view/fan/status.js:120
 msgid "CPU"
-msgstr "CPU 温度"
+msgstr "CPU"
 
 #: htdocs/luci-static/resources/view/fan/status.js:121
 msgid "Board (Fan Curve)"
@@ -198,4 +198,4 @@ msgid "Grant access to W1700K fan control"
 msgstr "授予 W1700K 风扇控制权限"
 
 msgid "Manual Override"
-msgstr "手动覆盖"
+msgstr "手动接管"

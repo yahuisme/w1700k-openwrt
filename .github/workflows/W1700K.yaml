@@ -72,7 +72,7 @@ jobs:
           cp files/build_info $DK_BIN
           ln -sf $DK_BIN bin && ln -sf /dlcache dl && ln -sf /stcache staging_dir
           bp=$DK_PROFILE fc=feeds.conf
-          cp $bp/files/$fc $fc 2>&- && cp $fc /tmp/feeds.bak
+          cp $bp/$fc $fc 2>&- && cp $fc /tmp/feeds.bak
           rm -rf feeds/* &>/dev/null; ./scripts/feeds update -a &>/dev/null; ./scripts/feeds install -a
           mv /tmp/feeds.bak $fc &>/dev/null ||:
           cp $bp/config.diff .config

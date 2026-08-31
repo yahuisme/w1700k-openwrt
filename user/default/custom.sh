@@ -9,32 +9,32 @@ echo "Running custom commands"
 # Existing W1700K custom files
 # -------------------------------------------------
 
-mv files/overview.js \
+mv $DK_PROFILE/overview.js \
     feeds/luci/applications/luci-app-attendedsysupgrade/htdocs/luci-static/resources/view/attendedsysupgrade/overview.js
 
 mkdir -p feeds/luci/modules/luci-mod-status/patches
 
-mv files/998-single-wiphy.patch \
+mv $DK_PROFILE/patches/998-single-wiphy.patch \
     feeds/luci/modules/luci-mod-status/patches/998-single-wiphy.patch
 
-if [ -d package/luci-app-wifi7 ] && [ -f files/998-wifi7-i18n.patch ]; then
-    patch -d package/luci-app-wifi7 -p1 --ignore-whitespace < files/998-wifi7-i18n.patch
+if [ -d package/luci-app-wifi7 ] && [ -f $DK_PROFILE/patches/998-wifi7-i18n.patch ]; then
+    patch -d package/luci-app-wifi7 -p1 --ignore-whitespace < $DK_PROFILE/patches/998-wifi7-i18n.patch
 fi
 
-if [ -d package/luci-app-w1700k-fancontrol ] && [ -f files/998-fancontrol-i18n.patch ]; then
-    patch -d package/luci-app-w1700k-fancontrol -p1 --ignore-whitespace < files/998-fancontrol-i18n.patch
+if [ -d package/luci-app-w1700k-fancontrol ] && [ -f $DK_PROFILE/patches/998-fancontrol-i18n.patch ]; then
+    patch -d package/luci-app-w1700k-fancontrol -p1 --ignore-whitespace < $DK_PROFILE/patches/998-fancontrol-i18n.patch
 fi
 
-if [ -d package/luci-app-airoha-npu ] && [ -f files/998-npu-i18n.patch ]; then
-    patch -d package/luci-app-airoha-npu -p1 --ignore-whitespace < files/998-npu-i18n.patch
+if [ -d package/luci-app-airoha-npu ] && [ -f $DK_PROFILE/patches/998-npu-i18n.patch ]; then
+    patch -d package/luci-app-airoha-npu -p1 --ignore-whitespace < $DK_PROFILE/patches/998-npu-i18n.patch
 fi
 
-if [ -d package/luci-app-airoha-flowsense ] && [ -f files/998-flowsense-i18n.patch ]; then
-    patch -d package/luci-app-airoha-flowsense -p1 --ignore-whitespace < files/998-flowsense-i18n.patch
+if [ -d package/luci-app-airoha-flowsense ] && [ -f $DK_PROFILE/patches/998-flowsense-i18n.patch ]; then
+    patch -d package/luci-app-airoha-flowsense -p1 --ignore-whitespace < $DK_PROFILE/patches/998-flowsense-i18n.patch
 fi
 
-if [ -d feeds/luci/applications/luci-app-irqbalance ] && [ -f files/998-irqbalance-i18n.patch ]; then
-    patch -d feeds/luci/applications/luci-app-irqbalance -p1 --ignore-whitespace < files/998-irqbalance-i18n.patch
+if [ -d feeds/luci/applications/luci-app-irqbalance ] && [ -f $DK_PROFILE/patches/998-irqbalance-i18n.patch ]; then
+    patch -d feeds/luci/applications/luci-app-irqbalance -p1 --ignore-whitespace < $DK_PROFILE/patches/998-irqbalance-i18n.patch
 fi
 
 
@@ -117,7 +117,7 @@ translation_targets=(
 for translation_target in "${translation_targets[@]}"; do
     package_name="${translation_target%%|*}"
     target="${translation_target#*|}"
-    translation="files/po/zh_Hans/${package_name}.po"
+    translation="$DK_PROFILE/po/zh_Hans/${package_name}.po"
 
     if [ ! -d "$target" ]; then
         echo "ERROR: Translation target package is missing: $target"
@@ -137,24 +137,24 @@ done
 # named "irqbalance.po" rather than "luci-app-irqbalance.po".
 if [ -d feeds/luci/applications/luci-app-irqbalance ]; then
     mkdir -p feeds/luci/applications/luci-app-irqbalance/po/zh_Hans
-    cp -f files/po/zh_Hans/irqbalance.po \
+    cp -f $DK_PROFILE/po/zh_Hans/irqbalance.po \
         feeds/luci/applications/luci-app-irqbalance/po/zh_Hans/irqbalance.po
 fi
 
-# The GitHub firmware install UI ships as files/overview.js inside
+# The GitHub firmware install UI ships as overview.js inside
 # luci-app-attendedsysupgrade. Append its custom strings to the upstream
 # translation file so the Chinese UI does not fall back to English for them.
 ASU_PO="feeds/luci/applications/luci-app-attendedsysupgrade/po/zh_Hans/attendedsysupgrade.po"
-if [ -f "$ASU_PO" ] && [ -f files/po/zh_Hans/attendedsysupgrade-custom.po ]; then
-    cat files/po/zh_Hans/attendedsysupgrade-custom.po >> "$ASU_PO"
+if [ -f "$ASU_PO" ] && [ -f $DK_PROFILE/po/zh_Hans/attendedsysupgrade-custom.po ]; then
+    cat $DK_PROFILE/po/zh_Hans/attendedsysupgrade-custom.po >> "$ASU_PO"
 fi
 
 # The temperature & fan overview widget ships as 15_temperature.js inside
 # luci-mod-status. Core modules translate via luci-base's "base" domain, so
 # append its strings to the upstream base.po for the Chinese UI.
 BASE_PO="feeds/luci/modules/luci-base/po/zh_Hans/base.po"
-if [ -f "$BASE_PO" ] && [ -f files/po/zh_Hans/base-custom.po ]; then
-    cat files/po/zh_Hans/base-custom.po >> "$BASE_PO"
+if [ -f "$BASE_PO" ] && [ -f $DK_PROFILE/po/zh_Hans/base-custom.po ]; then
+    cat $DK_PROFILE/po/zh_Hans/base-custom.po >> "$BASE_PO"
 fi
 
 # The upstream menu titles omit the vendor prefix. Keep the user-facing

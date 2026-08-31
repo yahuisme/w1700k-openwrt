@@ -1,0 +1,26 @@
+--- a/db.txt
++++ b/db.txt
+@@ -470,7 +470,6 @@
+ # Note: The transmit power for 5250-5350MHz bands can be raised by 3dBm when TPC is implemented
+ country CN: DFS-FCC
+-	(2400 - 2483.5 @ 40), (20)
+-	(5150 - 5250 @ 80), (23), NO-OUTDOOR, AUTO-BW
+-	(5250 - 5350 @ 80), (20), NO-OUTDOOR, DFS, AUTO-BW
++	(2400 - 2483.5 @ 40), (30)
++	(5150 - 5350 @ 160), (30)
+ 	(5725 - 5850 @ 80), (33)
+ 	# 60 GHz band channels 1,4: 28dBm, channels 2,3: 44dBm
+@@ -2082,11 +2081,10 @@
+ 	(2400 - 2472 @ 40), (30)
+ 	# 5.15 ~ 5.25 GHz: 30 dBm for master mode, 23 dBm for clients
+-	(5150 - 5250 @ 80), (23), AUTO-BW
+-	(5250 - 5350 @ 80), (24), DFS, AUTO-BW
++	(5150 - 5350 @ 160), (30)
+ 	# This range ends at 5725 MHz, but channel 144 extends to 5730 MHz.
+ 	# Since 5725 ~ 5730 MHz belongs to the next range which has looser
+ 	# requirements, we can extend the range by 5 MHz to make the kernel
+ 	# happy and be able to use channel 144.
+-	(5470 - 5730 @ 160), (24), DFS
++	(5470 - 5730 @ 160), (30), DFS
+ 	(5730 - 5895 @ 160), (30), AUTO-BW
+ 	# https://www.federalregister.gov/documents/2021/05/03/2021-08802/use-of-the-5850-5925-ghz-band

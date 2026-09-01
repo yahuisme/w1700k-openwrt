@@ -144,14 +144,6 @@ else
     echo "WARN: irqbalance zh_Hans PO not found; skip"
 fi
 
-# The GitHub firmware install UI ships as overview.js inside
-# luci-app-attendedsysupgrade. Append its custom strings to the upstream
-# translation file so the Chinese UI does not fall back to English for them.
-ASU_PO="feeds/luci/applications/luci-app-attendedsysupgrade/po/zh_Hans/attendedsysupgrade.po"
-if [ -f "$ASU_PO" ] && [ -f $DK_PROFILE/po/zh_Hans/attendedsysupgrade-custom.po ]; then
-    cat $DK_PROFILE/po/zh_Hans/attendedsysupgrade-custom.po >> "$ASU_PO"
-fi
-
 # The temperature & fan overview widget ships as 15_temperature.js inside
 # luci-mod-status. Core modules translate via luci-base's "base" domain, so
 # append its strings to the upstream base.po for the Chinese UI.

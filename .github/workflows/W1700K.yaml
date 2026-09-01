@@ -21,13 +21,13 @@ jobs:
       DK_PROFILE: /bld/user/current
       GH_TOKEN: ${{ github.token }}
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@main
 
     - id: gh
-      uses: actions/cache/restore@v6
+      uses: actions/cache/restore@main
       with: {path: "ghcache\nstcache", key: 'cache-${{ matrix.target }}.${{ github.run_id }}', restore-keys: 'cache-${{ matrix.target }}.'}
     - id: dl
-      uses: actions/cache/restore@v6
+      uses: actions/cache/restore@main
       with: {path: dlcache, key: 'dlcache.${{ github.run_id }}', restore-keys: dlcache.}
 
     - name: Seed caches if missing
@@ -132,7 +132,7 @@ jobs:
         fi
 
     - name: Upload firmware artifact
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@main
       with: {name: 'firmware-${{ matrix.target }}', path: firmware/, retention-days: 1}
 
     - name: Delete old caches
@@ -146,11 +146,11 @@ jobs:
           gh cache list --json key,id --jq '.[] | select(.key | startswith("cache-${{ matrix.target }}.")) | .id' | xargs -r -n1 gh cache delete
         fi ||:
 
-    - uses: actions/cache/save@v6
+    - uses: actions/cache/save@main
       if: success()
       with: {path: "ghcache\nstcache", key: '${{ steps.gh.outputs.cache-primary-key }}'}
     - if: ${{ matrix.target == 'ubi2' && success() }}
-      uses: actions/cache/save@v6
+      uses: actions/cache/save@main
       with: {path: dlcache, key: '${{ steps.dl.outputs.cache-primary-key }}'}
 
   publish:
@@ -160,10 +160,10 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-    - uses: actions/checkout@v7
-    - uses: actions/download-artifact@v8
+    - uses: actions/checkout@main
+    - uses: actions/download-artifact@main
       with: {name: firmware-ubi2-oc, path: fw-ubi2-oc}
-    - uses: actions/download-artifact@v8
+    - uses: actions/download-artifact@main
       with: {name: firmware-ubi2, path: fw-ubi2}
 
     - name: Create releases (ubi2-oc first, then ubi2, so ubi2 publishes last and stays on top)

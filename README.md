@@ -2,7 +2,7 @@
 
 适用于 **Quantum Fiber W1700K** 路由器的定制 OpenWrt 固件构建项目。
 
-基于 [W1700K OpenWrt Builds](https://github.com/w1700k/builds) Fork。
+基于 [W1700K OpenWrt Builds](https://github.com/w1700k/builds) 构建框架，源码基线为 [OpenW1700k](https://github.com/OpenWRT-fanboy/OpenW1700k)（ubi2 / ubi2-oc 分支）。
 
 > ⚠️ **仅适用于 Quantum Fiber W1700K，请勿刷入其他型号设备。**
 

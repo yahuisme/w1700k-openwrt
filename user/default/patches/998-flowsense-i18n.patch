@@ -119,16 +119,24 @@
  
  	return p.join('');
  }
-@@ -580,3 +580,3 @@
+@@ -577,7 +577,7 @@
+ 	s += sp(sep, divLine) + '\n';
+ 
  	if (bndTot === 0) {
 -		s += sp(mute,'  no entries') + '\n';
 +		s += sp(mute, _('no entries')) + '\n';
  	} else {
-@@ -595,3 +595,3 @@
+ 		s += hdrRow();
+ 		s += sp(sep, divLine) + '\n';
+@@ -592,7 +592,7 @@
+ 	s += sp(sep, divLine) + '\n';
+ 
  	if (unbTot === 0) {
 -		s += sp(mute,'  no entries') + '\n';
 +		s += sp(mute, _('no entries')) + '\n';
  	} else {
+ 		s += hdrRow();
+ 		s += sp(sep, divLine) + '\n';
 @@ -651,12 +651,12 @@
  function renderModeBanner(dm) {
  	var mode = dm.mode || 'router';

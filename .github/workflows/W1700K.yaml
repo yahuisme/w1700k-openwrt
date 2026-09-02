@@ -59,7 +59,6 @@ jobs:
     - name: Prepare OpenWrt source
       run: |
         docker_exec DK bash -e -c '
-          . $DK_USER/default/settings.ini &>/dev/null ||:
           . $DK_PROFILE/settings.ini
           [[ $REPO_URL && $REPO_BRANCH ]] || { echo "::error::Missing REPO_URL or REPO_BRANCH"; exit 1; }
           mkdir -p $DK_OPENWRT/files
@@ -80,7 +79,7 @@ jobs:
           rm -f files/build_info  # clear build_info pre-seeded in the base-builder image
           bash $DK_PROFILE/custom.sh
           make defconfig; echo "CONFIG_VERSION_NUMBER=${{ matrix.target }}" >> .config
-          make download -j8 2>&1 | tee /dev/stderr | grep -q "ERROR:" || [ $PIPESTATUS -ne 0 ] && exit 1 ||:
+          make download -j8 || exit 1
         '
 
     - name: Compile OpenWrt

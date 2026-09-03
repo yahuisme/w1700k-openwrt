@@ -121,10 +121,10 @@ msgid "HEALTHY"
 msgstr "健康"
 
 msgid "BND FLOWS"
-msgstr "BND 流"
+msgstr "已绑定流"
 
 msgid "UNB FLOWS"
-msgstr "UNB 流"
+msgstr "未绑定流"
 
 msgid "CPU LOAD"
 msgstr "CPU 负载"
@@ -213,7 +213,7 @@ msgid "showing 25"
 msgstr "显示 25 条"
 
 msgid "ROUTER"
-msgstr "路由模式"
+msgstr "路由器"
 
 msgid "CPU:"
 msgstr "CPU："

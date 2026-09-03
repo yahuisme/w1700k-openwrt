@@ -215,10 +215,10 @@ msgid "OFF"
 msgstr "未激活"
 
 msgid "Bound"
-msgstr "已绑定 "
+msgstr "已绑定"
 
 msgid "Total"
-msgstr "总计 "
+msgstr "总计"
 
 msgid "CPU DMA 2"
 msgstr "CPU DMA 2"

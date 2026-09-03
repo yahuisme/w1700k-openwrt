@@ -17,21 +17,45 @@ mkdir -p feeds/luci/modules/luci-mod-status/patches
 cp -f $DK_PROFILE/patches/998-single-wiphy.patch \
     feeds/luci/modules/luci-mod-status/patches/998-single-wiphy.patch
 
-if [ -d package/luci-app-wifi7 ] && [ -f $DK_PROFILE/patches/998-wifi7-i18n.patch ]; then
-    patch -d package/luci-app-wifi7 -p1 --ignore-whitespace < $DK_PROFILE/patches/998-wifi7-i18n.patch
+if [ ! -d package/luci-app-wifi7 ]; then
+    echo "ERROR: luci-app-wifi7 missing" >&2
+    exit 1
 fi
+if [ ! -f $DK_PROFILE/patches/998-wifi7-i18n.patch ]; then
+    echo "ERROR: 998-wifi7-i18n.patch missing" >&2
+    exit 1
+fi
+patch -d package/luci-app-wifi7 -p1 --ignore-whitespace < $DK_PROFILE/patches/998-wifi7-i18n.patch
 
-if [ -d package/luci-app-w1700k-fancontrol ] && [ -f $DK_PROFILE/patches/998-fancontrol-i18n.patch ]; then
-    patch -d package/luci-app-w1700k-fancontrol -p1 --ignore-whitespace < $DK_PROFILE/patches/998-fancontrol-i18n.patch
+if [ ! -d package/luci-app-w1700k-fancontrol ]; then
+    echo "ERROR: luci-app-w1700k-fancontrol missing" >&2
+    exit 1
 fi
+if [ ! -f $DK_PROFILE/patches/998-fancontrol-i18n.patch ]; then
+    echo "ERROR: 998-fancontrol-i18n.patch missing" >&2
+    exit 1
+fi
+patch -d package/luci-app-w1700k-fancontrol -p1 --ignore-whitespace < $DK_PROFILE/patches/998-fancontrol-i18n.patch
 
-if [ -d package/luci-app-airoha-npu ] && [ -f $DK_PROFILE/patches/998-npu-i18n.patch ]; then
-    patch -d package/luci-app-airoha-npu -p1 --ignore-whitespace < $DK_PROFILE/patches/998-npu-i18n.patch
+if [ ! -d package/luci-app-airoha-npu ]; then
+    echo "ERROR: luci-app-airoha-npu missing" >&2
+    exit 1
 fi
+if [ ! -f $DK_PROFILE/patches/998-npu-i18n.patch ]; then
+    echo "ERROR: 998-npu-i18n.patch missing" >&2
+    exit 1
+fi
+patch -d package/luci-app-airoha-npu -p1 --ignore-whitespace < $DK_PROFILE/patches/998-npu-i18n.patch
 
-if [ -d package/luci-app-airoha-flowsense ] && [ -f $DK_PROFILE/patches/998-flowsense-i18n.patch ]; then
-    patch -d package/luci-app-airoha-flowsense -p1 --ignore-whitespace < $DK_PROFILE/patches/998-flowsense-i18n.patch
+if [ ! -d package/luci-app-airoha-flowsense ]; then
+    echo "ERROR: luci-app-airoha-flowsense missing" >&2
+    exit 1
 fi
+if [ ! -f $DK_PROFILE/patches/998-flowsense-i18n.patch ]; then
+    echo "ERROR: 998-flowsense-i18n.patch missing" >&2
+    exit 1
+fi
+patch -d package/luci-app-airoha-flowsense -p1 --ignore-whitespace < $DK_PROFILE/patches/998-flowsense-i18n.patch
 
 
 # -------------------------------------------------
@@ -195,6 +219,9 @@ mkdir -p package/firmware/wireless-regdb/patches
 if [ -f "$DK_PROFILE/patches/610-w1700k-cn-us-power-30.patch" ]; then
     cp -f "$DK_PROFILE/patches/610-w1700k-cn-us-power-30.patch" package/firmware/wireless-regdb/patches/
     echo "regdb patch: 610-w1700k-cn-us-power-30.patch"
+else
+    echo "ERROR: regdb patch missing: 610-w1700k-cn-us-power-30.patch" >&2
+    exit 1
 fi
 
 

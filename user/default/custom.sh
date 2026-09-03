@@ -9,9 +9,6 @@ echo "Running custom commands"
 # Existing W1700K custom files
 # -------------------------------------------------
 
-cp -f $DK_PROFILE/overview.js \
-    feeds/luci/applications/luci-app-attendedsysupgrade/htdocs/luci-static/resources/view/attendedsysupgrade/overview.js
-
 mkdir -p feeds/luci/modules/luci-mod-status/patches
 
 cp -f $DK_PROFILE/patches/998-single-wiphy.patch \

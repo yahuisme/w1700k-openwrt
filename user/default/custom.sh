@@ -154,19 +154,15 @@ done
 
 # luci-app-irqbalance ships its own zh_Hans translation in the
 # feed. The feed PO leaves the menu title "irqbalance" untranslated and the
-# view leaves raw /proc/interrupts IPI names unlocalized. Localize the menu
-# in place and patch the view so interrupt names are passed through _().
-IRQ_JS="feeds/luci/applications/luci-app-irqbalance/htdocs/luci-static/resources/view/irqbalance.js"
-if [ -f "$IRQ_JS" ]; then
-    sed -i "s#row\.tail || '\''-'\''#row.tail ? _(row.tail) : '\''-'\''#" "$IRQ_JS"
-    if grep -q "row.tail ? _(row.tail) : '-'" "$IRQ_JS"; then
-        echo "irqbalance.js localized (/proc/interrupts names)"
-    else
-        echo "WARN: irqbalance.js sed did not match; skip"
-    fi
+# view leaves raw /proc/interrupts IPI names unlocalized. Apply our i18n patch
+# and append the interrupt names to the feed PO.
+IRQ_DIR="feeds/luci/applications/luci-app-irqbalance"
+if [ -d "$IRQ_DIR" ] && [ -f "$DK_PROFILE/patches/998-irqbalance-i18n.patch" ]; then
+    patch -d "$IRQ_DIR" -p1 --ignore-whitespace < "$DK_PROFILE/patches/998-irqbalance-i18n.patch"
+    echo "irqbalance: IPI interrupt names translation patch applied"
 fi
 
-IRQ_PO="feeds/luci/applications/luci-app-irqbalance/po/zh_Hans/irqbalance.po"
+IRQ_PO="$IRQ_DIR/po/zh_Hans/irqbalance.po"
 if [ -f "$IRQ_PO" ]; then
     sed -i '/^msgid "irqbalance"$/{n;s/^msgstr "irqbalance"$/msgstr "IRQ 平衡"/}' "$IRQ_PO"
     if grep -q 'msgstr "IRQ 平衡"' "$IRQ_PO"; then

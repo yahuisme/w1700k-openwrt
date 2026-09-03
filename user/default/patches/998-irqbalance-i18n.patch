@@ -1,0 +1,5 @@
+--- a/htdocs/luci-static/resources/view/irqbalance.js
++++ b/htdocs/luci-static/resources/view/irqbalance.js
+@@ -69,1 +69,1 @@
+-	cells.push(E('div', { 'class': 'td', 'data-title': headings.last }, row.tail || '-'));
++	cells.push(E('div', { 'class': 'td', 'data-title': headings.last }, row.tail ? _(row.tail) : '-'));

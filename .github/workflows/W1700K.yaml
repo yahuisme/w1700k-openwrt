@@ -84,14 +84,12 @@ jobs:
 
     - name: Compile OpenWrt
       run: |
-        for mode in c s; do
-          docker_exec -e MODE=$mode DK bash -e -c '
-            cd $DK_OPENWRT
-            export FORCE_UNSAFE_CONFIGURE=1 CCACHE_SLOPPINESS=file_stat_matches,include_file_mtime,time_macros CCACHE_NOHASHDIR=true CCACHE_COMPILERCHECK=content
-            make -j$(($(nproc) + 1)) V=$MODE
-            staging_dir/host/bin/ccache -d /ghcache -sz ||:
-          ' && break
-        done
+        docker_exec DK bash -e -c '
+          cd $DK_OPENWRT
+          export FORCE_UNSAFE_CONFIGURE=1 CCACHE_SLOPPINESS=file_stat_matches,include_file_mtime,time_macros CCACHE_NOHASHDIR=true CCACHE_COMPILERCHECK=content
+          make -j$(($(nproc) + 1))
+          staging_dir/host/bin/ccache -d /ghcache -sz ||:
+        '
 
     - name: Stage firmware
       run: |

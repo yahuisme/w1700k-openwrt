@@ -149,55 +149,6 @@ for translation_target in "${translation_targets[@]}"; do
     cp -f "$translation" "$target/po/zh_Hans/${package_name}.po"
 done
 
-# luci-app-irqbalance ships its own zh_Hans translation in the
-# feed. The feed PO leaves the menu title "irqbalance" untranslated and the
-# view leaves raw /proc/interrupts IPI names unlocalized. Apply our i18n patch
-# and append the interrupt names to the feed PO.
-IRQ_DIR="feeds/luci/applications/luci-app-irqbalance"
-if [ -d "$IRQ_DIR" ] && [ -f "$DK_PROFILE/patches/998-irqbalance-i18n.patch" ]; then
-    patch -d "$IRQ_DIR" -p1 --ignore-whitespace < "$DK_PROFILE/patches/998-irqbalance-i18n.patch"
-    echo "irqbalance: IPI interrupt names translation patch applied"
-fi
-
-IRQ_PO="$IRQ_DIR/po/zh_Hans/irqbalance.po"
-if [ -f "$IRQ_PO" ]; then
-    sed -i '/^msgid "irqbalance"$/{n;s/^msgstr "irqbalance"$/msgstr "IRQ 平衡"/}' "$IRQ_PO"
-    if grep -q 'msgstr "IRQ 平衡"' "$IRQ_PO"; then
-        echo "irqbalance menu title localized (IRQ 平衡)"
-    else
-        echo "WARN: irqbalance zh_Hans msgid not found; skip"
-    fi
-    cat >> "$IRQ_PO" << 'EOF'
-
-msgid "Rescheduling interrupts"
-msgstr "重新调度中断"
-
-msgid "Function call interrupts"
-msgstr "函数调用中断"
-
-msgid "CPU stop interrupts"
-msgstr "CPU 停止中断"
-
-msgid "CPU stop NMIs"
-msgstr "CPU 停止 NMI"
-
-msgid "Timer broadcast interrupts"
-msgstr "定时器广播中断"
-
-msgid "IRQ work interrupts"
-msgstr "IRQ 工作中断"
-
-msgid "CPU backtrace interrupts"
-msgstr "CPU 回溯中断"
-
-msgid "KGDB roundup interrupts"
-msgstr "KGDB 汇总中断"
-EOF
-    echo "irqbalance IPI interrupt names added to PO"
-else
-    echo "WARN: irqbalance zh_Hans PO not found; skip"
-fi
-
 # The temperature & fan overview widget ships as 15_temperature.js inside
 # luci-mod-status. Core modules translate via luci-base's "base" domain, so
 # append its strings to the upstream base.po for the Chinese UI.

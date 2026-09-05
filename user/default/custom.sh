@@ -14,9 +14,9 @@ cp -f "$DK_PROFILE/patches/998-single-wiphy.patch" \
     feeds/luci/modules/luci-mod-status/patches/998-single-wiphy.patch
 
 # Apply internationalization patches to Airoha LuCI apps
-for app in wifi7 fancontrol airoha-npu airoha-flowsense; do
-    pkg="luci-app-$app"
-    patch_file="$DK_PROFILE/patches/998-$app-i18n.patch"
+for item in "wifi7|wifi7" "w1700k-fancontrol|fancontrol" "airoha-npu|npu" "airoha-flowsense|flowsense"; do
+    pkg="luci-app-${item%%|*}"
+    patch_file="$DK_PROFILE/patches/998-${item##*|}-i18n.patch"
     [ -d "package/$pkg" ] || { echo "ERROR: package/$pkg missing" >&2; exit 1; }
     [ -f "$patch_file" ] || { echo "ERROR: $patch_file missing" >&2; exit 1; }
     patch -d "package/$pkg" -p1 --ignore-whitespace < "$patch_file"

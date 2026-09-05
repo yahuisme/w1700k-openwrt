@@ -52,15 +52,6 @@ uci -q set luci.main.mediaurlbase='/luci-static/aurora'
 uci -q set firewall.@defaults[0].flow_offloading='1'
 uci -q set firewall.@defaults[0].flow_offloading_hw='1'
 
-# Enable bridge netfilter offload controls for VLAN and PPPoE by default.
-modprobe br_netfilter 2>/dev/null || true
-mkdir -p /etc/sysctl.d
-printf '%s\n' \
-    'net.bridge.bridge-nf-filter-vlan-tagged=1' \
-    'net.bridge.bridge-nf-filter-pppoe-tagged=1' \
-    > /etc/sysctl.d/10-bridge-offload.conf
-sysctl -p /etc/sysctl.d/10-bridge-offload.conf >/dev/null 2>&1 || true
-
 # Enable BBR congestion control by default (kmod-tcp-bbr is built in).
 mkdir -p /etc/sysctl.d
 printf '%s\n' \

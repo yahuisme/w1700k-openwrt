@@ -61,6 +61,6 @@ LuCI 状态首页显示 CPU、主板、10G WAN/LAN PHY、2.4/5/6 GHz WiFi 温度
 GitHub Actions 每日 **香港时间 14:00** 自动构建：
 
 ```text
-W1700K-ubi2_<构建时间>_r<版本号>
-W1700K-ubi2-oc_<构建时间>_r<版本号>
+W1700K-OpenWrt_<构建时间>_r<版本号>
+W1700K-OpenWrt-OC_<构建时间>_r<版本号>
 ```

@@ -95,7 +95,9 @@ jobs:
       run: |
         sudo chown -R "$(id -u):$(id -g)" openwrt_bin stcache
         find -L openwrt_bin/targets/*/* -maxdepth 1 \( -name '*sysupgrade.itb' -o -name 'profiles.json' \) -exec install -D -t firmware {} +
-        VERSION="W1700K-${{ matrix.target }}_$(TZ=Asia/Hong_Kong date +'%y.%m.%d-%H.%M.%S')_r$(jq -r '.version_code' firmware/profiles.json | sed 's/^r//; s/-.*//')"
+        PREFIX="W1700K-OpenWrt_"
+        [ "${{ matrix.target }}" = "ubi2-oc" ] && PREFIX="W1700K-OpenWrt-OC_"
+        VERSION="${PREFIX}$(TZ=Asia/Hong_Kong date +'%y.%m.%d-%H.%M.%S')_r$(jq -r '.version_code' firmware/profiles.json | sed 's/^r//; s/-.*//')"
         echo "$VERSION" > firmware/version.txt
         RELEASE_NOTES="firmware/release-notes.md"
         if [ "${{ matrix.target }}" = "ubi2" ]; then
@@ -135,7 +137,11 @@ jobs:
         # the OC tag, so ordering is guaranteed without any cross-job waiting.
         gh release create "$VERSION" firmware/*sysupgrade.itb --title "$VERSION" --notes-file firmware/release-notes.md
         # Remove older releases for this target, but never the one just created.
-        gh release list --json tagName --jq '.[].tagName' | grep "^W1700K-${{ matrix.target }}_" | grep -vxF "$VERSION" | xargs -r -n1 gh release delete --cleanup-tag -y ||:
+        if [ "${{ matrix.target }}" = "ubi2-oc" ]; then
+          gh release list --json tagName --jq '.[].tagName' | grep -E "^(W1700K-OpenWrt-OC_|W1700K-ubi2-oc_)" | grep -vxF "$VERSION" | xargs -r -n1 gh release delete --cleanup-tag -y ||:
+        else
+          gh release list --json tagName --jq '.[].tagName' | grep -E "^(W1700K-OpenWrt_|W1700K-ubi2_)" | grep -vxF "$VERSION" | xargs -r -n1 gh release delete --cleanup-tag -y ||:
+        fi
 
     - name: Delete old caches
       if: success()

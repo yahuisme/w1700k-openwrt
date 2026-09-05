@@ -42,8 +42,9 @@ jobs:
       run: |
         curl --fail -Z --create-dirs -Lo user/default/files/etc/apk/repositories.d/distfeeds.list https://w1700k.github.io/builds/distfeeds.list
         curl --fail -Z -Lo user/default/files/etc/vermagic.txt https://w1700k.github.io/builds/vermagic.txt
-        [ -f "user/${{ matrix.target }}/config.diff" ] || { echo "::error::config.diff not found for ${{ matrix.target }}"; exit 1; }
-        rsync -aI --mkpath user/default/ user/${{ matrix.target }}/ user/current/ 2>&-
+        [ -f "user/${{ matrix.target }}/config.diff" ] || [ -f "user/default/config.diff" ] || { echo "::error::config.diff not found"; exit 1; }
+        rsync -aI --mkpath user/default/ user/current/ 2>&-
+        rsync -aI --mkpath user/${{ matrix.target }}/ user/current/ 2>&-
         echo 'CONFIG_CCACHE_DIR="/ghcache"' >> user/current/config.diff
         sudo tee /etc/docker/daemon.json <<< '{"max-concurrent-downloads":50,"max-concurrent-uploads":50,"experimental":true}'
         sudo systemctl reload docker

@@ -69,14 +69,11 @@ jobs:
           git reset --hard origin/$REPO_BRANCH
           mountpoint $DK_BIN || { echo "::error::not mounted" >&2; exit 1; }
           ln -sf $DK_BIN bin && ln -sf /dlcache dl && ln -sf /stcache staging_dir
-          bp=$DK_PROFILE fc=feeds.conf
-          cp $bp/$fc $fc 2>&- && cp $fc /tmp/feeds.bak
           rm -rf feeds/* &>/dev/null
           ./scripts/feeds update -a &>/dev/null || { echo "::error::feeds update failed"; exit 1; }
           ./scripts/feeds install -a &>/dev/null || { echo "::error::feeds install failed"; exit 1; }
-          mv /tmp/feeds.bak $fc &>/dev/null ||:
-          cp $bp/config.diff .config
-          cp -r $bp/files/ .
+          cp $DK_PROFILE/config.diff .config
+          cp -r $DK_PROFILE/files/ .
           rm -f files/build_info  # clear build_info pre-seeded in the base-builder image
           bash $DK_PROFILE/custom.sh
           make defconfig; echo "CONFIG_VERSION_NUMBER=${{ matrix.target }}" >> .config
@@ -137,12 +134,9 @@ jobs:
         # Release list orders by tag name (desc); the standard tag sorts above
         # the OC tag, so ordering is guaranteed without any cross-job waiting.
         gh release create "$VERSION" firmware/*sysupgrade.itb --title "$VERSION" --notes-file firmware/release-notes.md
-        # Remove older releases for this target, but never the one just created.
-        if [ "${{ matrix.target }}" = "ubi2-oc" ]; then
-          gh release list --json tagName --jq '.[].tagName' | grep -E "^(W1700K-OpenWrt-OC_|W1700K-ubi2-oc_)" | grep -vxF "$VERSION" | xargs -r -n1 gh release delete --cleanup-tag -y ||:
-        else
-          gh release list --json tagName --jq '.[].tagName' | grep -E "^(W1700K-OpenWrt_|W1700K-ubi2_)" | grep -vxF "$VERSION" | xargs -r -n1 gh release delete --cleanup-tag -y ||:
-        fi
+        PREFIX="W1700K-OpenWrt_"
+        [ "${{ matrix.target }}" = "ubi2-oc" ] && PREFIX="W1700K-OpenWrt-OC_"
+        gh release list --json tagName --jq '.[].tagName' | grep -E "^(${PREFIX}|W1700K-${{ matrix.target }}_)" | grep -vxF "$VERSION" | xargs -r -n1 gh release delete --cleanup-tag -y ||:
 
     - name: Delete old caches
       if: success()

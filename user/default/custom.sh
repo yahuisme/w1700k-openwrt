@@ -10,49 +10,17 @@ echo "Running custom commands"
 # -------------------------------------------------
 
 mkdir -p feeds/luci/modules/luci-mod-status/patches
-
-cp -f $DK_PROFILE/patches/998-single-wiphy.patch \
+cp -f "$DK_PROFILE/patches/998-single-wiphy.patch" \
     feeds/luci/modules/luci-mod-status/patches/998-single-wiphy.patch
 
-if [ ! -d package/luci-app-wifi7 ]; then
-    echo "ERROR: luci-app-wifi7 missing" >&2
-    exit 1
-fi
-if [ ! -f $DK_PROFILE/patches/998-wifi7-i18n.patch ]; then
-    echo "ERROR: 998-wifi7-i18n.patch missing" >&2
-    exit 1
-fi
-patch -d package/luci-app-wifi7 -p1 --ignore-whitespace < $DK_PROFILE/patches/998-wifi7-i18n.patch
-
-if [ ! -d package/luci-app-w1700k-fancontrol ]; then
-    echo "ERROR: luci-app-w1700k-fancontrol missing" >&2
-    exit 1
-fi
-if [ ! -f $DK_PROFILE/patches/998-fancontrol-i18n.patch ]; then
-    echo "ERROR: 998-fancontrol-i18n.patch missing" >&2
-    exit 1
-fi
-patch -d package/luci-app-w1700k-fancontrol -p1 --ignore-whitespace < $DK_PROFILE/patches/998-fancontrol-i18n.patch
-
-if [ ! -d package/luci-app-airoha-npu ]; then
-    echo "ERROR: luci-app-airoha-npu missing" >&2
-    exit 1
-fi
-if [ ! -f $DK_PROFILE/patches/998-npu-i18n.patch ]; then
-    echo "ERROR: 998-npu-i18n.patch missing" >&2
-    exit 1
-fi
-patch -d package/luci-app-airoha-npu -p1 --ignore-whitespace < $DK_PROFILE/patches/998-npu-i18n.patch
-
-if [ ! -d package/luci-app-airoha-flowsense ]; then
-    echo "ERROR: luci-app-airoha-flowsense missing" >&2
-    exit 1
-fi
-if [ ! -f $DK_PROFILE/patches/998-flowsense-i18n.patch ]; then
-    echo "ERROR: 998-flowsense-i18n.patch missing" >&2
-    exit 1
-fi
-patch -d package/luci-app-airoha-flowsense -p1 --ignore-whitespace < $DK_PROFILE/patches/998-flowsense-i18n.patch
+# Apply internationalization patches to Airoha LuCI apps
+for app in wifi7 fancontrol airoha-npu airoha-flowsense; do
+    pkg="luci-app-$app"
+    patch_file="$DK_PROFILE/patches/998-$app-i18n.patch"
+    [ -d "package/$pkg" ] || { echo "ERROR: package/$pkg missing" >&2; exit 1; }
+    [ -f "$patch_file" ] || { echo "ERROR: $patch_file missing" >&2; exit 1; }
+    patch -d "package/$pkg" -p1 --ignore-whitespace < "$patch_file"
+done
 
 
 # -------------------------------------------------
@@ -105,16 +73,10 @@ fi
 echo "Aurora theme configuration app installed successfully."
 
 # 修改 Aurora 菜单式样（默认侧边栏 + 小圆角）
-TPL_DIR="package/luci-app-aurora-config/root/usr/share/aurora/"
-if ls "$TPL_DIR"/*.template >/dev/null 2>&1; then
-    sed -i "s/nav_type '.*'/nav_type 'sidebar'/g; s/struct_radius_base '.*'/struct_radius_base '0.125rem'/g" "$TPL_DIR"/*.template
-    if grep -q "nav_type 'sidebar'" "$TPL_DIR"/*.template; then
-        echo "theme-aurora nav preset applied!"
-    else
-        echo "theme-aurora nav preset failed; continuing!"
-    fi
-else
-    echo "theme-aurora nav preset skipped (no templates); continuing!"
+TPL_DIR="package/luci-app-aurora-config/root/usr/share/aurora"
+if [ -d "$TPL_DIR" ]; then
+    sed -i "s/nav_type '.*'/nav_type 'sidebar'/g; s/struct_radius_base '.*'/struct_radius_base '0.125rem'/g" "$TPL_DIR"/*.template 2>/dev/null || true
+    echo "theme-aurora nav preset applied!"
 fi
 
 

@@ -137,7 +137,7 @@ jobs:
         gh release create "$VERSION" firmware/*sysupgrade.itb --title "$VERSION" --notes-file firmware/release-notes.md
         PREFIX="W1700K-OpenWrt_"
         [ "${{ matrix.target }}" = "ubi2-oc" ] && PREFIX="W1700K-OpenWrt-OC_"
-        gh release list --json tagName --jq '.[].tagName' | grep -E "^(${PREFIX}|W1700K-${{ matrix.target }}_)" | grep -vxF "$VERSION" | xargs -r -n1 gh release delete --cleanup-tag -y ||:
+        gh release list --json tagName --jq '.[].tagName' | grep -E "^(${PREFIX}|W1700K-${{ matrix.target }}_)" | grep -vxF "$VERSION" | xargs -r gh release delete --cleanup-tag -y ||:
 
     - name: Delete old caches
       if: success()

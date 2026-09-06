@@ -106,10 +106,11 @@ if [ -f package/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-n
     sed -i 's/"title": "SoC Status"/"title": "Airoha SoC 状态"/' \
         package/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-npu.json
 fi
-if [ -d package/luci-app-airoha-flowsense ]; then
-    find package/luci-app-airoha-flowsense -type f \( -name '*.json' -o -name '*.js' \) -exec \
-        sed -i -e 's/"title": "FlowSense"/"title": "Airoha 流量感知"/g' \
-               -e 's/"title": "Airoha FlowSense"/"title": "Airoha 流量感知"/g' {} +
+FSMENU="package/luci-app-airoha-flowsense/root/usr/share/luci/menu.d/luci-app-airoha-flowsense.json"
+if [ -f "$FSMENU" ]; then
+    sed -i -e 's/"title": "FlowSense"/"title": "Airoha 流量感知"/g' \
+           -e 's/"title": "Airoha FlowSense"/"title": "Airoha 流量感知"/g' \
+        "$FSMENU"
 fi
 
 # Move Airoha Fan Control from the System menu into the Status menu, between
@@ -147,9 +148,6 @@ else
     echo "ERROR: regdb patch missing: 610-w1700k-cn-us-power-30.patch" >&2
     exit 1
 fi
-
-
-
 
 echo "=============================================="
 echo "Custom commands completed"

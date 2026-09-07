@@ -40,16 +40,16 @@ return baseclass.extend({
 			if (!isFinite(value))
 				return '';
 
-			if (value >= 80)
-				return '#e53935';
+			if (value > 75)
+				return '#d0021b';
 
-			if (value >= 70)
-				return '#f57c00';
+			if (value > 65)
+				return '#f97316';
 
-			if (value >= 60)
-				return '#e6a700';
+			if (value >= 50)
+				return '#f5a623';
 
-			return '';
+			return '#00cc44';
 		}
 
 		function fan(d) {

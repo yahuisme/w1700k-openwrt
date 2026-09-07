@@ -37,19 +37,19 @@ return baseclass.extend({
 		function color(value) {
 			value = Number(value);
 
-			if (!isFinite(value))
+			if (!isFinite(value) || value <= 0)
 				return '';
 
-			if (value > 75)
-				return '#d0021b';
+			if (value <= 50)
+				return '#10b981';
 
-			if (value > 65)
+			if (value <= 65)
+				return '#f59e0b';
+
+			if (value <= 75)
 				return '#f97316';
 
-			if (value >= 50)
-				return '#f5a623';
-
-			return '#00cc44';
+			return '#ef4444';
 		}
 
 		function fan(d) {

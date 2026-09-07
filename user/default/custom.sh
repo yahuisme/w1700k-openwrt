@@ -6,21 +6,28 @@ echo "=============================================="
 echo "Running custom commands"
 
 # -------------------------------------------------
+# Fetch W1700K LuCI apps from user's packages repo
+# -------------------------------------------------
+# luci-app-wifi7 / luci-app-mlo / luci-app-airoha-npu /
+# luci-app-airoha-flowsense / luci-app-airoha-fancontrol
+# are maintained in yahuisme/packages with native LuCI UI,
+# built-in 100% i18n, and strict platform safety checks.
+PKG_REPO=/tmp/yahuisme-packages
+if ! git clone --depth=1 https://github.com/yahuisme/packages.git "$PKG_REPO"; then
+    echo "ERROR: Failed to clone user packages repo!"
+    exit 1
+fi
+cp -r "$PKG_REPO/luci-app-wifi7" "$PKG_REPO/luci-app-mlo" \
+      "$PKG_REPO/luci-app-airoha-npu" "$PKG_REPO/luci-app-airoha-flowsense" \
+      "$PKG_REPO/luci-app-airoha-fancontrol" package/
+
+# -------------------------------------------------
 # Existing W1700K custom files
 # -------------------------------------------------
 
 mkdir -p feeds/luci/modules/luci-mod-status/patches
 cp -f "$DK_PROFILE/patches/998-single-wiphy.patch" \
     feeds/luci/modules/luci-mod-status/patches/998-single-wiphy.patch
-
-# Apply internationalization patches to Airoha LuCI apps
-for item in "wifi7|wifi7" "w1700k-fancontrol|fancontrol" "airoha-npu|npu" "airoha-flowsense|flowsense"; do
-    pkg="luci-app-${item%%|*}"
-    patch_file="$DK_PROFILE/patches/998-${item##*|}-i18n.patch"
-    [ -d "package/$pkg" ] || { echo "ERROR: package/$pkg missing" >&2; exit 1; }
-    [ -f "$patch_file" ] || { echo "ERROR: $patch_file missing" >&2; exit 1; }
-    patch -d "package/$pkg" -p1 --ignore-whitespace < "$patch_file"
-done
 
 
 # -------------------------------------------------
@@ -80,53 +87,15 @@ if [ -d "$TPL_DIR" ]; then
 fi
 
 
-# -------------------------------------------------
-# Add Chinese translations for Airoha LuCI apps
-# -------------------------------------------------
-
-echo "Installing Chinese translations for Airoha LuCI apps..."
-
-for app in luci-app-airoha-flowsense luci-app-airoha-npu luci-app-w1700k-fancontrol luci-app-wifi7; do
-    [ -d "package/$app" ] || { echo "ERROR: package/$app missing" >&2; exit 1; }
-    mkdir -p "package/$app/po/zh_Hans"
-    cp -f "$DK_PROFILE/po/zh_Hans/$app.po" "package/$app/po/zh_Hans/$app.po"
-done
-
 # The temperature & fan overview widget ships as 15_temperature.js inside
 # luci-mod-status. Core modules translate via luci-base's "base" domain, so
 # append its strings to the upstream base.po for the Chinese UI.
 BASE_PO="feeds/luci/modules/luci-base/po/zh_Hans/base.po"
-if [ -f "$BASE_PO" ] && [ -f $DK_PROFILE/po/zh_Hans/base-custom.po ]; then
-    cat $DK_PROFILE/po/zh_Hans/base-custom.po >> "$BASE_PO"
+if [ -f "$BASE_PO" ] && [ -f "$DK_PROFILE/po/zh_Hans/base-custom.po" ]; then
+    cat "$DK_PROFILE/po/zh_Hans/base-custom.po" >> "$BASE_PO"
 fi
 
-# The upstream menu titles omit the vendor prefix. Keep the user-facing
-# application names explicit without changing application behavior.
-if [ -f package/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-npu.json ]; then
-    sed -i 's/"title": "SoC Status"/"title": "Airoha SoC 状态"/' \
-        package/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-npu.json
-fi
-FSMENU="package/luci-app-airoha-flowsense/root/usr/share/luci/menu.d/luci-app-airoha-flowsense.json"
-if [ -f "$FSMENU" ]; then
-    sed -i -e 's/"title": "FlowSense"/"title": "Airoha 流量感知"/g' \
-           -e 's/"title": "Airoha FlowSense"/"title": "Airoha 流量感知"/g' \
-        "$FSMENU"
-fi
-
-# Move Airoha Fan Control from the System menu into the Status menu, between
-# Airoha SoC Status (npu) and Airoha FlowSense. The dispatcher types menu
-# order as int, so use consecutive integers: npu 15, fan 16, flowsense 17.
-if [ -f package/luci-app-w1700k-fancontrol/root/usr/share/luci/menu.d/luci-app-w1700k-fancontrol.json ]; then
-    sed -i -e 's#admin/system/fan#admin/status/fan#g' \
-           -e 's#"order": 90#"order": 16#' \
-        package/luci-app-w1700k-fancontrol/root/usr/share/luci/menu.d/luci-app-w1700k-fancontrol.json
-fi
-if [ -f package/luci-app-airoha-flowsense/root/usr/share/luci/menu.d/luci-app-airoha-flowsense.json ]; then
-    sed -i 's#"order": 16#"order": 17#' \
-        package/luci-app-airoha-flowsense/root/usr/share/luci/menu.d/luci-app-airoha-flowsense.json
-fi
-
-echo "Airoha LuCI translations installed successfully."
+echo "Airoha LuCI configuration completed."
 
 # The package index is generated during feeds install, before these
 # translation files existed. Drop the cached index so make defconfig

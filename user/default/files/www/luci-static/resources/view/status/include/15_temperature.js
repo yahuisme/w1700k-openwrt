@@ -67,6 +67,7 @@ return baseclass.extend({
 				'style':
 					'font-size:20px;' +
 					'line-height:1.2;' +
+					'font-variant-numeric:tabular-nums;' +
 					'white-space:nowrap;' +
 					(tone ? 'color:' + tone + ';' : '')
 			}, text);

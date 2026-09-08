@@ -1,7 +1,6 @@
 'use strict';
 'require baseclass';
 'require rpc';
-'require poll';
 
 var callFanStatus = rpc.declare({
 	object: 'luci.fan',
@@ -17,6 +16,8 @@ return baseclass.extend({
 	},
 
 	render: function(data) {
+		data = data || {};
+
 		var sensors = [
 			['CPU', 'temp_cpu'],
 			[_('Motherboard'), 'temp_board'],
@@ -26,8 +27,6 @@ return baseclass.extend({
 			['5 GHz', 'wifi_5g'],
 			['6 GHz', 'wifi_6g']
 		];
-
-		var nodes = {};
 
 		function temp(value) {
 			value = Number(value);
@@ -40,7 +39,7 @@ return baseclass.extend({
 			if (!isFinite(value) || value <= 0)
 				return '';
 
-			if (value <= 50)
+			if (value < 50)
 				return '#10b981';
 
 			if (value <= 65)
@@ -69,7 +68,7 @@ return baseclass.extend({
 					'line-height:1.2;' +
 					'font-variant-numeric:tabular-nums;' +
 					'white-space:nowrap;' +
-					(tone ? 'color:' + tone + ';' : '')
+					(tone ? 'color:' + tone + ' !important;' : '')
 			}, text);
 		}
 
@@ -104,38 +103,14 @@ return baseclass.extend({
 
 		sensors.forEach(function(sensor) {
 			var key = sensor[1];
-
-			nodes[key] = valueBox(temp(data[key]), color(data[key]));
-
 			root.appendChild(
-				card(sensor[0], nodes[key])
+				card(sensor[0], valueBox(temp(data[key]), color(data[key])))
 			);
 		});
 
-		nodes.fan = valueBox(fan(data), '');
-
 		root.appendChild(
-			card(_('Fan'), nodes.fan)
+			card(_('Fan'), valueBox(fan(data), ''))
 		);
-
-		poll.add(function() {
-			return L.resolveDefault(
-				callFanStatus(),
-				{}
-			).then(function(d) {
-
-				sensors.forEach(function(sensor) {
-					var key = sensor[1];
-					var node = nodes[key];
-
-					node.textContent = temp(d[key]);
-					node.style.color = color(d[key]);
-				});
-
-				nodes.fan.textContent = fan(d);
-			});
-
-		}, 5);
 
 		return root;
 	}

@@ -27,6 +27,7 @@
 
 | 插件 | 功能说明 |
 | :--- | :--- |
+| [`luci-app-firmwareupgrade`](https://github.com/yahuisme/packages/tree/main/luci-app-firmwareupgrade) | 固件版本检查与在线升级 |
 | [`luci-app-airoha-npu`](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-npu) | Airoha NPU 状态监控与 SoC 频率控制 |
 | [`luci-app-airoha-fancontrol`](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-fancontrol) | 动态温控曲线与四线 PWM 风扇调速 |
 | [`luci-app-airoha-flowsense`](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-flowsense) | PPE 硬件流控与加速状态实时监控 |

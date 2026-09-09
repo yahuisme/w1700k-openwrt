@@ -19,7 +19,8 @@ if ! git clone --depth=1 https://github.com/yahuisme/packages.git "$PKG_REPO"; t
 fi
 cp -r "$PKG_REPO/luci-app-wifi7" "$PKG_REPO/luci-app-airoha-npu" \
       "$PKG_REPO/luci-app-airoha-flowsense" \
-      "$PKG_REPO/luci-app-airoha-fancontrol" package/
+      "$PKG_REPO/luci-app-airoha-fancontrol" \
+      "$PKG_REPO/luci-app-firmwareupgrade" package/
 
 # -------------------------------------------------
 # Existing W1700K custom files

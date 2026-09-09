@@ -30,8 +30,7 @@
 | [`luci-app-airoha-npu`](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-npu) | Airoha NPU 状态监控与 SoC 频率控制 |
 | [`luci-app-airoha-fancontrol`](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-fancontrol) | 动态温控曲线与四线 PWM 风扇调速 |
 | [`luci-app-airoha-flowsense`](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-flowsense) | PPE 硬件流控与加速状态实时监控 |
-| [`luci-app-mlo`](https://github.com/yahuisme/packages/tree/main/luci-app-mlo) | Wi-Fi 7 多链路聚合（MLO）控制面板 |
-| [`luci-app-wifi7`](https://github.com/yahuisme/packages/tree/main/luci-app-wifi7) | Wi-Fi 7 状态与高级射频管理 |
+| [`luci-app-wifi7`](https://github.com/yahuisme/packages/tree/main/luci-app-wifi7) | Wi-Fi 7 射频、MLO 与运行状态管理 |
 | `luci-app-usteer` | AP / Mesh 弱信号剔除与智能漫游辅助 |
 | `luci-app-wol` | 网络唤醒（Wake-on-LAN） |
 | `luci-app-ttyd` | 网页终端控制台 |

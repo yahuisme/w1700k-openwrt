@@ -8,7 +8,7 @@ echo "Running custom commands"
 # -------------------------------------------------
 # Fetch W1700K LuCI apps from user's packages repo
 # -------------------------------------------------
-# luci-app-wifi7 / luci-app-mlo / luci-app-airoha-npu /
+# luci-app-wifi7 / luci-app-airoha-npu /
 # luci-app-airoha-flowsense / luci-app-airoha-fancontrol
 # are maintained in yahuisme/packages with native LuCI UI,
 # built-in 100% i18n, and strict platform safety checks.
@@ -17,8 +17,8 @@ if ! git clone --depth=1 https://github.com/yahuisme/packages.git "$PKG_REPO"; t
     echo "ERROR: Failed to clone user packages repo!"
     exit 1
 fi
-cp -r "$PKG_REPO/luci-app-wifi7" "$PKG_REPO/luci-app-mlo" \
-      "$PKG_REPO/luci-app-airoha-npu" "$PKG_REPO/luci-app-airoha-flowsense" \
+cp -r "$PKG_REPO/luci-app-wifi7" "$PKG_REPO/luci-app-airoha-npu" \
+      "$PKG_REPO/luci-app-airoha-flowsense" \
       "$PKG_REPO/luci-app-airoha-fancontrol" package/
 
 # -------------------------------------------------

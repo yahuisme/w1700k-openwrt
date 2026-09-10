@@ -40,8 +40,8 @@ jobs:
 
     - name: Initialize environment
       run: |
-        curl --fail -Z --create-dirs -Lo user/default/files/etc/apk/repositories.d/distfeeds.list https://w1700k.github.io/builds/distfeeds.list
-        curl --fail -Z -Lo user/default/files/etc/vermagic.txt https://w1700k.github.io/builds/vermagic.txt
+        curl --fail --create-dirs -Lo user/default/files/etc/apk/repositories.d/distfeeds.list https://w1700k.github.io/builds/distfeeds.list
+        curl --fail -Lo user/default/files/etc/vermagic.txt https://w1700k.github.io/builds/vermagic.txt
         [ -f "user/default/config.diff" ] || { echo "::error::config.diff not found"; exit 1; }
         rsync -aI --mkpath user/default/ user/current/ 2>&-
         echo 'CONFIG_CCACHE_DIR="/ghcache"' >> user/current/config.diff
@@ -131,8 +131,6 @@ jobs:
     - name: Create release
       run: |
         VERSION="$(cat firmware/version.txt)"
-        # Release list orders by tag name (desc); the standard tag sorts above
-        # the OC tag, so ordering is guaranteed without any cross-job waiting.
         gh release create "$VERSION" firmware/*sysupgrade.itb --title "$VERSION" --notes-file firmware/release-notes.md
         PREFIX="W1700K-OpenWrt_"
         [ "${{ matrix.target }}" = "ubi2-oc" ] && PREFIX="W1700K-OpenWrt-OC_"

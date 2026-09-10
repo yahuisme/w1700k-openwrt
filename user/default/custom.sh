@@ -35,50 +35,19 @@ cp -f "$DK_PROFILE/patches/998-single-wiphy.patch" \
 # Install latest Aurora LuCI theme
 # -------------------------------------------------
 
-echo "Installing latest Aurora LuCI theme..."
-
-rm -rf package/luci-theme-aurora
-
-if ! git clone \
-    --depth=1 \
-    https://github.com/eamonxg/luci-theme-aurora.git \
-    package/luci-theme-aurora
-then
-    echo "ERROR: Failed to download Aurora theme!"
-    exit 1
-fi
-
-if [ ! -f package/luci-theme-aurora/Makefile ]; then
-    echo "ERROR: Aurora theme was downloaded, but Makefile is missing!"
-    exit 1
-fi
-
-echo "Aurora theme installed successfully."
-
-
-# -------------------------------------------------
-# Install Aurora theme configuration app
-# -------------------------------------------------
-
-echo "Installing Aurora theme configuration app..."
-
-rm -rf package/luci-app-aurora-config
-
-if ! git clone \
-    --depth=1 \
-    https://github.com/eamonxg/luci-app-aurora-config.git \
-    package/luci-app-aurora-config
-then
-    echo "ERROR: Failed to download Aurora theme configuration app!"
-    exit 1
-fi
-
-if [ ! -f package/luci-app-aurora-config/Makefile ]; then
-    echo "ERROR: Aurora theme configuration app was downloaded, but Makefile is missing!"
-    exit 1
-fi
-
-echo "Aurora theme configuration app installed successfully."
+for pkg in luci-theme-aurora luci-app-aurora-config; do
+    echo "Installing $pkg..."
+    rm -rf "package/$pkg"
+    if ! git clone --depth=1 "https://github.com/eamonxg/$pkg.git" "package/$pkg"; then
+        echo "ERROR: Failed to download $pkg!"
+        exit 1
+    fi
+    if [ ! -f "package/$pkg/Makefile" ]; then
+        echo "ERROR: $pkg was downloaded, but Makefile is missing!"
+        exit 1
+    fi
+    echo "$pkg installed successfully."
+done
 
 # 修改 Aurora 菜单式样（默认侧边栏 + 小圆角）
 TPL_DIR="package/luci-app-aurora-config/root/usr/share/aurora"

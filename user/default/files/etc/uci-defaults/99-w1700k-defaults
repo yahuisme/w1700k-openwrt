@@ -192,16 +192,6 @@ if [ -n "$RADIO_6G" ]; then
 fi
 
 
-# ------------------------------------------------------------
-# Commit
-# ------------------------------------------------------------
-
-uci commit system
-uci commit network
-uci commit dhcp
-uci commit luci
-uci commit firewall
-uci commit wireless
-
+# /etc/init.d/boot commits all UCI defaults together.
 
 exit 0

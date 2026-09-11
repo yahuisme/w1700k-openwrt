@@ -78,7 +78,7 @@ LuCI 状态首页显示 CPU、主板、10G WAN/LAN PHY、2.4/5/6 GHz WiFi 温度
 
 ## 🔄 自动构建
 
-GitHub Actions 每日自动构建：
+GitHub Actions 香港时间 12:00，按月内隔日计划自动构建（`0 4 */2 * *`；月界并非严格每 48 小时）：
 
 ```text
 W1700K-OpenWrt_<构建时间>_r<版本号>

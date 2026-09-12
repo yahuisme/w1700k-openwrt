@@ -173,43 +173,6 @@ def pack(root, cache, kind, expected):
         (cache / 'key').write_text(expected + '\n')
 
 
-def admit(cache, prefix, keep):
-    slots = {'tc-v3-ubi2-': 2_000_000_000, 'tc-v3-ubi2-oc-': 2_000_000_000,
-             'cc-v3-ubi2.': 1_500_000_000, 'cc-v3-ubi2-oc.': 1_500_000_000,
-             'dl-v3.': 2_200_000_000}
-    filename = {'tcarchive': 'toolchain.tar.gz', 'ccarchive': 'ccache.tar.gz',
-                'dlarchive': 'dl.tar.gz'}.get(cache.name)
-    archive = cache / filename if filename else None
-    allowed = False
-    if prefix not in slots or not archive or not archive.is_file():
-        print('cache upload declined: no valid archive')
-    elif archive.stat().st_size > slots[prefix]:
-        print('cache upload declined: oversized archive')
-    else:
-        pages = json.loads(subprocess.check_output(['gh', 'api', '--paginate', '--slurp',
-                           'repos/{owner}/{repo}/actions/caches?per_page=100']))
-        entries = [e for page in pages for e in page['actions_caches']]
-        # Reserve all five slots even when the peer job has not uploaded yet.
-        # Old-format and unrelated caches remain untouched and consume budget.
-        unknown = sum(e['size_in_bytes'] for e in entries
-                      if not any(e['key'].startswith(slot) for slot in slots))
-        allowed = sum(slots.values()) + unknown + 300_000_000 <= 10_000_000_000
-        if allowed:
-            old = [e for e in entries if next((slot for slot in sorted(slots, key=len, reverse=True)
-                         if e['key'].startswith(slot)), None) == prefix and e['key'] != keep]
-            for e in old:
-                subprocess.run(['gh', 'cache', 'delete', str(e['id'])], check=True)
-            pages = json.loads(subprocess.check_output(['gh', 'api', '--paginate', '--slurp',
-                               'repos/{owner}/{repo}/actions/caches?per_page=100']))
-            remaining = {e['id'] for page in pages for e in page['actions_caches']}
-            if any(e['id'] in remaining for e in old):
-                raise RuntimeError('cache replacement deletion not confirmed')
-        else:
-            print('cache upload declined: legacy/unrelated cache migration requires approval')
-    with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
-        out.write('save=' + str(allowed).lower() + '\n')
-
-
 if __name__ == '__main__':
     mode, root, cache, value = sys.argv[1:5]
     root, cache = Path(root).resolve(), Path(cache).resolve()
@@ -217,7 +180,7 @@ if __name__ == '__main__':
         print(key(root, value))
     elif mode == 'restore':
         restore(root, cache, value)
-    elif mode == 'admit':
-        admit(root, str(sys.argv[3]), value)
-    else:
+    elif mode in LIMITS:
         pack(root, cache, mode, value)
+    else:
+        raise ValueError('unknown cache command: ' + mode)

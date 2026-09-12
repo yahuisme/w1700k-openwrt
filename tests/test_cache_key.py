@@ -85,6 +85,27 @@ class KeyTests(unittest.TestCase):
         alternate.write_text(SCRIPT.read_text().replace('tc-inputs-v5', 'tc-inputs-v6'))
         self.assertNotEqual(before, load(alternate).key(self.root, 'image-sha'))
 
+    def test_removed_admission_preserves_previous_key(self):
+        # Fixed pre-removal baseline survives later commits (not a moving HEAD).
+        baseline = subprocess.check_output([
+            'git', 'show', '5ada39bc3bfa0699fde703004486ab05d669b3d6:scripts/cache.py'
+        ], cwd=SCRIPT.parent).decode()
+        original = Path(self.tmp.name) / 'before.py'
+        original.write_text(baseline)
+        old = load(original)
+        import inspect
+        for name in ('key', 'project_inputs'):
+            self.assertEqual(inspect.getsource(getattr(old, name)),
+                             inspect.getsource(getattr(self.cache, name)))
+        for name in ('EPOCH', 'INPUTS', 'PROJECTION_AUDIT', 'PROJECTION_SOURCE_LOCKS'):
+            self.assertEqual(getattr(old, name), getattr(self.cache, name))
+        self.assertEqual(old.key(self.root, 'image-sha'), self.key())
+        self.assertFalse(hasattr(self.cache, 'admit'))
+        result = subprocess.run(['python3', str(SCRIPT), 'admit', str(self.root),
+                                 'tc-v3-ubi2-', 'unused'], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('unknown cache command: admit', result.stderr)
+
     def test_unknown_source_keeps_entire_config(self):
         self.put('.config', 'CONFIG_PACKAGE_runtime=y\nCONFIG_VERSION_NUMBER="one"\n')
         before = self.key()

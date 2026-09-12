@@ -141,7 +141,33 @@ jobs:
     - name: Stage firmware
       run: |
         sudo chown -R "$(id -u):$(id -g)" openwrt_bin
-        find -L openwrt_bin/targets/*/* -maxdepth 1 \( -name '*sysupgrade.itb' -o -name 'profiles.json' \) -exec install -D -t firmware {} +
+        # Validate the final container config, not the input fragment.
+        docker_exec DK cat "$DK_OPENWRT/.config" > "$RUNNER_TEMP/firmware.config"
+        for symbol in CONFIG_TARGET_airoha CONFIG_TARGET_airoha_an7581 CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_w1700k-ubi; do
+          grep -qxF "$symbol=y" "$RUNNER_TEMP/firmware.config" || { echo "::error::Wrong firmware target: $symbol"; exit 1; }
+        done
+        [ "$(grep -E '^CONFIG_TARGET_.*_DEVICE_.*=y$' "$RUNNER_TEMP/firmware.config")" = 'CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_w1700k-ubi=y' ]
+        shopt -s nullglob
+        profiles=(openwrt_bin/targets/*/*/profiles.json)
+        images=(openwrt_bin/targets/*/*/*sysupgrade*)
+        IMAGE_NAME=openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb
+        TARGET_DIR=openwrt_bin/targets/airoha/an7581
+        [ "${#profiles[@]}" -eq 1 ]
+        [ "${profiles[0]}" = "$TARGET_DIR/profiles.json" ]
+        [ "${#images[@]}" -eq 1 ]
+        [ "${images[0]}" = "$TARGET_DIR/$IMAGE_NAME" ]
+        [ -f "${images[0]}" ]
+        [ -s "${images[0]}" ]
+        [ ! -L "${images[0]}" ]
+        # Other profile images (e.g. chainload-uboot) are not sysupgrade images.
+        jq -e --arg name "$IMAGE_NAME" '
+          .target == "airoha/an7581" and
+          (.profiles | keys == ["gemtek_w1700k-ubi"]) and
+          ([.profiles["gemtek_w1700k-ubi"].images[] | select(.type == "sysupgrade")] |
+            length == 1 and .[0].name == $name)
+        ' "${profiles[0]}" > /dev/null
+        mkdir -p firmware
+        install -t firmware "${profiles[0]}" "${images[0]}"
         PREFIX="W1700K-OpenWrt_"
         [ "${{ matrix.target }}" = "ubi2-oc" ] && PREFIX="W1700K-OpenWrt-OC_"
         VERSION="${PREFIX%_}-r$(jq -r '.version_code' firmware/profiles.json | sed 's/^r//; s/-.*//')-$(TZ=Asia/Hong_Kong date +'%y.%m.%d-%H.%M.%S')"
@@ -181,6 +207,16 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
       run: |
+        # A point-in-time gate, not an atomic lock against concurrent pushes.
+        # Skip publication on uncertainty without blocking independent cache saves.
+        if ! MAIN_SHA=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha'); then
+          echo "::warning::Cannot verify main SHA; skipping release and retention"
+          exit 0
+        fi
+        if [[ ! "$MAIN_SHA" =~ ^[0-9a-f]{40}$ ]] || [ "$MAIN_SHA" != "$GITHUB_SHA" ]; then
+          echo "::warning::Build is not current main; skipping release and retention"
+          exit 0
+        fi
         VERSION="$(cat firmware/version.txt)"
         gh release create "$VERSION" firmware/*sysupgrade.itb --target "$GITHUB_SHA" --title "$VERSION" --notes-file firmware/release-notes.md
         PREFIX="W1700K-OpenWrt_"

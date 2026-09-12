@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 SLOTS = {'tc-v3-ubi2-': 2_000_000_000, 'tc-v3-ubi2-oc-': 2_000_000_000,
          'cc-v3-ubi2.': 1_500_000_000, 'cc-v3-ubi2-oc.': 1_500_000_000,
@@ -94,6 +95,12 @@ def cleanup(prefix, keep):
     try:
         ref = validate(prefix, keep)
         entries = inv()
+        # The cache list can briefly lag a completed upload.
+        for delay in (2, 4):
+            if saved(entries, prefix, keep, ref):
+                break
+            time.sleep(delay)
+            entries = inv()
         if not saved(entries, prefix, keep, ref):
             raise ValueError('saved key missing, empty or wrong branch')
         old = [e for e in entries if owner(e['key']) == prefix

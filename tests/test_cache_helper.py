@@ -171,6 +171,50 @@ class HelperTests(unittest.TestCase):
     def cleanup(self, key='tc-v3-ubi2-new', prefix='tc-v3-ubi2-'):
         return self.run_helper('cleanup', prefix, key)
 
+    def test_delayed_save_visibility_rechecks_before_deleting(self):
+        from unittest.mock import patch
+        for prefix in h.SLOTS:
+            keep = prefix + 'new'
+            new = entry(1, keep)
+            old = entry(2, prefix + 'old')
+            peer = entry(3, 'unrelated')
+            for pending in ([], [entry(1, keep, size=0)],
+                            [entry(1, keep, ref='refs/heads/other')]):
+                with self.subTest(prefix=prefix, pending=pending):
+                    snapshots = [pending + [old, peer], pending + [old, peer],
+                                 [new, old, peer], [new, peer]]
+                    with patch.dict(os.environ, GITHUB_REF=REF), \
+                            patch.object(h, 'inv', side_effect=snapshots) as inv, \
+                            patch('time.sleep') as sleep, \
+                            patch.object(h.subprocess, 'run') as delete:
+                        delete.side_effect = lambda *a, **kw: self.assertEqual(inv.call_count, 3)
+                        self.assertTrue(h.cleanup(prefix, keep))
+                        self.assertEqual(inv.call_count, 4)
+                        self.assertEqual([c.args[0] for c in sleep.call_args_list], [2, 4])
+                        delete.assert_called_once_with(['gh', 'cache', 'delete', '2'], check=True)
+
+    def test_visibility_retry_is_bounded_and_fails_closed(self):
+        from unittest.mock import patch
+        prefix, keep = 'cc-v3-ubi2-oc.', 'cc-v3-ubi2-oc.new'
+        old = entry(2, prefix + 'old')
+        for pending in ([old], [entry(1, keep, size=0), old],
+                        [entry(1, keep, ref='refs/heads/other'), old]):
+            with patch.dict(os.environ, GITHUB_REF=REF), \
+                    patch.object(h, 'inv', return_value=pending) as inv, \
+                    patch('time.sleep') as sleep, \
+                    patch.object(h.subprocess, 'run') as delete:
+                self.assertFalse(h.cleanup(prefix, keep))
+                self.assertEqual(inv.call_count, 3)
+                self.assertEqual([c.args[0] for c in sleep.call_args_list], [2, 4])
+                delete.assert_not_called()
+        with patch.dict(os.environ, GITHUB_REF=REF), \
+                patch.object(h, 'inv', side_effect=[[old], OSError('API unavailable')]) as inv, \
+                patch('time.sleep') as sleep, \
+                patch.object(h.subprocess, 'run') as delete:
+            self.assertFalse(h.cleanup(prefix, keep))
+            self.assertEqual(inv.call_count, 2)
+            delete.assert_not_called()
+
     def test_cleanup_success_pagination_and_peer_isolation(self):
         self.reset(self.caches())
         self.assertIn('cleanup verified', self.cleanup())

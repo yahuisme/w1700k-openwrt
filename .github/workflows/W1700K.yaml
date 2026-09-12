@@ -77,7 +77,8 @@ jobs:
           cd $DK_OPENWRT
           if [ ! -d .git ]; then git init; fi
           git remote set-url origin $REPO_URL 2>&- || git remote add origin $REPO_URL
-          git fetch origin "+refs/heads/$REPO_BRANCH:refs/remotes/origin/$REPO_BRANCH" && git checkout -f $REPO_BRANCH
+          git fetch origin "+refs/heads/$REPO_BRANCH:refs/remotes/origin/$REPO_BRANCH"
+          git checkout -f $REPO_BRANCH
           git reset --hard origin/$REPO_BRANCH
           mountpoint $DK_BIN || { echo "::error::not mounted" >&2; exit 1; }
           rm -rf bin dl staging_dir build_dir

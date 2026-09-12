@@ -29,6 +29,9 @@ mkdir -p feeds/luci/modules/luci-mod-status/patches
 cp -f "$DK_PROFILE/patches/998-single-wiphy.patch" \
     feeds/luci/modules/luci-mod-status/patches/998-single-wiphy.patch
 
+# Fix the upstream bridge service API and clear rules when no ports remain.
+patch --batch --forward -p1 < "$DK_PROFILE/patches/920-bridge-hw-offload-lifecycle.patch"
+
 
 # -------------------------------------------------
 # Install latest Aurora LuCI theme

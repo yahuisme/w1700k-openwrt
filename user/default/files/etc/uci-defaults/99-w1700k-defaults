@@ -139,7 +139,6 @@ done
 if [ -n "$RADIO_2G" ]; then
 
     IFACE_2G="wifinet2g"
-    uci -q delete wireless.${IFACE_2G}
     uci set wireless.${IFACE_2G}=wifi-iface
 
     uci set wireless.${IFACE_2G}.device="${RADIO_2G}"
@@ -159,7 +158,6 @@ fi
 if [ -n "$RADIO_5G" ]; then
 
     IFACE_5G="wifinet5g"
-    uci -q delete wireless.${IFACE_5G}
     uci set wireless.${IFACE_5G}=wifi-iface
 
     uci set wireless.${IFACE_5G}.device="${RADIO_5G}"
@@ -179,7 +177,6 @@ fi
 if [ -n "$RADIO_6G" ]; then
 
     IFACE_6G="wifinet6g"
-    uci -q delete wireless.${IFACE_6G}
     uci set wireless.${IFACE_6G}=wifi-iface
 
     uci set wireless.${IFACE_6G}.device="${RADIO_6G}"

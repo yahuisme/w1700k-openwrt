@@ -24,34 +24,36 @@ jobs:
       DK_PROFILE: /bld/user/current
       GH_TOKEN: ${{ github.token }}
     steps:
-    - uses: actions/checkout@main
+    - name: Checkout
+      uses: actions/checkout@main
 
     # Rolling caches contain no staging or build stamps.
-    - id: gh
+    - name: Restore cc
+      id: gh
       uses: actions/cache/restore@main
       with: {path: ccarchive, key: 'cc-v3-${{ matrix.target }}.${{ github.run_id }}.${{ github.run_attempt }}', restore-keys: 'cc-v3-${{ matrix.target }}.'}
-    - id: dl
+    - name: Restore dl
+      id: dl
       uses: actions/cache/restore@main
       with: {path: dlarchive, key: 'dl-v3.${{ github.run_id }}.${{ github.run_attempt }}', restore-keys: 'dl-v3.'}
-    - name: Restore legacy downloads
+    - name: Restore legacy dl
       if: steps.dl.outputs.cache-matched-key == ''
       uses: actions/cache/restore@main
       with: {path: dlcache, key: 'dlcache.${{ github.run_id }}', restore-keys: 'dlcache.'}
-    - name: Restore legacy compiler cache
+    - name: Restore legacy cc
       if: steps.gh.outputs.cache-matched-key == ''
       uses: actions/cache/restore@main
       with: {path: "ghcache\nstcache", key: 'cache-${{ matrix.target }}.${{ github.run_id }}', restore-keys: 'cache-${{ matrix.target }}.'}
-    - name: Unpack rolling caches
+    - name: Unpack caches
       run: |
         mkdir -p openwrt_bin ghcache dlcache tcarchive ccarchive dlarchive
         if [ -f ccarchive/ccache.tar.gz ]; then tar --gzip -xf ccarchive/ccache.tar.gz -C ghcache; fi
         if [ -f dlarchive/dl.tar.gz ]; then tar --gzip -xf dlarchive/dl.tar.gz -C dlcache; fi
+        if [ '${{ matrix.target }}' = ubi2 ]; then
+          sudo python3 scripts/dlcache.py snapshot dlcache "$RUNNER_TEMP/dlcache-before.json"
+        fi
 
-    - name: Fingerprint restored downloads
-      if: matrix.target == 'ubi2'
-      run: sudo python3 scripts/dlcache.py snapshot dlcache "$RUNNER_TEMP/dlcache-before.json"
-
-    - name: Initialize environment
+    - name: Init environment
       run: |
         curl --fail --create-dirs -Lo user/default/files/etc/apk/repositories.d/distfeeds.list https://w1700k.github.io/builds/distfeeds.list
         curl --fail -Lo user/default/files/etc/vermagic.txt https://w1700k.github.io/builds/vermagic.txt
@@ -64,15 +66,17 @@ jobs:
         docker pull $IMAGE
         IMAGE_ID=$(docker image inspect --format "{{.Id}}" $IMAGE)
         echo "IMAGE_ID=$IMAGE_ID" >> "$GITHUB_ENV"
-        docker run -dt --name DK -v $PWD/user:$DK_USER -v $PWD/openwrt_bin:$DK_BIN -v $PWD/ghcache:/ghcache -v $PWD/scripts:/cache-scripts:ro -v $PWD/tcarchive:/tcarchive -v $PWD/ccarchive:/ccarchive -v $PWD/dlarchive:/dlarchive -v $PWD/dlcache:/dlcache $IMAGE
+        docker run -dt --name DK -v "$PWD/user:$DK_USER" -v "$PWD/openwrt_bin:$DK_BIN" -v "$PWD/ghcache:/ghcache" -v "$PWD/scripts:/cache-scripts:ro" -v "$PWD/tcarchive:/tcarchive" -v "$PWD/ccarchive:/ccarchive" -v "$PWD/dlarchive:/dlarchive" -v "$PWD/dlcache:/dlcache" "$IMAGE"
         install -m 755 /dev/stdin /usr/local/bin/docker_exec <<'DKR'
         #!/bin/bash
         for n in DK_BIN DK_USER DK_PROFILE DK_OPENWRT; do e+=(-e "$n=${!n}"); done
         exec docker exec -u 0 -i "${e[@]}" "$@"
         DKR
 
-    - name: Prepare OpenWrt source
+    - name: Prepare source
       run: |
+        # Variables expand inside the container, not on the runner.
+        # shellcheck disable=SC2016
         docker_exec DK bash -e -c '
           REPO_URL="https://github.com/OpenWRT-fanboy/OpenW1700k"
           REPO_BRANCH="${{ matrix.target }}"
@@ -96,22 +100,25 @@ jobs:
           make download -j8 || exit 1
         '
 
-    - name: Fingerprint prepared source
+    - name: Cache key
       id: inputs
       run: |
         KEY=$(docker_exec DK python3 /cache-scripts/cache.py key "$DK_OPENWRT" /tcarchive "$IMAGE_ID")
         echo "key=tc-v3-${{ matrix.target }}-$KEY" >> "$GITHUB_OUTPUT"
-    - id: tc
+    - name: Restore tc
+      id: tc
       uses: actions/cache/restore@main
       with:
         path: tcarchive
         key: ${{ steps.inputs.outputs.key }}
         # No restore-keys: toolchain artifacts must be an exact match.
-    - name: Restore matched toolchain
+    - name: Unpack tc
       run: docker_exec DK python3 /cache-scripts/cache.py restore "$DK_OPENWRT" /tcarchive '${{ steps.inputs.outputs.key }}'
 
-    - name: Compile OpenWrt
+    - name: Compile
       run: |
+        # Variables expand inside the container, not on the runner.
+        # shellcheck disable=SC2016
         docker_exec DK bash -e -c '
           cd $DK_OPENWRT
           export FORCE_UNSAFE_CONFIGURE=1 CCACHE_MAXSIZE=1.5G CCACHE_NOHASHDIR=true CCACHE_COMPILERCHECK=content
@@ -123,10 +130,13 @@ jobs:
         '
 
     # Go can add dl/go-mod-cache entries during compilation, after make download.
-    - name: Check download changes
+    - name: Check downloads
       id: dl_changed
       if: matrix.target == 'ubi2'
-      run: sudo python3 scripts/dlcache.py check dlcache "$RUNNER_TEMP/dlcache-before.json" --restored '${{ steps.dl.outputs.cache-matched-key }}' >> "$GITHUB_OUTPUT"
+      run: |
+        # Runner owns GITHUB_OUTPUT; sudo only reads container-owned downloads.
+        # shellcheck disable=SC2024
+        sudo python3 scripts/dlcache.py check dlcache "$RUNNER_TEMP/dlcache-before.json" --restored '${{ steps.dl.outputs.cache-matched-key }}' >> "$GITHUB_OUTPUT"
 
     - name: Stage firmware
       run: |
@@ -177,9 +187,10 @@ jobs:
         [ "${{ matrix.target }}" = "ubi2-oc" ] && PREFIX="W1700K-OpenWrt-OC_"
         gh release list --json tagName --jq '.[].tagName' | grep -E "^(${PREFIX}|${PREFIX%_}-r[0-9]+-|W1700K-${{ matrix.target }}_)" | grep -vxF "$VERSION" | xargs -r -n1 gh release delete --cleanup-tag -y ||:
 
-    # One generation per target/type: <= 2*(2GB toolchain + 1.5GB ccache)
-    # + 2.2GB downloads. API admission also counts unrelated/legacy caches.
-    - name: Pack bounded caches
+    # Independent matrix budgets: standard 6 GB, OC 4 GB (including margin).
+    # Count all own generations and unknown/legacy entries on each admission.
+    # Save/readback/cleanup precedes the next admission in each writer.
+    - name: Pack caches
       run: |
         docker_exec DK python3 /cache-scripts/cache.py ccache /ghcache /ccarchive unused
         if [ '${{ steps.tc.outputs.cache-hit }}' != true ]; then
@@ -189,20 +200,35 @@ jobs:
           docker_exec DK python3 /cache-scripts/cache.py dl /dlcache /dlarchive unused
         fi
         sudo chown -R "$(id -u):$(id -g)" tcarchive ccarchive dlarchive
-    - id: tc_budget
+    - name: Admit tc
+      id: tc_budget
       if: steps.tc.outputs.cache-hit != 'true'
-      run: python3 scripts/cache.py admit tcarchive 'tc-v3-${{ matrix.target }}-' '${{ steps.inputs.outputs.key }}'
-    - uses: actions/cache/save@main
+      run: python3 scripts/cache_helper.py admit 'tc-v3-${{ matrix.target }}-' tcarchive/toolchain.tar.gz '${{ steps.inputs.outputs.key }}'
+    - name: Save tc
+      uses: actions/cache/save@main
       if: steps.tc_budget.outputs.save == 'true' && hashFiles('tcarchive/toolchain.tar.gz') != ''
       with: {path: tcarchive, key: '${{ steps.inputs.outputs.key }}'}
-    - id: cc_budget
-      run: python3 scripts/cache.py admit ccarchive 'cc-v3-${{ matrix.target }}.' '${{ steps.gh.outputs.cache-primary-key }}'
-    - uses: actions/cache/save@main
+    - name: Prune tc
+      if: steps.tc_budget.outputs.save == 'true'
+      run: python3 scripts/cache_helper.py cleanup 'tc-v3-${{ matrix.target }}-' '${{ steps.inputs.outputs.key }}'
+    - name: Admit cc
+      id: cc_budget
+      run: python3 scripts/cache_helper.py admit 'cc-v3-${{ matrix.target }}.' ccarchive/ccache.tar.gz '${{ steps.gh.outputs.cache-primary-key }}'
+    - name: Save cc
+      uses: actions/cache/save@main
       if: steps.cc_budget.outputs.save == 'true' && hashFiles('ccarchive/ccache.tar.gz') != ''
       with: {path: ccarchive, key: '${{ steps.gh.outputs.cache-primary-key }}'}
-    - id: dl_budget
+    - name: Prune cc
+      if: steps.cc_budget.outputs.save == 'true'
+      run: python3 scripts/cache_helper.py cleanup 'cc-v3-${{ matrix.target }}.' '${{ steps.gh.outputs.cache-primary-key }}'
+    - name: Admit dl
+      id: dl_budget
       if: matrix.target == 'ubi2' && steps.dl_changed.outputs.save == 'true'
-      run: python3 scripts/cache.py admit dlarchive 'dl-v3.' '${{ steps.dl.outputs.cache-primary-key }}'
-    - uses: actions/cache/save@main
+      run: python3 scripts/cache_helper.py admit 'dl-v3.' dlarchive/dl.tar.gz '${{ steps.dl.outputs.cache-primary-key }}'
+    - name: Save dl
+      uses: actions/cache/save@main
       if: matrix.target == 'ubi2' && steps.dl_changed.outputs.save == 'true' && steps.dl_budget.outputs.save == 'true' && hashFiles('dlarchive/dl.tar.gz') != ''
       with: {path: dlarchive, key: '${{ steps.dl.outputs.cache-primary-key }}'}
+    - name: Prune dl
+      if: steps.dl_budget.outputs.save == 'true'
+      run: python3 scripts/cache_helper.py cleanup 'dl-v3.' '${{ steps.dl.outputs.cache-primary-key }}'

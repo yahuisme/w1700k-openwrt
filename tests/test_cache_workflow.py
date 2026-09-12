@@ -14,7 +14,7 @@ STEPS = yaml.safe_load(WORKFLOW.read_text())['jobs']['build']['steps']
 
 
 def step(name):
-    return next(s for s in STEPS if s.get('name', s.get('id')) == name)
+    return next(s for s in STEPS if s.get('name') == name or s.get('id') == name)
 
 
 def render(text, values):
@@ -23,7 +23,7 @@ def render(text, values):
 
 class WorkflowTests(unittest.TestCase):
     def test_compile_nested_block(self):
-        block = step('Compile OpenWrt')['run']
+        block = step('Compile')['run']
         for case, hot, pre, main, fallback, expected in (
             ('cold', False, 0, 0, 0, 0), ('hot', True, 0, 0, 0, 0),
             ('precompile_failure', False, 17, 0, 0, 17),
@@ -76,11 +76,11 @@ class WorkflowTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, (s.get('name'), result.stderr))
 
     def test_download_gates_and_pack(self):
-        snapshot = step('Fingerprint restored downloads')
-        check = step('Check download changes')
-        self.assertLess(STEPS.index(step('Unpack rolling caches')), STEPS.index(snapshot))
-        self.assertLess(STEPS.index(snapshot), STEPS.index(step('Prepare OpenWrt source')))
-        self.assertLess(STEPS.index(step('Compile OpenWrt')), STEPS.index(check))
+        snapshot = step('Unpack caches')
+        check = step('Check downloads')
+
+        self.assertLess(STEPS.index(snapshot), STEPS.index(step('Prepare source')))
+        self.assertLess(STEPS.index(step('Compile')), STEPS.index(check))
         self.assertIn('--restored', check['run'])
         admit = step('dl_budget')
         save = next(s for s in STEPS if s.get('uses') == 'actions/cache/save@main' and s['with']['path'] == 'dlarchive')
@@ -92,7 +92,7 @@ class WorkflowTests(unittest.TestCase):
                                   'steps.dl_budget.outputs.save': admitted,
                                   "hashFiles('dlarchive/dl.tar.gz')": archive}
                         for s, expected in (
-                            (snapshot, target == 'ubi2'), (check, target == 'ubi2'),
+                            (check, target == 'ubi2'),
                             (admit, target == 'ubi2' and changed == 'true'),
                             (save, target == 'ubi2' and changed == 'true' and admitted == 'true' and bool(archive)),
                         ):
@@ -104,7 +104,7 @@ class WorkflowTests(unittest.TestCase):
                             self.assertEqual(eval(condition.replace('&&', ' and '), {'__builtins__': {}}), expected)
                 values = {'matrix.target': target, 'steps.dl_changed.outputs.save': changed,
                           'steps.tc.outputs.cache-hit': 'true'}
-                block = render(step('Pack bounded caches')['run'], values)
+                block = render(step('Pack caches')['run'], values)
                 stub = 'docker_exec() { printf "%s\\n" "$*"; }; sudo() { :; };\n'
                 result = subprocess.run(['bash', '-e', '-c', stub + block], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
@@ -122,26 +122,68 @@ class WorkflowTests(unittest.TestCase):
             output = base / 'output'
             env = dict(os.environ, RUNNER_TEMP=tmp, GITHUB_OUTPUT=str(output))
             def run(name):
-                block = render(step(name)['run'], {'steps.dl.outputs.cache-matched-key': 'dl-v3.old'})
+                block = render(step(name)['run'], {'steps.dl.outputs.cache-matched-key': 'dl-v3.old',
+                                                  'matrix.target': 'ubi2'})
                 result = subprocess.run(['bash', '-e', '-c', 'sudo() { "$@"; };\n' + block],
                                         cwd=base, env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
-            run('Fingerprint restored downloads')
-            run('Check download changes')
+            run('Unpack caches')
+            run('Check downloads')
             self.assertEqual(output.read_text(), 'save=false\n')
             module = dl / 'go-mod-cache/module.zip'
             module.parent.mkdir()
             module.write_bytes(b'added during compile')
-            run('Check download changes')
+            run('Check downloads')
             self.assertEqual(output.read_text(), 'save=false\nsave=true\n')
 
     def test_tc_cc_steps_unchanged(self):
         original = yaml.safe_load(subprocess.check_output(['git', 'show', 'HEAD:.github/workflows/W1700K.yaml'], cwd=ROOT))['jobs']['build']['steps']
         for s in original:
-            if s.get('id') in ('gh', 'tc', 'inputs', 'tc_budget', 'cc_budget') or (
+            if s.get('id') in ('gh', 'tc', 'inputs') or (
                 s.get('uses') == 'actions/cache/save@main' and s['with']['path'] in ('tcarchive', 'ccarchive')
             ):
-                self.assertIn(s, STEPS)
+                self.assertIn({k: v for k, v in s.items() if k != 'name'},
+                              [{k: v for k, v in now.items() if k != 'name'} for now in STEPS])
+
+    def test_short_explicit_step_names(self):
+        names = [s.get('name', '') for s in STEPS]
+        self.assertTrue(all(names))
+        self.assertTrue(all(len(name) <= 24 for name in names))
+        self.assertEqual(len(names), len(set(names)))
+
+    def test_unpack_snapshot_writer_only(self):
+        for target in ('ubi2', 'ubi2-oc'):
+            with tempfile.TemporaryDirectory() as tmp:
+                block = render(step('Unpack caches')['run'], {'matrix.target': target})
+                stub = 'sudo() { printf "%s\\n" "$*"; };\n'
+                result = subprocess.run(['bash', '-e', '-c', stub + block], cwd=tmp,
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual('dlcache.py snapshot' in result.stdout, target == 'ubi2')
+
+    def test_cache_save_cleanup_order_and_failure_gates(self):
+        workflow = yaml.safe_load(WORKFLOW.read_text())
+        self.assertEqual(workflow['concurrency'], {'group': 'w1700k-cache', 'cancel-in-progress': False})
+        self.assertEqual(workflow['jobs']['build']['strategy']['matrix']['target'], ['ubi2', 'ubi2-oc'])
+        previous = -1
+        for kind, path in [('tc', 'tcarchive'), ('cc', 'ccarchive'), ('dl', 'dlarchive')]:
+            admission = step(kind + '_budget')
+            save = next(s for s in STEPS if s.get('uses') == 'actions/cache/save@main'
+                        and s['with']['path'] == path)
+            cleanup = step(f'Prune {kind}')
+            self.assertLess(previous, STEPS.index(admission))
+            self.assertEqual(STEPS.index(save), STEPS.index(admission) + 1)
+            self.assertEqual(STEPS.index(cleanup), STEPS.index(save) + 1)
+            previous = STEPS.index(cleanup)
+            self.assertIn('cache_helper.py admit', admission['run'])
+            self.assertIn('cache_helper.py cleanup', cleanup['run'])
+            self.assertEqual(cleanup['if'], f"steps.{kind}_budget.outputs.save == 'true'")
+            for s in (admission, save, cleanup):
+                # Without a status function GitHub supplies success(): failed
+                # upload skips cleanup and all subsequent saves. Warning-only
+                # uploads reach the helper, whose missing-key test prevents deletion.
+                self.assertNotRegex(s.get('if', ''), r'\b(always|failure|cancelled)\(')
+                self.assertFalse(s.get('continue-on-error', False))
 
 
 if __name__ == '__main__':

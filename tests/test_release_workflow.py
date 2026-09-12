@@ -77,7 +77,7 @@ class ReleaseTests(unittest.TestCase):
                         other = base / 'openwrt_bin/targets/other/board'
                         other.mkdir(parents=True)
                         (other / 'profiles.json').write_text(json.dumps(data))
-                    result = self.run_block(base, 'Stage firmware', variant)
+                    result = self.run_block(base, 'Validate and stage firmware', variant)
                     if case == 'good':
                         self.assertEqual(result.returncode, 0, result.stderr)
                         self.assertEqual((base / 'firmware' / IMAGE).read_bytes(), image.read_bytes())
@@ -94,7 +94,7 @@ class ReleaseTests(unittest.TestCase):
                     base = Path(tmp)
                     target, data = self.fixture(base)
                     (target / 'profiles.json').write_text(json.dumps(data))
-                    self.assertEqual(self.run_block(base, 'Stage firmware', variant).returncode, 0)
+                    self.assertEqual(self.run_block(base, 'Validate and stage firmware', variant).returncode, 0)
                     (base / 'bin').mkdir()
                     gh = base / 'bin/gh'
                     gh.write_text('''#!/usr/bin/env python3
@@ -115,7 +115,7 @@ elif args[:2] == ['release', 'create']:
 elif args[:2] != ['release', 'delete']: sys.exit(99)
 ''')
                     gh.chmod(0o755)
-                    result = self.run_block(base, 'Create release', variant, CASE=case)
+                    result = self.run_block(base, 'Publish firmware and prune old releases', variant, CASE=case)
                     self.assertEqual(result.returncode, 24 if case == 'create_failure' else 0, result.stderr)
                     calls = [json.loads(line) for line in (base / 'calls').read_text().splitlines()]
                     if case not in ('current', 'create_failure'):

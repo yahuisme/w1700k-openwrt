@@ -47,6 +47,10 @@ jobs:
         if [ -f ccarchive/ccache.tar.gz ]; then tar --gzip -xf ccarchive/ccache.tar.gz -C ghcache; fi
         if [ -f dlarchive/dl.tar.gz ]; then tar --gzip -xf dlarchive/dl.tar.gz -C dlcache; fi
 
+    - name: Fingerprint restored downloads
+      if: matrix.target == 'ubi2'
+      run: sudo python3 scripts/dlcache.py snapshot dlcache "$RUNNER_TEMP/dlcache-before.json"
+
     - name: Initialize environment
       run: |
         curl --fail --create-dirs -Lo user/default/files/etc/apk/repositories.d/distfeeds.list https://w1700k.github.io/builds/distfeeds.list
@@ -112,11 +116,17 @@ jobs:
           cd $DK_OPENWRT
           export FORCE_UNSAFE_CONFIGURE=1 CCACHE_MAXSIZE=1.5G CCACHE_NOHASHDIR=true CCACHE_COMPILERCHECK=content
           CCACHE=staging_dir/host/bin/ccache
-          [ -x "$CCACHE" ] || make tools/ccache/compile -j1
+          [ -x "$CCACHE" ] || make tools/ccache/compile -j$(($(nproc) + 1))
           $CCACHE -d /ghcache --zero-stats
           trap "$CCACHE -d /ghcache -sz ||:" EXIT
           make -j$(($(nproc) + 1)) || make -j1 V=s
         '
+
+    # Go can add dl/go-mod-cache entries during compilation, after make download.
+    - name: Check download changes
+      id: dl_changed
+      if: matrix.target == 'ubi2'
+      run: sudo python3 scripts/dlcache.py check dlcache "$RUNNER_TEMP/dlcache-before.json" --restored '${{ steps.dl.outputs.cache-matched-key }}' >> "$GITHUB_OUTPUT"
 
     - name: Stage firmware
       run: |
@@ -175,7 +185,7 @@ jobs:
         if [ '${{ steps.tc.outputs.cache-hit }}' != true ]; then
           docker_exec DK python3 /cache-scripts/cache.py toolchain "$DK_OPENWRT" /tcarchive '${{ steps.inputs.outputs.key }}'
         fi
-        if [ '${{ matrix.target }}' = ubi2 ]; then
+        if [ '${{ matrix.target }}' = ubi2 ] && [ '${{ steps.dl_changed.outputs.save }}' = true ]; then
           docker_exec DK python3 /cache-scripts/cache.py dl /dlcache /dlarchive unused
         fi
         sudo chown -R "$(id -u):$(id -g)" tcarchive ccarchive dlarchive
@@ -191,8 +201,8 @@ jobs:
       if: steps.cc_budget.outputs.save == 'true' && hashFiles('ccarchive/ccache.tar.gz') != ''
       with: {path: ccarchive, key: '${{ steps.gh.outputs.cache-primary-key }}'}
     - id: dl_budget
-      if: matrix.target == 'ubi2'
+      if: matrix.target == 'ubi2' && steps.dl_changed.outputs.save == 'true'
       run: python3 scripts/cache.py admit dlarchive 'dl-v3.' '${{ steps.dl.outputs.cache-primary-key }}'
     - uses: actions/cache/save@main
-      if: matrix.target == 'ubi2' && steps.dl_budget.outputs.save == 'true' && hashFiles('dlarchive/dl.tar.gz') != ''
+      if: matrix.target == 'ubi2' && steps.dl_changed.outputs.save == 'true' && steps.dl_budget.outputs.save == 'true' && hashFiles('dlarchive/dl.tar.gz') != ''
       with: {path: dlarchive, key: '${{ steps.dl.outputs.cache-primary-key }}'}

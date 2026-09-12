@@ -53,10 +53,23 @@ done
 
 # 修改 Aurora 菜单式样（默认侧边栏 + 小圆角）
 TPL_DIR="package/luci-app-aurora-config/root/usr/share/aurora"
-if [ -d "$TPL_DIR" ]; then
-    sed -i "s/nav_type '.*'/nav_type 'sidebar'/g; s/struct_radius_base '.*'/struct_radius_base '0.125rem'/g" "$TPL_DIR"/*.template 2>/dev/null || true
-    echo "theme-aurora nav preset applied!"
+if [ ! -f "$TPL_DIR/default.template" ]; then
+    echo "ERROR: Aurora default template missing: $TPL_DIR/default.template" >&2
+    exit 1
 fi
+sed -i \
+    -e "s/nav_type '.*'/nav_type 'sidebar'/g" \
+    -e "s/struct_radius_base '.*'/struct_radius_base '0.125rem'/g" \
+    "$TPL_DIR"/*.template
+for template in "$TPL_DIR"/*.template; do
+    for setting in "nav_type 'sidebar'" "struct_radius_base '0[.]125rem'"; do
+        if ! grep -Eq "^[[:space:]]*option ${setting}[[:space:]]*$" "$template"; then
+            echo "ERROR: Aurora preset did not apply: $template ($setting)" >&2
+            exit 1
+        fi
+    done
+done
+echo "theme-aurora nav preset applied!"
 
 
 # The temperature & fan overview widget ships as 15_temperature.js inside

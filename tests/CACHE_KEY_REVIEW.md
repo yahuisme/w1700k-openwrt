@@ -1,75 +1,64 @@
-# W1700K v5 exact toolchain input projection
+# Exact host-artifact cache
 
-## Result and scope
+## Contract
 
-The exact upstream trees e36bf95f68 and 8bf1c9253c now share a key with
-bridge-flow-offload -> bridge-hw-offload selections, runtime VERSION_NUMBER,
-and audited rootfs overlay changes. This is a deliberate cold schema change;
-no old toolchain archive fallback was introduced. Other final configuration
-symbols are retained, not a fragile GCC-only allowlist.
+The key hashes the complete final `.config`, source contents and modes under
+`INPUTS`, builder image ID, host architecture, build path and fingerprint policy.
+There is no CONFIG projection, audited-source lock or historical commit dependency.
+This policy change deliberately starts a new exact-key generation; no old-key
+fallback is allowed. Package/version settings and literal DEFAULT_PACKAGES changes
+remain invalidators. External mutable compiler/kernel/source trees are rejected.
 
-## Safety boundary (important)
+Only the three explicit generic/Airoha runtime `base-files` overlays and ignored
+`scripts/config` generated outputs are excluded. Kernel files/patches and target
+recipes remain inputs. Input mtimes are normalized to `EPOCH`; completion stamps
+are never touched. PAX archives preserve nanoseconds and restore matching
+`build_dir/host`, `build_dir/toolchain-*`, `staging_dir/host` and
+`staging_dir/toolchain-*` together after clearing old build/staging trees.
 
-Projection is enabled ONLY for the audited, normalized complete source-content
-inventory in PROJECTION_SOURCE_LOCKS. This is an input lock, not a commit SHA:
-the two trees share it because only literal DEFAULT_PACKAGES assignments and
-the three runtime overlays differ. An unfamiliar source/recipe/helper/patch
-change falls back to hashing FULL configuration and unprojected source. This
-is a stricter key calculation, NOT a broad cache restore. It still detects all
-compile changes, but future upstream changes or custom.sh edits inside this
-inventory require another audited lock before runtime-only reuse is enabled.
-Do not call it a general arbitrary-Makefile dependency analyzer. GNU make eval,
-computed include paths, shell config readers and downstream configure programs
-cannot safely be proved complete by CONFIG-token regex alone.
+## Reproduce
 
-## Dependency evidence
+```sh
+python3 -m unittest discover -s tests -p 'test_cache_key.py' -v
+# Disposable, configured Airoha/an7581 source with native host build prerequisites:
+python3 tests/check_cache_upstream.py "$PREPARED_BUILDROOT"
+```
 
-- tools/Makefile selects b43-tools from CONFIG_PACKAGE_kmod-b43 and firmware
-  options; compression, sparse, LLVM, mold, graphite and SDK also select tools.
-  All these final symbols survive the projection. The complete tools tree,
-  including recipes, patches, source files and header installation inputs, stays
-  hashed. toolchain/Makefile selects libc, gcc stages, headers and optional tools.
-- Every non-PACKAGE/non-VERSION final symbol stays hashed. ABI, CPU, libc,
-  GCC/binutils versions, compiler/hardening flags and Kconfig side effects from
-  package selection therefore invalidate the key even if not directly scanned.
-- Direct CONFIG_PACKAGE_/CONFIG_VERSION_ references in the inventory survive;
-  dynamic CONFIG_PREFIX_$(...) conservatively retains the entire prefix.
-  Unprefixed CONFIG_$(...) retains everything unless the exact consumer was
-  audited and content locked. Unknown consumers get the full key.
-- Audited package-bin/package-pack functions produce target package artifacts;
-  version.mk labels rootfs/images; package-metadata generates package/Kconfig
-  metadata. Their effects on resolved compile options remain in final .config.
-  ext-toolchain is not eligible: external toolchains, source overrides and
-  external kernel trees are rejected because mutable external content is not
-  locked. kernel.mk KernelPackage registration is target-package-only, whereas
-  its direct compiler/kernel settings are retained as non-PACKAGE symbols.
-- include/target.mk DEFAULT_PACKAGES consumption is DUMP metadata. Only literal
-  Airoha DEFAULT_PACKAGES += lists are normalized; functions, substitutions,
-  unknown consumers or changed audited files disable projection. The rest of
-  target.mk, platform Makefiles and all kernel content remain locked.
-- kernel-headers includes kernel.mk -> target.mk, toolchain-build/host-build,
-  kernel-defaults and quilt. Host/Prepare invokes Kernel/Prepare/Default and
-  headers_install; generic/platform files and patches remain inputs. Rootfs
-  overlays are copied by package/base-files installation, not header recipes.
-- host-build prepared hashes depend on recipe path+mtime; input mtimes are
-  normalized, never completion stamps. POSIX/PAX archives preserve nanoseconds.
+The opt-in check reads dependency rules from the supplied current source, checks
+full-config invalidation, expands real kernel-header stamp variables, compiles
+`tools/flock`, then compresses/deletes/restores artifacts and runs warm make.
+It requires unchanged nanosecond `.built` and no flock compiler command after
+restore; a source-content mutation must miss and compile on the cold path.
+It modifies the supplied disposable tree. Empty toolchain layout fixtures are
+**not GCC validation**. These checks do not establish full firmware build speed.
 
-## Local verification
+## Compression choice
 
-Both repositories: 33 unittest tests, actionlint, git diff --check pass.
-check_cache_upstream.py uses git archive of BOTH actual upstream trees and
-asserts equal keys despite distinct runtime package and version config values.
-It asserts misses for b43 tool selection, GCC version, host flags, kernel flags,
-ABI, initramfs tool selection, direct and dynamic CONFIG consumers.
-Real Airoha/an7581-configured source: tools/flock compiles successfully, runtime
-changes keep .built unchanged, PAX compression/delete/restore keeps nanosecond
-stamp and performs no compiler command, source mutation produces a key miss
-and actual cold recompilation. Real kernel-headers make expands stamp paths,
-Linux version, architecture and files paths unchanged by runtime overlay edits.
-This is real host-tool validation, NOT a full GCC/firmware build. Dummy toolchain
-layout directories satisfy archive layout tests only. CI timing/GCC warm reuse
-still require separately authorized builds. No push, dispatch or remote writes.
+Packing uses `pigz -1` when already installed, otherwise `gzip -1`; extraction
+continues to use gzip-compatible tar. No installation is performed by this helper.
+The inspected local `ghcr.io/w1700k/fastbuild_base:base-builder` image
+(`8563dec89b4c`, aarch64) has gzip but **no pigz**, so its actual path is gzip -1.
 
-Evidence logs outside repositories:
-/root/w1700k-cache-review/v5-host-validation.log
-/root/w1700k-cache-review/v5-immortal-host-validation.log
+A PAX sample of real source plus native flock build/staging files gave these
+three-run median compression-only measurements (not a production-size cache):
+
+| Environment | Compressor | Seconds | Bytes |
+| --- | --- | ---: | ---: |
+| builder, root | gzip default | 0.1234 | 1096478 |
+| builder, root | gzip -1 | 0.0613 | 1279603 |
+| host, existing executable | pigz -1 | 0.0164 | 1274209 |
+
+Level 1 trades a larger archive for lower local compression time. Existing
+compressed-size caps still apply; this sample does not prove full-cache capacity
+or CI wall-time improvement. Pigz's host result does not imply builder availability.
+Reproduce on the same sample, checking executables in the actual builder first:
+
+```sh
+tar --format=posix -cf sample.tar -C "$PREPARED_BUILDROOT" \
+  tools toolchain include scripts build_dir/host staging_dir/host
+/usr/bin/time gzip -c sample.tar > default.gz
+/usr/bin/time gzip -1 -c sample.tar > fast.gz
+# Only where command -v pigz succeeds:
+/usr/bin/time pigz -1 -c sample.tar > parallel.gz
+wc -c default.gz fast.gz parallel.gz
+```

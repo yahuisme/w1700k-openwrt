@@ -36,14 +36,6 @@ jobs:
       id: dl
       uses: actions/cache/restore@main
       with: {path: dlarchive, key: 'dl-v3.${{ github.run_id }}.${{ github.run_attempt }}', restore-keys: 'dl-v3.'}
-    - name: Restore legacy dl
-      if: steps.dl.outputs.cache-matched-key == ''
-      uses: actions/cache/restore@main
-      with: {path: dlcache, key: 'dlcache.${{ github.run_id }}', restore-keys: 'dlcache.'}
-    - name: Restore legacy cc
-      if: steps.gh.outputs.cache-matched-key == ''
-      uses: actions/cache/restore@main
-      with: {path: "ghcache\nstcache", key: 'cache-${{ matrix.target }}.${{ github.run_id }}', restore-keys: 'cache-${{ matrix.target }}.'}
     - name: Unpack caches
       run: |
         mkdir -p openwrt_bin ghcache dlcache tcarchive ccarchive dlarchive

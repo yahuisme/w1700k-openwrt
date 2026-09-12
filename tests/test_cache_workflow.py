@@ -136,14 +136,19 @@ class WorkflowTests(unittest.TestCase):
             run('Check downloads')
             self.assertEqual(output.read_text(), 'save=false\nsave=true\n')
 
-    def test_tc_cc_steps_unchanged(self):
-        original = yaml.safe_load(subprocess.check_output(['git', 'show', 'HEAD:.github/workflows/W1700K.yaml'], cwd=ROOT))['jobs']['build']['steps']
-        for s in original:
-            if s.get('id') in ('gh', 'tc', 'inputs') or (
-                s.get('uses') == 'actions/cache/save@main' and s['with']['path'] in ('tcarchive', 'ccarchive')
-            ):
-                self.assertIn({k: v for k, v in s.items() if k != 'name'},
-                              [{k: v for k, v in now.items() if k != 'name'} for now in STEPS])
+    def test_cache_restore_contract(self):
+        tc = step('tc')
+        self.assertNotIn('restore-keys', tc['with'])
+        self.assertEqual(tc['with']['path'], 'tcarchive')
+        self.assertIn('steps.inputs.outputs.key', tc['with']['key'])
+        for name, path, prefix in [('gh', 'ccarchive', 'cc-v3-'), ('dl', 'dlarchive', 'dl-v3.')]:
+            restore = step(name)
+            self.assertEqual(restore['with']['path'], path)
+            self.assertTrue(restore['with']['restore-keys'].startswith(prefix))
+            self.assertIn('github.run_id', restore['with']['key'])
+            self.assertIn('github.run_attempt', restore['with']['key'])
+        self.assertFalse(any('legacy' in s.get('name', '').lower() for s in STEPS))
+        self.assertNotIn('stcache', WORKFLOW.read_text())
 
     def test_short_explicit_step_names(self):
         names = [s.get('name', '') for s in STEPS]

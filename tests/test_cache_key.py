@@ -1,5 +1,7 @@
 """Exact-key policy regression tests; temporary fixtures, no network."""
 import importlib.util
+import os
+from unittest.mock import patch
 from pathlib import Path
 import subprocess
 import tempfile
@@ -82,35 +84,17 @@ class KeyTests(unittest.TestCase):
         alternate.write_text(SCRIPT.read_text().replace('def pack(root, cache, kind, expected):',
                             'def pack(root, cache, kind, expected):\n    # unrelated upload edit'))
         self.assertEqual(before, load(alternate).key(self.root, 'image-sha'))
-        alternate.write_text(SCRIPT.read_text().replace('tc-inputs-v5', 'tc-inputs-v6'))
+        alternate.write_text(SCRIPT.read_text().replace('tc-inputs-v6', 'tc-inputs-test'))
         self.assertNotEqual(before, load(alternate).key(self.root, 'image-sha'))
 
-    def test_removed_admission_preserves_previous_key(self):
-        # Fixed pre-removal baseline survives later commits (not a moving HEAD).
-        baseline = subprocess.check_output([
-            'git', 'show', '5ada39bc3bfa0699fde703004486ab05d669b3d6:scripts/cache.py'
-        ], cwd=SCRIPT.parent).decode()
-        original = Path(self.tmp.name) / 'before.py'
-        original.write_text(baseline)
-        old = load(original)
-        import inspect
-        for name in ('key', 'project_inputs'):
-            self.assertEqual(inspect.getsource(getattr(old, name)),
-                             inspect.getsource(getattr(self.cache, name)))
-        for name in ('EPOCH', 'INPUTS', 'PROJECTION_AUDIT', 'PROJECTION_SOURCE_LOCKS'):
-            self.assertEqual(getattr(old, name), getattr(self.cache, name))
-        self.assertEqual(old.key(self.root, 'image-sha'), self.key())
-        self.assertFalse(hasattr(self.cache, 'admit'))
-        result = subprocess.run(['python3', str(SCRIPT), 'admit', str(self.root),
-                                 'tc-v3-ubi2-', 'unused'], capture_output=True, text=True)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('unknown cache command: admit', result.stderr)
-
-    def test_unknown_source_keeps_entire_config(self):
-        self.put('.config', 'CONFIG_PACKAGE_runtime=y\nCONFIG_VERSION_NUMBER="one"\n')
+    def test_entire_config_always_participates(self):
+        original = 'CONFIG_PACKAGE_runtime=y\nCONFIG_VERSION_NUMBER="one"\n'
+        self.put('.config', original)
         before = self.key()
-        self.put('.config', 'CONFIG_PACKAGE_runtime=m\nCONFIG_VERSION_NUMBER="two"\n')
-        self.assertNotEqual(before, self.key())
+        for changed in (original.replace('runtime=y', 'runtime=m'),
+                        original.replace('"one"', '"two"'), original + '# comment\n'):
+            self.put('.config', changed)
+            self.assertNotEqual(before, self.key())
 
     def test_external_mutable_inputs_rejected(self):
         for setting in ('CONFIG_EXTERNAL_TOOLCHAIN=y', 'CONFIG_SRC_TREE_OVERRIDE=y',
@@ -118,6 +102,41 @@ class KeyTests(unittest.TestCase):
             self.put('.config', setting + '\n')
             with self.assertRaises(ValueError):
                 self.key()
+
+    def test_generated_config_and_completion_mtimes(self):
+        self.put('scripts/config/.gitignore', 'conf\n*.o\n')
+        before = self.key()
+        generated = self.put('scripts/config/conf', 'generated')
+        stamp = self.put('build_dir/host/flock/.built', 'stamp')
+        ns = 1700000000123456789
+        os.utime(stamp, ns=(ns, ns))
+        self.assertEqual(before, self.key())
+        self.assertEqual(stamp.stat().st_mtime_ns, ns)
+        self.assertEqual((self.root / 'tools/Makefile').stat().st_mtime_ns,
+                         self.cache.EPOCH * 1_000_000_000)
+        generated.write_text('different generated output')
+        self.assertEqual(before, self.key())
+
+    def test_archive_pairing_pax_and_gzip_fallback(self):
+        for name in ('build_dir/host/.built', 'staging_dir/host/bin/tool',
+                     'build_dir/toolchain-test/.built', 'staging_dir/toolchain-test/lib/test'):
+            p = self.put(name, 'layout fixture, not GCC')
+            os.utime(p, ns=(1700000000123456789, 1700000000123456789))
+        archive = Path(self.tmp.name) / 'archive'
+        expected = self.key()
+        with patch.object(self.cache.shutil, 'which', return_value=None):
+            self.cache.pack(self.root, archive, 'toolchain', expected)
+        self.put('build_dir/stale-target/object', 'must disappear')
+        self.cache.restore(self.root, archive, expected)
+        self.assertFalse((self.root / 'build_dir/stale-target').exists())
+        self.assertEqual((self.root / 'build_dir/host/.built').stat().st_mtime_ns,
+                         1700000000123456789)
+        with self.assertRaisesRegex(ValueError, 'key mismatch'):
+            self.cache.restore(self.root, archive, 'wrong-key')
+        self.cache.restore(self.root, archive / 'absent', expected)
+        self.assertFalse((self.root / 'staging_dir').exists())
+        with self.assertRaisesRegex(ValueError, 'incomplete'):
+            self.cache.pack(self.root, archive, 'toolchain', expected)
 
     def test_mode_mtime_image_and_links(self):
         p = self.root / 'tools/Makefile'

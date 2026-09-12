@@ -1,8 +1,0 @@
-#!/bin/sh
-# Register on fresh boots and retained-config upgrades alike.
-uci -q set firewall.bridge_flow_offload='include'
-uci -q set firewall.bridge_flow_offload.type='script'
-uci -q set firewall.bridge_flow_offload.path='/usr/share/bridge-flow-offload/apply-rules.sh'
-uci -q set firewall.bridge_flow_offload.fw4_compatible='1'
-uci -q set firewall.bridge_flow_offload.enabled='1'
-exit 0

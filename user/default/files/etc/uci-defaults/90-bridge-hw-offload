@@ -1,0 +1,6 @@
+#!/bin/sh
+# Remove the old script include when upgrading with retained configuration.
+uci -q delete firewall.bridge_flow_offload
+rm -f /usr/share/bridge-flow-offload/apply-rules.sh
+rm -f /etc/hotplug.d/iface/51-bridge-flow-offload
+exit 0

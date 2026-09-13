@@ -130,6 +130,8 @@ if __name__ == '__main__':
     if len(sys.argv) == 5 and sys.argv[1] == 'admit':
         admit(*sys.argv[2:])
     elif len(sys.argv) == 4 and sys.argv[1] == 'cleanup':
-        cleanup(*sys.argv[2:])
+        # Admission denial is read-only and may continue to a smaller tier.
+        # An attempted upload must be confirmed before later admissions.
+        sys.exit(0 if cleanup(*sys.argv[2:]) else 1)
     else:
         sys.exit('usage: cache_helper.py admit PREFIX ARCHIVE KEY | cleanup PREFIX KEY')

@@ -201,7 +201,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(workflow['concurrency'], {'group': 'w1700k-cache', 'cancel-in-progress': False})
         self.assertEqual(workflow['jobs']['build']['strategy']['matrix']['target'], ['ubi2', 'ubi2-oc'])
         previous = -1
-        for kind, path in [('tc', 'tcarchive'), ('cc', 'ccarchive'), ('dl', 'dlarchive')]:
+        for kind, path in [('cc', 'ccarchive'), ('tc', 'tcarchive'), ('dl', 'dlarchive')]:
             admission = step(kind + '_budget')
             save = next(s for s in STEPS if s.get('uses') == 'actions/cache/save@main'
                         and s['with']['path'] == path)

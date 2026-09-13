@@ -76,7 +76,8 @@ class HelperTests(unittest.TestCase):
     def run_helper(self, *args):
         result = subprocess.run([sys.executable, str(HELPER), *args], env=self.env,
                                 text=True, capture_output=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        expected = 1 if args[0] == 'cleanup' and 'cleanup unverified' in result.stdout else 0
+        self.assertEqual(result.returncode, expected, result.stderr)
         return result.stdout
 
     def admit(self, size, prefix='cc-v3-ubi2.', key=None):

@@ -226,6 +226,17 @@ jobs:
           docker_exec DK python3 /cache-scripts/cache.py dl /dlcache /dlarchive unused
         fi
         sudo chown -R "$(id -u):$(id -g)" tcarchive ccarchive dlarchive
+    # Retire confirmed rolling compiler generations before admitting toolchain.
+    - name: Check compiler cache budget
+      id: cc_budget
+      run: python3 scripts/cache_helper.py admit 'cc-v3-${{ matrix.target }}.' ccarchive/ccache.tar.gz '${{ steps.gh.outputs.cache-primary-key }}'
+    - name: Save compiler cache
+      uses: actions/cache/save@main
+      if: steps.cc_budget.outputs.save == 'true' && hashFiles('ccarchive/ccache.tar.gz') != ''
+      with: {path: ccarchive, key: '${{ steps.gh.outputs.cache-primary-key }}'}
+    - name: Prune old compiler caches
+      if: steps.cc_budget.outputs.save == 'true'
+      run: python3 scripts/cache_helper.py cleanup 'cc-v3-${{ matrix.target }}.' '${{ steps.gh.outputs.cache-primary-key }}'
     - name: Check toolchain cache budget
       id: tc_budget
       if: steps.tc.outputs.cache-hit != 'true'
@@ -237,16 +248,6 @@ jobs:
     - name: Prune old toolchain caches
       if: steps.tc_budget.outputs.save == 'true'
       run: python3 scripts/cache_helper.py cleanup 'tc-v3-${{ matrix.target }}-' '${{ steps.inputs.outputs.key }}'
-    - name: Check compiler cache budget
-      id: cc_budget
-      run: python3 scripts/cache_helper.py admit 'cc-v3-${{ matrix.target }}.' ccarchive/ccache.tar.gz '${{ steps.gh.outputs.cache-primary-key }}'
-    - name: Save compiler cache
-      uses: actions/cache/save@main
-      if: steps.cc_budget.outputs.save == 'true' && hashFiles('ccarchive/ccache.tar.gz') != ''
-      with: {path: ccarchive, key: '${{ steps.gh.outputs.cache-primary-key }}'}
-    - name: Prune old compiler caches
-      if: steps.cc_budget.outputs.save == 'true'
-      run: python3 scripts/cache_helper.py cleanup 'cc-v3-${{ matrix.target }}.' '${{ steps.gh.outputs.cache-primary-key }}'
     - name: Check download cache budget
       id: dl_budget
       if: matrix.target == 'ubi2' && steps.dl_changed.outputs.save == 'true'

@@ -208,7 +208,8 @@ jobs:
           exit 0
         fi
         VERSION="$(cat firmware/version.txt)"
-        gh release create "$VERSION" firmware/*sysupgrade.itb --target "$GITHUB_SHA" --title "$VERSION" --notes-file firmware/release-notes.md
+        RELEASE_TITLE="${VERSION%-*}_${VERSION##*-}"
+        gh release create "$VERSION" firmware/*sysupgrade.itb --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file firmware/release-notes.md
         PREFIX="W1700K-OpenWrt_"
         [ "${{ matrix.target }}" = "ubi2-oc" ] && PREFIX="W1700K-OpenWrt-OC_"
         gh release list --json tagName --jq '.[].tagName' | grep -E "^(${PREFIX}|${PREFIX%_}-r[0-9]+-|W1700K-${{ matrix.target }}_)" | grep -vxF "$VERSION" | xargs -r -n1 gh release delete --cleanup-tag -y ||:

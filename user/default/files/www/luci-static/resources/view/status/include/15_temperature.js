@@ -40,15 +40,15 @@ return baseclass.extend({
 				return '';
 
 			if (value < 50)
-				return '#10b981';
+				return 'var(--success,light-dark(#15803d,#51bd85))';
 
 			if (value <= 65)
-				return '#f59e0b';
+				return 'var(--warning,light-dark(#a16207,#facc15))';
 
 			if (value <= 75)
-				return '#f97316';
+				return 'var(--orange,light-dark(#c2410c,#fb923c))';
 
-			return '#ef4444';
+			return 'var(--danger,light-dark(#b91c1c,#f17070))';
 		}
 
 		function fan(d) {

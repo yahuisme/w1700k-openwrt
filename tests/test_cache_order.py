@@ -20,7 +20,7 @@ REAL = [entry(1, 'tc-v3-ubi2-oc-a8b702', 1564072318),
 
 class CacheOrderTests(unittest.TestCase):
     def run_tail(self, entries, target='ubi2-oc', warm=False, cc=535453831,
-                 tc=1575367741, fault='', fail_reads=(), delay=0, toolchain_first=False):
+                 tc=1575367741, fault='', fail_reads=(), delay=0, toolchain_first=False, dl=100):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             (base / 'scripts').symlink_to(ROOT / 'scripts')
@@ -35,7 +35,7 @@ class CacheOrderTests(unittest.TestCase):
             (base / 'gh').write_text(gh)
             (base / 'gh').chmod(0o755)
             paths = {'cc': 'ccarchive/ccache.tar.gz', 'tc': 'tcarchive/toolchain.tar.gz', 'dl': 'dlarchive/dl.tar.gz'}
-            for kind, size in [('cc', cc), ('tc', tc), ('dl', 100)]:
+            for kind, size in [('cc', cc), ('tc', tc), ('dl', dl)]:
                 p = base / paths[kind]
                 p.parent.mkdir()
                 if size is not None:
@@ -86,7 +86,7 @@ class CacheOrderTests(unittest.TestCase):
                         continue
                     s = json.loads(state.read_text())
                     if fault != 'warning':
-                        size = (535186562 if cc == 535453831 else cc) if kind == 'cc' else tc if kind == 'tc' else 100
+                        size = (535186562 if cc == 535453831 else cc) if kind == 'cc' else tc if kind == 'tc' else dl
                         new = entry(100 + len(saves), key, size)
                         if fault == 'zero': new['size_in_bytes'] = 0
                         if fault == 'wrong_ref': new['ref'] = 'refs/heads/other'
@@ -96,6 +96,24 @@ class CacheOrderTests(unittest.TestCase):
                             s['entries'].append(new)
                     state.write_text(json.dumps(s))
             return saves, json.loads(state.read_text()), '\n'.join(logs)
+
+    def test_measured_download_and_peer_replacement_tail(self):
+        # 2026-09-15 API sizes; saves conservatively use inner gzip sizes.
+        entries = [entry(1, 'tc-v3-ubi2-old', 1568383907),
+                   entry(2, 'cc-v3-ubi2.old', 548162862),
+                   entry(3, 'tc-v3-ubi2-oc-old', 1568156316),
+                   entry(4, 'cc-v3-ubi2-oc.old', 547492660),
+                   entry(5, 'dl-v3.old', 1941241977)]
+        for target, cc, tc in [('ubi2', 548360578, 1579480024),
+                               ('ubi2-oc', 547780097, 1579433569)]:
+            for warm in (False, True):
+                with self.subTest(target=target, warm=warm):
+                    saves, state, log = self.run_tail(entries, target=target,
+                        warm=warm, cc=cc, tc=tc, dl=1941714961)
+                    self.assertEqual(saves, ['cc'] + ([] if warm else ['tc'])
+                                     + (['dl'] if target == 'ubi2' else []), log)
+                    peer = {3, 4} if target == 'ubi2' else {1, 2, 5}
+                    self.assertTrue(peer <= {e['id'] for e in state['entries']})
 
     def test_actual_oc_inventory_seeds_both_after_cc_retention(self):
         self.assertEqual(sum(e['size_in_bytes'] for e in REAL), 2633636319)
@@ -161,11 +179,11 @@ class CacheOrderTests(unittest.TestCase):
 
     def test_order_is_not_universal_toolchain_priority(self):
         # Explicit synthetic counterexample: cc growth can consume tc headroom.
-        entries = [entry(1, 'tc-v3-ubi2-oc-old', 1900000000), entry(2, 'cc-v3-ubi2-oc.old', 100000000)]
-        saves, _, log = self.run_tail(entries, cc=1500000000, tc=1900000000)
+        entries = [entry(1, 'tc-v3-ubi2-oc-old', 1800000000), entry(2, 'cc-v3-ubi2-oc.old', 100000000)]
+        saves, _, log = self.run_tail(entries, cc=1500000000, tc=1800000000)
         self.assertEqual(saves, ['cc'], log)
-        self.assertLessEqual(2000000000 + 1900000000 + 67108864, 4000000000)
-        before, _, old_log = self.run_tail(entries, cc=1500000000, tc=1900000000,
+        self.assertLessEqual(1900000000 + 1800000000 + 67108864, 3850000000)
+        before, _, old_log = self.run_tail(entries, cc=1500000000, tc=1800000000,
                                           toolchain_first=True)
         self.assertEqual(before, ['tc', 'cc'], old_log)
 

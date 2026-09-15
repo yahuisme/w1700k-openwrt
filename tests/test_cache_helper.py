@@ -92,6 +92,47 @@ class HelperTests(unittest.TestCase):
     def deletes(self):
         return [c for c in self.snapshot()['calls'] if c[:2] == ['cache', 'delete']]
 
+    def test_measured_download_replacement_fits_without_predeletion(self):
+        # API inventory and inner gzip from run 34922925962 (2026-09-15).
+        entries = [entry(1, 'tc-v3-ubi2-old', 1_568_383_907),
+                   entry(2, 'cc-v3-ubi2.old', 548_162_862),
+                   entry(3, 'tc-v3-ubi2-oc-old', 1_568_156_316),
+                   entry(4, 'cc-v3-ubi2-oc.old', 547_492_660),
+                   entry(5, 'dl-v3.old', 1_941_241_977)]
+        self.reset(entries)
+        self.assertTrue(self.admit(1_941_714_961, 'dl-v3.'), self.log)
+        self.assertFalse(self.deletes())
+        self.assertEqual(self.snapshot()['entries'], entries)
+
+    def test_measured_peer_replacement_and_growth_boundary(self):
+        # Real current OC inventory; every byte beyond the cap must be denied.
+        entries = [entry(1, 'tc-v3-ubi2-oc-old', 1_568_156_316),
+                   entry(2, 'cc-v3-ubi2-oc.old', 547_492_660)]
+        size = 1_579_433_569
+        self.reset(entries)
+        self.assertTrue(self.admit(size, 'tc-v3-ubi2-oc-'), self.log)
+        slack = h.BUDGETS['oc'] - sum(e['size_in_bytes'] for e in entries) - size - h.HEADROOM
+        self.assertGreaterEqual(slack, 80_000_000)
+        for extra, expected in ((slack, True), (slack + 1, False)):
+            self.reset(entries + [entry(3, 'unknown-namespace', extra)])
+            self.assertEqual(self.admit(size, 'tc-v3-ubi2-oc-'), expected, self.log)
+            self.assertFalse(self.deletes())
+
+    def test_measured_download_growth_and_extra_generation(self):
+        entries = [entry(1, 'tc-v3-ubi2-old', 1_568_383_907),
+                   entry(2, 'cc-v3-ubi2.old', 548_162_862),
+                   entry(3, 'dl-v3.old', 1_941_241_977)]
+        size = 1_941_714_961
+        slack = h.BUDGETS['standard'] - sum(e['size_in_bytes'] for e in entries) - size - h.HEADROOM
+        self.assertGreaterEqual(slack, 80_000_000)
+        for extra, expected in ((slack, True), (slack + 1, False)):
+            self.reset(entries)
+            self.assertEqual(self.admit(size + extra, 'dl-v3.'), expected, self.log)
+            self.assertFalse(self.deletes())
+        self.reset(entries + [entry(4, 'dl-v3.older', 1_941_241_977)])
+        self.assertFalse(self.admit(size, 'dl-v3.'))
+        self.assertFalse(self.deletes())
+
     def test_missing_zero_oversize_and_ownership(self):
         for size in (None, 0, h.SLOTS['cc-v3-ubi2.'] + 1):
             with self.subTest(size=size):
@@ -144,18 +185,18 @@ class HelperTests(unittest.TestCase):
     def test_parallel_groups_cannot_spend_peer_headroom(self):
         # Both admit from the SAME snapshot at their exact respective caps.
         size = 1_000_000_000
-        entries = [entry(1, 'cc-v3-ubi2.old', 6_000_000_000-size-h.HEADROOM),
-                   entry(2, 'cc-v3-ubi2-oc.old', 4_000_000_000-size-h.HEADROOM)]
+        entries = [entry(1, 'cc-v3-ubi2.old', h.BUDGETS['standard']-size-h.HEADROOM),
+                   entry(2, 'cc-v3-ubi2-oc.old', h.BUDGETS['oc']-size-h.HEADROOM)]
         for prefix in ('cc-v3-ubi2.', 'cc-v3-ubi2-oc.'):
             self.reset(entries)
             self.assertTrue(self.admit(size, prefix))
             self.assertFalse(self.admit(size+1, prefix))
         self.assertEqual(sum(e['size_in_bytes'] for e in entries)+2*(size+h.HEADROOM), 10_000_000_000)
-        self.reset([entry(1, 'cc-v3-ubi2.old', 6_000_000_000)])
-        self.assertFalse(self.admit(1))  # total repository still has 4 GB free
+        self.reset([entry(1, 'cc-v3-ubi2.old', h.BUDGETS['standard'])])
+        self.assertFalse(self.admit(1))  # cannot spend the peer's free budget
 
     def test_paginated_inventory_and_admission_read_failure(self):
-        self.reset([entry(i, 'legacy'+str(i), 2_000_000_000) for i in range(1, 4)])
+        self.reset([entry(i, 'legacy'+str(i), 2_100_000_000) for i in range(1, 4)])
         self.assertFalse(self.admit(1))  # third entry on page two matters
         self.reset([], fail_reads=[1])
         self.assertFalse(self.admit(1))

@@ -32,6 +32,29 @@ restore; a source-content mutation must miss and compile on the cold path.
 It modifies the supplied disposable tree. Empty toolchain layout fixtures are
 **not GCC validation**. These checks do not establish full firmware build speed.
 
+## Parallel upload capacity
+
+Standard/OC writers have disjoint **6.15/3.85 decimal GB** budgets, totaling
+10,000,000,000 bytes. Every admission counts all generations/refs in its group,
+unknown namespaces, the candidate and at least 64 MiB wrapper margin. Save and
+confirm the exact nonempty current-ref replacement before pruning its old keys;
+never pre-delete a known-good seed to make room. Matrix jobs remain parallel.
+
+The 2026-09-15 inventory and run 34922925962 compressed sizes require
+6,066,612,571 bytes for standard download replacement and 3,762,191,409 for OC
+toolchain replacement. The former fails under 6 GB. A 6.2/3.8 split leaves OC
+only 37,808,591 bytes; 6.15/3.85 balances spare capacity at 83,387,429 and
+87,808,591 bytes. These are measured-snapshot margins, **not permanent growth
+guarantees**: simultaneous growth, additional generations/refs and unknown caches
+consume the same space. Cold population at all per-entry caps fits, but warm
+replacement at every per-entry maximum need not fit. Denial preserves old data;
+accumulated generations may require separately reviewed maintenance, not an
+automatic destructive fallback. Per-entry caps and exact keys are unchanged.
+
+Run `test_cache_helper.py` and `test_cache_order.py` via unittest discovery for
+measured replacement, full YAML-tail sequencing, capacity boundaries, unknown
+namespace accounting, parallel isolation, cold/warm and failed-save coverage.
+
 ## Compression choice
 
 Packing uses `pigz -1` when already installed, otherwise `gzip -1`; extraction

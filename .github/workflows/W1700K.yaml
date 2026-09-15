@@ -54,11 +54,17 @@ jobs:
         echo 'CONFIG_CCACHE_DIR="/ghcache"' >> user/current/config.diff
         sudo tee /etc/docker/daemon.json <<< '{"max-concurrent-downloads":50,"max-concurrent-uploads":50,"experimental":true}'
         sudo systemctl reload docker
-        IMAGE=ghcr.io/w1700k/fastbuild_base:base-builder
-        docker pull $IMAGE
-        IMAGE_ID=$(docker image inspect --format "{{.Id}}" $IMAGE)
+        IMAGE=ghcr.io/w1700k/fastbuild_base:debian-arm
+        # Resolve the live ARM64 image without pulling unrelated attestations.
+        DIGEST=$(docker buildx imagetools inspect --raw "$IMAGE" | jq -er '
+          [.manifests[] | select(.platform.os == "linux" and .platform.architecture == "arm64") | .digest]
+          | if length == 1 then .[0] else error("Expected one ARM64 manifest") end')
+        [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+        IMAGE="${IMAGE%:*}@$DIGEST"
+        docker pull "$IMAGE"
+        IMAGE_ID=$(docker image inspect --format "{{.Id}}" "$IMAGE")
         echo "IMAGE_ID=$IMAGE_ID" >> "$GITHUB_ENV"
-        docker run -dt --name DK -v "$PWD/user:$DK_USER" -v "$PWD/openwrt_bin:$DK_BIN" -v "$PWD/ghcache:/ghcache" -v "$PWD/scripts:/cache-scripts:ro" -v "$PWD/tcarchive:/tcarchive" -v "$PWD/ccarchive:/ccarchive" -v "$PWD/dlarchive:/dlarchive" -v "$PWD/dlcache:/dlcache" "$IMAGE"
+        docker run -dt --name DK -v "$PWD/user:$DK_USER" -v "$PWD/openwrt_bin:$DK_BIN" -v "$PWD/ghcache:/ghcache" -v "$PWD/scripts:/cache-scripts:ro" -v "$PWD/tcarchive:/tcarchive" -v "$PWD/ccarchive:/ccarchive" -v "$PWD/dlarchive:/dlarchive" -v "$PWD/dlcache:/dlcache" "$IMAGE_ID"
         install -m 755 /dev/stdin /usr/local/bin/docker_exec <<'DKR'
         #!/bin/bash
         for n in DK_BIN DK_USER DK_PROFILE DK_OPENWRT; do e+=(-e "$n=${!n}"); done
@@ -116,7 +122,7 @@ jobs:
           [ -x "$CCACHE" ] || make tools/ccache/compile -j$(($(nproc) + 1))
           $CCACHE -d /ghcache --zero-stats
           trap "$CCACHE -d /ghcache -sz ||:" EXIT
-          make -j$(($(nproc) + 1)) || make -j1 V=s
+          make -j$(($(nproc) + 1)) V=s || make -j1 V=s
         '
 
     # Go can add dl/go-mod-cache entries during compilation, after make download.
@@ -214,7 +220,7 @@ jobs:
         [ "${{ matrix.target }}" = "ubi2-oc" ] && PREFIX="W1700K-OpenWrt-OC_"
         gh release list --json tagName --jq '.[].tagName' | grep -E "^(${PREFIX}|${PREFIX%_}-r[0-9]+-|W1700K-${{ matrix.target }}_)" | grep -vxF "$VERSION" | xargs -r -n1 gh release delete --cleanup-tag -y ||:
 
-    # Independent matrix budgets: standard 6 GB, OC 4 GB (including margin).
+    # Independent matrix budgets: standard 6.15 GB, OC 3.85 GB (including margin).
     # Count all own generations and unknown/legacy entries on each admission.
     # Save/readback/cleanup precedes the next admission in each writer.
     - name: Package build caches

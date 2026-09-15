@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read-only admission; delete old generations only after a verified save.
 
-The sequential standard writer owns 6 GB; the sequential OC writer owns 4 GB.
+The sequential standard/OC writers own 6.15/3.85 decimal GB respectively.
 Each counts ALL generations/refs in its group, plus unknown/legacy bytes, its
 candidate and packaging headroom INSIDE its cap. Thus concurrent groups cannot
 spend each other's free capacity. Workflow concurrency excludes overlapping
@@ -18,7 +18,9 @@ SLOTS = {'tc-v3-ubi2-': 2_000_000_000, 'tc-v3-ubi2-oc-': 2_000_000_000,
          'cc-v3-ubi2.': 1_500_000_000, 'cc-v3-ubi2-oc.': 1_500_000_000,
          'dl-v3.': 2_200_000_000}
 GROUPS = {p: ('oc' if 'ubi2-oc' in p else 'standard') for p in SLOTS}
-BUDGETS = {'standard': 6_000_000_000, 'oc': 4_000_000_000}
+# Measured download/OC toolchain replacement peaks: 6.067/3.762 GB.
+# Balance coexistence slack without borrowing from a concurrent writer.
+BUDGETS = {'standard': 6_150_000_000, 'oc': 3_850_000_000}
 HEADROOM = 64 * 1024 * 1024
 
 

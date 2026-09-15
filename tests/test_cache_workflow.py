@@ -24,24 +24,27 @@ def render(text, values):
 class WorkflowTests(unittest.TestCase):
     def test_compile_nested_block(self):
         block = step('Compile firmware')['run']
-        for case, hot, pre, main, fallback, expected in (
-            ('cold', False, 0, 0, 0, 0), ('hot', True, 0, 0, 0, 0),
-            ('precompile_failure', False, 17, 0, 0, 17),
-            ('fallback_success', False, 0, 1, 0, 0),
-            ('final_failure', True, 0, 1, 23, 23),
+        for case, hot, pre, main, fallback, stats, expected in (
+            ('cold', False, 0, 0, 0, 0, 0), ('hot', True, 0, 0, 0, 0, 0),
+            ('precompile_failure', False, 17, 0, 0, 0, 17),
+            ('fallback_success', False, 0, 1, 0, 0, 0),
+            ('final_failure', True, 0, 1, 23, 0, 23),
+            ('stats_failure', True, 0, 0, 0, 31, 0),
+            ('final_and_stats_failure', True, 0, 1, 23, 31, 23),
         ):
             with self.subTest(case=case), tempfile.TemporaryDirectory(dir=ROOT / 'tests') as tmp:
                 base = Path(tmp)
                 cc = base / 'staging_dir/host/bin/ccache'
                 cc.parent.mkdir(parents=True)
                 stub = base / 'ccache-stub'
-                stub.write_text('#!/bin/bash\nprintf "ccache %s\\n" "$*" >> "$LOG"\n[[ "$*" != *-sz ]] || exit 31\n')
+                stub.write_text('#!/bin/bash\nprintf "ccache %s\\n" "$*" >> "$LOG"\n[[ "$*" != *-sz ]] || exit "$STATS"\n')
                 stub.chmod(0o755)
                 if hot:
                     cc.write_bytes(stub.read_bytes())
                     cc.chmod(0o755)
                 env = dict(os.environ, DK_OPENWRT=tmp, LOG=str(base / 'calls'),
-                           PRE=str(pre), MAIN=str(main), FALLBACK=str(fallback), STUB=str(stub))
+                           PRE=str(pre), MAIN=str(main), FALLBACK=str(fallback),
+                           STATS=str(stats), STUB=str(stub))
                 prefix = '''
                 docker_exec() { shift; "$@"; }
                 nproc() { printf '4\\n'; }
@@ -52,16 +55,16 @@ class WorkflowTests(unittest.TestCase):
                     cp "$STUB" staging_dir/host/bin/ccache
                     return 0
                   fi
-                  if [[ "$*" == *V=s* ]]; then return "$FALLBACK"; fi
+                  if [[ "$1" == -j1 ]]; then return "$FALLBACK"; fi
                   return "$MAIN"
                 }
                 export -f docker_exec make nproc
                 '''
-                result = subprocess.run(['bash', '-e', '-c', prefix + block], env=env, capture_output=True, text=True)
+                result = subprocess.run(['bash', '-eo', 'pipefail', '-c', prefix + block], env=env, capture_output=True, text=True)
                 calls = (base / 'calls').read_text().splitlines()
                 want = [] if hot else ['make tools/ccache/compile -j5']
                 if not pre:
-                    want += ['ccache -d /ghcache --zero-stats', 'make -j5']
+                    want += ['ccache -d /ghcache --zero-stats', 'make -j5 V=s']
                     if main:
                         want += ['make -j1 V=s']
                     want += ['ccache -d /ghcache -sz']

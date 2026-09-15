@@ -43,7 +43,7 @@ return baseclass.extend({
 				return 'var(--success,var(--success-color-high,#15803d))';
 
 			if (value <= 65)
-				return 'var(--warning,var(--warn-color-high,#a16207))';
+				return '#eab308';
 
 			if (value <= 75)
 				return '#f97316';

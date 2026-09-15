@@ -86,12 +86,15 @@ jobs:
           git fetch origin "+refs/heads/$REPO_BRANCH:refs/remotes/origin/$REPO_BRANCH"
           git checkout -f $REPO_BRANCH
           git reset --hard origin/$REPO_BRANCH
+          SOURCE_SHA=$(git rev-parse HEAD)
+          echo "Source: $SOURCE_SHA"
           mountpoint $DK_BIN || { echo "::error::not mounted" >&2; exit 1; }
           rm -rf bin dl staging_dir build_dir
           ln -s $DK_BIN bin && ln -s /dlcache dl
           rm -rf feeds/* &>/dev/null
           ./scripts/feeds update -a &>/dev/null || { echo "::error::feeds update failed"; exit 1; }
           ./scripts/feeds install -a &>/dev/null || { echo "::error::feeds install failed"; exit 1; }
+          ./scripts/feeds list -s
           cp $DK_PROFILE/config.diff .config
           cp -r $DK_PROFILE/files/ .
           rm -f files/build_info  # clear build_info pre-seeded in the base-builder image
@@ -122,7 +125,7 @@ jobs:
           [ -x "$CCACHE" ] || make tools/ccache/compile -j$(($(nproc) + 1))
           $CCACHE -d /ghcache --zero-stats
           trap "$CCACHE -d /ghcache -sz ||:" EXIT
-          make -j$(($(nproc) + 1)) V=s || make -j1 V=s
+          make -j$(($(nproc) + 1)) || make -j1 V=s
         '
 
     # Go can add dl/go-mod-cache entries during compilation, after make download.

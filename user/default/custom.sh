@@ -17,6 +17,8 @@ if ! git clone --depth=1 https://github.com/yahuisme/packages.git "$PKG_REPO"; t
     echo "ERROR: Failed to clone user packages repo!"
     exit 1
 fi
+PKG_SHA=$(git -C "$PKG_REPO" rev-parse HEAD)
+echo "yahuisme/packages: $PKG_SHA"
 cp -r "$PKG_REPO/luci-app-wifi7" "$PKG_REPO/luci-app-airoha-npu" \
       "$PKG_REPO/luci-app-airoha-flowsense" \
       "$PKG_REPO/luci-app-airoha-fancontrol" package/
@@ -48,7 +50,8 @@ for pkg in luci-theme-aurora luci-app-aurora-config; do
         echo "ERROR: $pkg was downloaded, but Makefile is missing!"
         exit 1
     fi
-    echo "$pkg installed successfully."
+    PKG_SHA=$(git -C "package/$pkg" rev-parse HEAD)
+    echo "$pkg: $PKG_SHA"
 done
 
 # 修改 Aurora 菜单式样（默认侧边栏 + 小圆角）

@@ -64,7 +64,7 @@ class WorkflowTests(unittest.TestCase):
                 calls = (base / 'calls').read_text().splitlines()
                 want = [] if hot else ['make tools/ccache/compile -j5']
                 if not pre:
-                    want += ['ccache -d /ghcache --zero-stats', 'make -j5 V=s']
+                    want += ['ccache -d /ghcache --zero-stats', 'make -j5']
                     if main:
                         want += ['make -j1 V=s']
                     want += ['ccache -d /ghcache -sz']

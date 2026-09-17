@@ -65,6 +65,7 @@ procd_add_reload_trigger() { echo TRIGGER "$@"; }
         brif = self.root / 'brif'
         live = self.root / 'live-table'
         rule = rules / '30-bridge-offload.nft'
+        reloads = self.root / 'reloads'
         source = (self.files / 'usr/share/bridge-hw-offload/apply-rules.sh').read_text()
         source = source.replace('/usr/share/nftables.d/ruleset-post', str(rules))
         source = source.replace('/sys/class/net/${BRIDGE}/brif', str(brif))
@@ -77,6 +78,7 @@ nft() {{
     rm '{live}'
 }}
 firewall_reload() {{
+    echo reload >> '{reloads}'
     if [ -f '{rule}' ]; then cp '{rule}' '{live}'; fi
 }}
 '''
@@ -95,9 +97,14 @@ firewall_reload() {{
                     live.write_text('stale')
                     enabled = shape == 'ports' and hw == '1'
                     for repeat in range(2):
+                        before = reloads.read_text().splitlines() if reloads.exists() else []
+                        old_stat = rule.stat() if rule.exists() else None
                         result = ash(f"HW='{hw}'\n" + prelude + source + '\nstatus=$?; wait; exit "$status"')
-                        self.assertEqual(result.returncode, 0, result.stderr)
+                        # Upstream no-port cleanup deliberately returns 1 and
+                        # does not schedule a reload; disabled UCI returns 0.
+                        self.assertEqual(result.returncode, int(hw == '1' and not enabled), result.stderr)
                         self.assertEqual(rule.exists(), enabled)
+                        self.assertFalse(list(rules.glob('.30-bridge-offload.*')))
                         self.assertEqual(live.exists(), enabled)
                         if enabled:
                             text = rule.read_text()
@@ -105,6 +112,13 @@ firewall_reload() {{
                             self.assertTrue(text.startswith('destroy table bridge fw4\n'))
                             self.assertNotIn('not-a-port', text)
                             self.assertEqual(live.read_text(), text)
+                            if repeat:
+                                assert old_stat is not None
+                                self.assertEqual(rule.stat().st_ino, old_stat.st_ino)
+                                self.assertEqual(rule.stat().st_mtime_ns, old_stat.st_mtime_ns)
+                        after = reloads.read_text().splitlines() if reloads.exists() else []
+                        expected_reload = (enabled and repeat == 0) or hw != '1'
+                        self.assertEqual(len(after) - len(before), int(expected_reload))
 
     def test_reload_propagates_generator_failure(self):
         # Execute the real handler; substitute only its absolute executable.

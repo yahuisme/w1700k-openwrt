@@ -3,4 +3,6 @@
 uci -q delete firewall.bridge_flow_offload
 rm -f /usr/share/bridge-flow-offload/apply-rules.sh
 rm -f /etc/hotplug.d/iface/51-bridge-flow-offload
+# fw4 now owns the bridge table; discard the former generated include.
+rm -f /usr/share/nftables.d/ruleset-post/30-bridge-offload.nft
 exit 0

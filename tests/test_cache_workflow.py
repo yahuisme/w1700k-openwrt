@@ -176,7 +176,7 @@ class WorkflowTests(unittest.TestCase):
                 output = base / 'output'
                 env = dict(os.environ, LOG=str(base / 'calls'), GITHUB_OUTPUT=str(output),
                            SOURCE_STATUS=str(source_status), KEY_STATUS=str(key_status),
-                           DK_OPENWRT='/build', IMAGE_ID='fixture-image')
+                           DK_OPENWRT='/build', BUILDER_FINGERPRINT='fixture-builder')
                 result = subprocess.run(['bash', '-eo', 'pipefail', '-c', stub + block],
                                         env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, source_status or key_status, result.stderr)

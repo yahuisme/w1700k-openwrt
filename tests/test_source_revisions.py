@@ -29,7 +29,7 @@ class SourceRevisionTests(unittest.TestCase):
                 feeds.chmod(0o755)
                 env = dict(os.environ, DK_OPENWRT=str(source), DK_BIN=str(base / 'bin'),
                            DK_PROFILE=str(profile), GITHUB_OUTPUT=str(base / 'output'),
-                           IMAGE_ID='fixture-image', LOG=str(base / 'calls'), FAIL=phase,
+                           BUILDER_FINGERPRINT='fixture-builder', LOG=str(base / 'calls'), FAIL=phase,
                            SOURCE_SHA='1' * 40, FEED_SHA='2' * 40)
                 stub = '''
                 docker_exec() { shift; "$@"; }

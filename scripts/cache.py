@@ -18,10 +18,10 @@ INPUTS = ('tools', 'toolchain', 'include', 'scripts', 'config', 'target/linux/ge
 LIMITS = {'toolchain': 2_000_000_000, 'ccache': 1_500_000_000, 'dl': 2_200_000_000}
 
 
-def key(root, image):
+def key(root, builder):
     # Full final configuration and source; no historical projection or fallback.
     # Archive/upload edits do not participate in the compatibility policy.
-    digest = hashlib.sha256(json.dumps(['tc-inputs-v6', image, os.uname().machine,
+    digest = hashlib.sha256(json.dumps(['tc-inputs-v7', builder, os.uname().machine,
                                       str(root), EPOCH, INPUTS,
                                       inspect.getsource(key)]).encode())
     if not (root / '.config').is_file():

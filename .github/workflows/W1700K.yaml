@@ -47,17 +47,15 @@ jobs:
         [ -f "user/default/config.diff" ] || { echo "::error::config.diff not found"; exit 1; }
         sudo tee /etc/docker/daemon.json <<< '{"max-concurrent-downloads":50,"max-concurrent-uploads":50,"experimental":true}'
         sudo systemctl reload docker
-        IMAGE=ghcr.io/w1700k/fastbuild_base:debian-arm
-        # Resolve the live ARM64 image without pulling unrelated attestations.
-        DIGEST=$(docker buildx imagetools inspect --raw "$IMAGE" | jq -er '
-          [.manifests[] | select(.platform.os == "linux" and .platform.architecture == "arm64") | .digest]
-          | if length == 1 then .[0] else error("Expected one ARM64 manifest") end')
-        [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
-        IMAGE="${IMAGE%:*}@$DIGEST"
-        docker pull "$IMAGE"
+        IMAGE=w1700k-builder:local
+        docker build --platform linux/arm64 -t "$IMAGE" docker
         IMAGE_ID=$(docker image inspect --format "{{.Id}}" "$IMAGE")
+        [[ "$IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]]
         echo "IMAGE_ID=$IMAGE_ID" >> "$GITHUB_ENV"
-        docker run -dt --name DK -v "$PWD/user:$DK_USER" -v "$PWD/openwrt_bin:$DK_BIN" -v "$PWD/ghcache:/ghcache" -v "$PWD/scripts:/cache-scripts:ro" -v "$PWD/tcarchive:/tcarchive" -v "$PWD/ccarchive:/ccarchive" -v "$PWD/dlarchive:/dlarchive" -v "$PWD/dlcache:/dlcache" "$IMAGE_ID"
+        docker run -d --name DK -v "$PWD/user:$DK_USER" -v "$PWD/openwrt_bin:$DK_BIN" -v "$PWD/ghcache:/ghcache" -v "$PWD/scripts:/cache-scripts:ro" -v "$PWD/docker:/builder-context:ro" -v "$PWD/tcarchive:/tcarchive" -v "$PWD/ccarchive:/ccarchive" -v "$PWD/dlarchive:/dlarchive" -v "$PWD/dlcache:/dlcache" "$IMAGE_ID" sleep infinity
+        BUILDER_FINGERPRINT=$(docker exec -u 0 DK python3 /cache-scripts/builder_fingerprint.py /builder-context)
+        [[ "$BUILDER_FINGERPRINT" =~ ^[0-9a-f]{64}$ ]]
+        echo "BUILDER_FINGERPRINT=$BUILDER_FINGERPRINT" >> "$GITHUB_ENV"
         install -m 755 /dev/stdin /usr/local/bin/docker_exec <<'DKR'
         #!/bin/bash
         for n in DK_BIN DK_USER DK_PROFILE DK_OPENWRT; do e+=(-e "$n=${!n}"); done
@@ -95,9 +93,14 @@ jobs:
           # Abort before make if an overlay damaged Git access/ownership.
           git rev-parse --verify HEAD > /dev/null
           make defconfig
+          # Host LLVM is optional upstream; this lean image does not provide it.
+          if grep -qx CONFIG_USE_LLVM_HOST=y .config; then
+            echo "::error::Host LLVM selected: builder needs clang, llc, llvm-dis, opt and llvm-strip; review include/bpf.mk" >&2
+            exit 1
+          fi
           make download -j8 || exit 1
         '
-        KEY=$(docker_exec DK python3 /cache-scripts/cache.py key "$DK_OPENWRT" /tcarchive "$IMAGE_ID")
+        KEY=$(docker_exec DK python3 /cache-scripts/cache.py key "$DK_OPENWRT" /tcarchive "$BUILDER_FINGERPRINT")
         echo "key=tc-v3-ubi2-$KEY" >> "$GITHUB_OUTPUT"
     - name: Restore toolchain cache
       id: tc

@@ -106,7 +106,7 @@ class HelperTests(unittest.TestCase):
 
     def test_legacy_inventory_growth_boundary(self):
         size = 1_941_714_961
-        used = h.BUDGETS['standard'] - size - h.HEADROOM
+        used = h.BUDGET - size - h.HEADROOM
         for extra, expected in ((0, True), (1, False)):
             self.reset([entry(1, 'retired-cache', used + extra)])
             self.assertEqual(self.admit(size, 'dl-v3.'), expected)
@@ -122,17 +122,17 @@ class HelperTests(unittest.TestCase):
 
     def test_boundary_includes_margin_and_all_generations_refs(self):
         size = 1_000_000_000
-        for group, prefix in [('standard', 'cc-v3-ubi2.'), ('standard', 'dl-v3.')]:
-            used = h.BUDGETS[group] - size - h.HEADROOM
+        for prefix in h.SLOTS:
+            used = h.BUDGET - size - h.HEADROOM
             for extra, expected in [(0, True), (1, False)]:
                 self.reset([entry(1, prefix+'old', used//2),
                             entry(2, prefix+'older', used-used//2+extra, 'refs/heads/other')])
                 self.assertEqual(self.admit(size, prefix), expected)
                 self.assertFalse(self.deletes())
 
-    def test_legacy_unknown_charged_to_each_group(self):
+    def test_legacy_unknown_charged_to_repository_budget(self):
         for prefix in h.SLOTS:
-            cap = h.BUDGETS[h.GROUPS[prefix]]
+            cap = h.BUDGET
             self.reset([entry(1, 'legacy', cap-1-h.HEADROOM)])
             self.assertTrue(self.admit(1, prefix))
             self.reset([entry(1, 'legacy', cap-h.HEADROOM)])

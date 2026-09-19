@@ -61,7 +61,8 @@ class SourceRevisionTests(unittest.TestCase):
                     self.assertIn('Source: ' + env['SOURCE_SHA'], result.stdout)
                     self.assertIn('luci src-git ' + env['FEED_SHA'], result.stdout)
                     self.assertIn('feeds list -s\n', calls)
-                    self.assertEqual((source / '.config').read_text(), 'CONFIG_TEST=y\n')
+                    self.assertEqual((source / '.config').read_text(), 'CONFIG_TEST=y\nCONFIG_CCACHE_DIR="/ghcache"\n')
+                    self.assertEqual((profile / 'config.diff').read_text(), 'CONFIG_TEST=y\n')
                     self.assertEqual((base / 'output').read_text(), 'key=tc-v3-ubi2-fixture-key\n')
 
     def test_custom_donor_checkouts(self):

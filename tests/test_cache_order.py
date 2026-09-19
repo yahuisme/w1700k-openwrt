@@ -20,7 +20,7 @@ REAL = [entry(1, 'tc-v3-ubi2-a8b702', 1564072318),
 
 class CacheOrderTests(unittest.TestCase):
     def run_tail(self, entries, warm=False, cc=535453831,
-                 tc=1575367741, fault='', fail_reads=(), delay=0, toolchain_first=False, dl=100):
+                 tc=1575367741, fault='', fail_reads=(), delay=0, dl=100):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             (base / 'scripts').symlink_to(ROOT / 'scripts')
@@ -60,11 +60,7 @@ class CacheOrderTests(unittest.TestCase):
             start = next(i for i, s in enumerate(STEPS) if s.get('id') in ('tc_budget', 'cc_budget'))
             successful = True
             saves, logs = [], []
-            tail = STEPS[start:]
-            if toolchain_first:
-                # Historical ordering comparison, same complete YAML blocks.
-                tail = tail[3:6] + tail[:3] + tail[6:]
-            for step in tail:
+            for step in STEPS[start:]:
                 if not successful or not condition(step.get('if', 'True')):
                     continue
                 if 'run' in step:

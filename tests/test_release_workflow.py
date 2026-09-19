@@ -134,7 +134,7 @@ elif args[:2] == ['release', 'create']:
 elif args[:2] != ['release', 'delete']: sys.exit(99)
 ''')
                 gh.chmod(0o755)
-                result = self.run_block(base, 'Publish firmware and prune old releases', CASE=case)
+                result = self.run_block(base, 'Publish firmware and prune releases', CASE=case)
                 self.assertEqual(result.returncode, 24 if case == 'create_failure' else 0, result.stderr)
                 calls = [json.loads(line) for line in (base / 'calls').read_text().splitlines()]
                 if case not in ('current', 'create_failure'):

@@ -12,7 +12,7 @@ HELPER = ROOT / 'scripts/dlcache.py'
 
 class DownloadCacheTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(prefix='dlcache-', dir=ROOT / 'tests')
+        self.tmp = tempfile.TemporaryDirectory(prefix='dlcache-')
         self.addCleanup(self.tmp.cleanup)
         self.base = Path(self.tmp.name)
         self.dl = self.base / 'dlcache'

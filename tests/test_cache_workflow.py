@@ -32,7 +32,7 @@ class WorkflowTests(unittest.TestCase):
             ('stats_failure', True, 0, 0, 0, 31, 0),
             ('final_and_stats_failure', True, 0, 1, 23, 31, 23),
         ):
-            with self.subTest(case=case), tempfile.TemporaryDirectory(dir=ROOT / 'tests') as tmp:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
                 base = Path(tmp)
                 cc = base / 'staging_dir/host/bin/ccache'
                 cc.parent.mkdir(parents=True)
@@ -80,9 +80,9 @@ class WorkflowTests(unittest.TestCase):
 
     def test_download_gates_and_pack(self):
         snapshot = step('Extract rolling caches')
-        check = step('Detect download cache changes')
+        check = step('Check download cache changes')
 
-        self.assertLess(STEPS.index(snapshot), STEPS.index(step('Prepare source and toolchain cache key')))
+        self.assertLess(STEPS.index(snapshot), STEPS.index(step('Prepare source and cache key')))
         self.assertLess(STEPS.index(step('Compile firmware')), STEPS.index(check))
         self.assertIn('--restored', check['run'])
         admit = step('dl_budget')
@@ -114,7 +114,7 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn('cache.py ccache /ghcache', result.stdout)
 
     def test_snapshot_and_post_compile_check_blocks(self):
-        with tempfile.TemporaryDirectory(dir=ROOT / 'tests') as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             (base / 'scripts').symlink_to(ROOT / 'scripts', target_is_directory=True)
             dl = base / 'dlcache'
@@ -129,12 +129,12 @@ class WorkflowTests(unittest.TestCase):
                                         cwd=base, env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
             run('Extract rolling caches')
-            run('Detect download cache changes')
+            run('Check download cache changes')
             self.assertEqual(output.read_text(), 'save=false\n')
             module = dl / 'go-mod-cache/module.zip'
             module.parent.mkdir()
             module.write_bytes(b'added during compile')
-            run('Detect download cache changes')
+            run('Check download cache changes')
             self.assertEqual(output.read_text(), 'save=false\nsave=true\n')
 
     def test_cache_restore_contract(self):
@@ -154,7 +154,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertTrue(all(names))
         self.assertEqual(len(names), len(set(names)))
         source = step('inputs')
-        self.assertEqual(source['name'], 'Prepare source and toolchain cache key')
+        self.assertEqual(source['name'], 'Prepare source and cache key')
         self.assertLess(source['run'].index('make download'), source['run'].index('KEY=$(docker_exec'))
         self.assertEqual(STEPS.index(step('tc')), STEPS.index(source) + 1)
 
@@ -187,14 +187,26 @@ class WorkflowTests(unittest.TestCase):
                 else:
                     self.assertEqual(output.read_text(), 'key=tc-v3-ubi2-fixture-key\n')
 
-    def test_unpack_creates_download_snapshot(self):
+    def test_single_profile_config_matches_staged_profile(self):
+        workflow = yaml.safe_load(WORKFLOW.read_text())
+        self.assertEqual(workflow['jobs']['build']['env']['DK_PROFILE'], '/bld/user/default')
+        block = step('inputs')['run']
+        start = block.index('cp $DK_PROFILE/config.diff .config')
+        end = block.index('cp -r $DK_PROFILE/files/', start)
         with tempfile.TemporaryDirectory() as tmp:
-            block = render(step('Extract rolling caches')['run'], {})
-            stub = 'sudo() { printf "%s\\n" "$*"; };\n'
-            result = subprocess.run(['bash', '-e', '-c', stub + block], cwd=tmp,
+            profile = ROOT / 'user/default'
+            original = (profile / 'config.diff').read_bytes()
+            result = subprocess.run(['bash', '-e', '-c', block[start:end]], cwd=tmp,
+                                    env=dict(os.environ, DK_PROFILE=str(profile)),
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('dlcache.py snapshot', result.stdout)
+            self.assertEqual((Path(tmp) / '.config').read_bytes(),
+                             original + b'CONFIG_CCACHE_DIR="/ghcache"\n')
+            self.assertEqual((profile / 'config.diff').read_bytes(), original)
+            result = subprocess.run(['bash', '-e', '-c', block[start:end]], cwd=tmp,
+                                    env=dict(os.environ, DK_PROFILE=tmp),
+                                    capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
 
     def test_cache_save_cleanup_order_and_failure_gates(self):
         workflow = yaml.safe_load(WORKFLOW.read_text())

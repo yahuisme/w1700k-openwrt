@@ -20,7 +20,7 @@ jobs:
       DK_OPENWRT: /bld/openwrt
       DK_BIN: /bld/openwrt_bin
       DK_USER: /bld/user
-      DK_PROFILE: /bld/user/current
+      DK_PROFILE: /bld/user/default
       GH_TOKEN: ${{ github.token }}
     steps:
     - name: Check out repository
@@ -42,11 +42,9 @@ jobs:
         if [ -f dlarchive/dl.tar.gz ]; then tar --gzip -xf dlarchive/dl.tar.gz -C dlcache; fi
         sudo python3 scripts/dlcache.py snapshot dlcache "$RUNNER_TEMP/dlcache-before.json"
 
-    - name: Initialize build container
+    - name: Start build container
       run: |
         [ -f "user/default/config.diff" ] || { echo "::error::config.diff not found"; exit 1; }
-        rsync -aI --mkpath user/default/ user/current/ 2>&-
-        echo 'CONFIG_CCACHE_DIR="/ghcache"' >> user/current/config.diff
         sudo tee /etc/docker/daemon.json <<< '{"max-concurrent-downloads":50,"max-concurrent-uploads":50,"experimental":true}'
         sudo systemctl reload docker
         IMAGE=ghcr.io/w1700k/fastbuild_base:debian-arm
@@ -66,7 +64,7 @@ jobs:
         exec docker exec -u 0 -i "${e[@]}" "$@"
         DKR
 
-    - name: Prepare source and toolchain cache key
+    - name: Prepare source and cache key
       id: inputs
       run: |
         # Variables expand inside the container, not on the runner.
@@ -91,6 +89,7 @@ jobs:
           ./scripts/feeds install -a &>/dev/null || { echo "::error::feeds install failed"; exit 1; }
           ./scripts/feeds list -s
           cp $DK_PROFILE/config.diff .config
+          echo "CONFIG_CCACHE_DIR=\"/ghcache\"" >> .config
           cp -r $DK_PROFILE/files/ .
           bash $DK_PROFILE/custom.sh
           # Abort before make if an overlay damaged Git access/ownership.
@@ -125,7 +124,7 @@ jobs:
         '
 
     # Go can add dl/go-mod-cache entries during compilation, after make download.
-    - name: Detect download cache changes
+    - name: Check download cache changes
       id: dl_changed
       run: |
         # Runner owns GITHUB_OUTPUT; sudo only reads container-owned downloads.
@@ -183,7 +182,7 @@ jobs:
         - 保留最小硬件兼容与功率补丁，不代表已实机验证失联问题修复。
         EOF
 
-    - name: Publish firmware and prune old releases
+    - name: Publish firmware and prune releases
       env:
         GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
       run: |

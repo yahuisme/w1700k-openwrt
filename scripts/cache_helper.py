@@ -14,8 +14,7 @@ import time
 
 SLOTS = {'tc-v3-ubi2-': 2_000_000_000,
          'cc-v3-ubi2.': 1_500_000_000, 'dl-v3.': 2_200_000_000}
-GROUPS = {p: 'standard' for p in SLOTS}
-BUDGETS = {'standard': 10_000_000_000}
+BUDGET = 10_000_000_000
 HEADROOM = 64 * 1024 * 1024
 
 
@@ -69,16 +68,14 @@ def admit(prefix, archive, key):
         if not 0 < size <= SLOTS[prefix]:
             raise ValueError('replacement archive empty or oversized')
         entries = inv()
-        group = GROUPS[prefix]
-        used = sum(e['size_in_bytes'] for e in entries
-                   if GROUPS.get(owner(e['key']) or '', group) == group)
+        used = sum(e['size_in_bytes'] for e in entries)
         # Include wrapper tar/compression expansion and metadata, not just the
         # inner gzip. Never subtract an old generation before it is deleted.
         reserve = size + max(HEADROOM, (size + 99) // 100)
-        ok = used + reserve <= BUDGETS[group]
-        print(f'cache budget {group}: inventory={used} candidate+margin={reserve} cap={BUDGETS[group]}')
+        ok = used + reserve <= BUDGET
+        print(f'cache budget: inventory={used} candidate+margin={reserve} cap={BUDGET}')
         if not ok:
-            warn('group budget exceeded; retaining old caches')
+            warn('repository budget exceeded; retaining old caches')
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
         warn(f'admission denied; retaining old caches: {exc}')
     with open(os.environ['GITHUB_OUTPUT'], 'a') as f:

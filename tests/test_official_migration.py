@@ -19,7 +19,7 @@ class OfficialMigrationTests(unittest.TestCase):
         self.assertLess(workflow.index('git clean -ffdx'), workflow.index('./scripts/feeds update'))
         custom = (ROOT / 'user/default/custom.sh').read_text()
         self.assertNotIn('OpenWRT-fanboy', custom)
-        self.assertIn('cp -a "$DK_PROFILE/tree/." .', custom)
+        self.assertIn('cp -a --no-preserve=ownership "$DK_PROFILE/tree/." .', custom)
 
     def test_minimal_kernel_delta(self):
         tree = ROOT / 'user/default/tree'

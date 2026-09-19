@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class SourceRevisionTests(unittest.TestCase):
     def test_nested_prepare_logs_and_failures(self):
         block = render(step('inputs')['run'], {})
-        for phase in ('', 'fetch', 'revision', 'update', 'install', 'list', 'custom', 'download'):
+        for phase in ('', 'fetch', 'revision', 'git-access', 'update', 'install', 'list', 'custom', 'download'):
             with self.subTest(phase=phase), tempfile.TemporaryDirectory() as tmp:
                 base = Path(tmp)
                 source = base / 'source'
@@ -36,6 +36,9 @@ class SourceRevisionTests(unittest.TestCase):
                 git() {
                   printf 'git %s\\n' "$*" >> "$LOG"
                   [ "$1" != "$FAIL" ] || return 19
+                  if [ "$*" = 'rev-parse --verify HEAD' ]; then
+                    [ "$FAIL" != git-access ] || return 19
+                  fi
                   if [ "$*" = 'rev-parse HEAD' ]; then
                     [ "$FAIL" != revision ] || return 19
                     printf '%s\\n' "$SOURCE_SHA"

@@ -93,6 +93,8 @@ jobs:
           cp $DK_PROFILE/config.diff .config
           cp -r $DK_PROFILE/files/ .
           bash $DK_PROFILE/custom.sh
+          # Abort before make if an overlay damaged Git access/ownership.
+          git rev-parse --verify HEAD > /dev/null
           make defconfig
           make download -j8 || exit 1
         '

@@ -16,7 +16,8 @@ PKG_REPO=$(mktemp -d)
 trap 'rm -rf "$PKG_REPO"' EXIT
 
 # Checked-in, narrowly scoped hardware/power delta; never fetch fork patches.
-cp -a "$DK_PROFILE/tree/." .
+# Keep container ownership: the mounted profile belongs to the runner UID.
+cp -a --no-preserve=ownership "$DK_PROFILE/tree/." .
 patch -p1 --fuzz=0 < "$DK_PROFILE/patches/001-w1700k-platform.patch"
 if ! git clone --depth=1 https://github.com/yahuisme/packages.git "$PKG_REPO"; then
     echo "ERROR: Failed to clone user packages repo!"

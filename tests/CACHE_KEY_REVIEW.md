@@ -110,8 +110,10 @@ firmware build, but no new CI timings establish a specific speedup or optimum.
 
 Packing uses `pigz -1` when already installed, otherwise `gzip -1`; extraction
 continues to use gzip-compatible tar. No installation is performed by this helper.
-The inspected local `ghcr.io/w1700k/fastbuild_base:base-builder` image
-(`8563dec89b4c`, aarch64) has gzip but **no pigz**, so its actual path is gzip -1.
+The historical `ghcr.io/w1700k/fastbuild_base:base-builder` test image
+(`8563dec89b4c`, aarch64) had gzip but **no pigz**. It is no longer used by
+the workflow; the measurements below describe that historical environment,
+not the current official Debian builder.
 
 A PAX sample of real source plus native flock build/staging files gave these
 three-run median compression-only measurements (not a production-size cache):

@@ -14,7 +14,7 @@ permissions:
   contents: write
 jobs:
   build:
-    name: w1700k Build firmware
+    name: W1700K Build firmware
     runs-on: ubuntu-24.04-arm
     env:
       DK_OPENWRT: /bld/openwrt
@@ -184,7 +184,7 @@ jobs:
         cat > "$RELEASE_NOTES" <<EOF
         ## Quantum Fiber / Gemtek W1700K OpenWrt — 官方 snapshot 标准版
 
-        - 源码：https://github.com/openwrt/openwrt ，分支 main。
+        - 源码：[OpenWrt main](https://github.com/openwrt/openwrt)
         - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
         - 仅提供现行 UBI 布局的 sysupgrade.itb；刷写前请备份配置。
         - 保留必要硬件兼容与功率定制，使用标准 CPU 参数。

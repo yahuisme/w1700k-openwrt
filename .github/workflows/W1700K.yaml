@@ -179,10 +179,10 @@ jobs:
         cat > "$RELEASE_NOTES" <<EOF
         ## Quantum Fiber / Gemtek W1700K OpenWrt — 官方 snapshot 标准版
 
-        - 源码： https://github.com/openwrt/openwrt （main，标准 CPU 参数）
+        - 源码：https://github.com/openwrt/openwrt ，分支 main。
         - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
         - 仅提供现行 UBI 布局的 sysupgrade.itb；刷写前请备份配置。
-        - 保留最小硬件兼容与功率补丁，不代表已实机验证失联问题修复。
+        - 保留必要硬件兼容与功率定制，使用标准 CPU 参数。
         EOF
 
     - name: Publish firmware and prune releases

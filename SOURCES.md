@@ -1,40 +1,31 @@
-# Source and minimal local delta
+# 补丁来源
 
-Builds follow `https://github.com/openwrt/openwrt` **main**, including its official feeds and package source revisions. No fork distfeeds, kernel vermagic override, dynamic fork patch download, bridge-flowtable/GRO/NPU enhancement or OC extension is imported. The existing ARM builder image supplies host tools only: source preparation performs `git reset --hard` and `git clean -ffdx` before feeds/customization, removing preseeded tracked and untracked build inputs.
+基于 [OpenWrt 官方 main](https://github.com/openwrt/openwrt) 及官方 feeds。构建环境使用本仓库维护的官方 Debian Dockerfile，不预置固件源码或工具链。
 
-## Checked-in additions
+## 本地补丁
 
-Paths under `user/default/tree/` mirror their buildroot destination; `custom.sh` copies these before `make defconfig`. Kernel patches are applied by OpenWrt's normal generic backport → pending → hack → target chain, not directly against pristine Linux.
+以下路径相对于 `user/default/`。`tree/` 按构建目录结构注入，内核补丁沿用官方补丁应用顺序。
 
-| Local input | Origin / purpose |
+| 文件 | 用途与来源 |
 | --- | --- |
-| `tree/target/linux/airoha/patches-6.18/745-*` | OpenWRT-fanboy/OpenW1700k `bce05fa86b222741d8afcef2e5468a9481679041`: include E2 in manual PCS RX calibration |
-| `tree/target/linux/airoha/patches-6.18/746-*` | Same donor: deassert external PHY reset before MDIO identification |
-| `tree/target/linux/generic/{hack-6.18/999-*,files/drivers/net/phy/rtl8261ce/*}` | Same donor: external RTL8261C/CE PHY model `0x001cc890`, including vendor register sequences and hwmon; retain source licenses |
-| `tree/target/linux/airoha/patches-6.18/940-*`, `patches/002-w1700k-cpufreq-resources.patch` | Standard CPUFreq compatibility: original 940 C hunks from OpenW1700k `972634e64d19cba0095b662a0bfd9561ebef635c`, omitting only duplicate Kconfig; W1700K-only DT resources. Official attach_list, state 0–14, 500–1200 MHz and governor unchanged; no OC |
-| `patches/001-w1700k-platform.patch` | Minimal local integration of RTL8261CE kmod recipe; package selection explicit in config.diff |
-| `tree/package/kernel/mt76/patches/910-*`, `911-*` | Existing yahuisme/w1700k-immortalwrt local rebases of donor `0010-enable-firmware-txpower-limit` and `0011-refresh-power-limits-on-txpower-changes`; official mt76 package retained |
-| `tree/package/firmware/wireless-regdb/patches/555-*` | Same donor: existing US upper-5GHz/6GHz regulatory settings, prerequisite of retained 610 patch |
-| `patches/610-w1700k-cn-us-power-30.patch` | Existing user CN/US 30dBm delta, retained unchanged |
-| `tree/package/network/utils/iwinfo/patches/999-*` | Same donor: split-wiphy, current-frequency power-list reporting |
-| `patches/998-single-wiphy.patch` | Existing Gilly1970 LuCI channel-analysis netdev resolution fix, retained unchanged |
+| `tree/target/linux/airoha/patches-6.18/745-*` | 扩展 E2 PCS RX 校准，来源 OpenWRT-fanboy/OpenW1700k `bce05fa86b222741d8afcef2e5468a9481679041` |
+| `tree/target/linux/airoha/patches-6.18/746-*` | 在 MDIO 识别前解除外部 PHY 复位，来源同上 |
+| `tree/target/linux/generic/hack-6.18/999-*`、`tree/target/linux/generic/files/drivers/net/phy/rtl8261ce/` | RTL8261C/CE 驱动及内核接入，支持 PHY ID `0x001cc890` 的硬件变体，来源同上，保留原许可证 |
+| `patches/001-w1700k-platform.patch` | RTL8261CE 内核模块包定义，包选择统一放在 `config.diff` |
+| `tree/target/linux/airoha/patches-6.18/940-*`、`patches/002-w1700k-cpufreq-resources.patch` | 标准 CPUFreq 兼容，来源 OpenW1700k `972634e64d19cba0095b662a0bfd9561ebef635c` 的 940 C 代码及 W1700K 设备树资源；不重复引入 Kconfig，保留官方 attach_list、0–14 状态、500–1200 MHz 与调频策略，不超频 |
+| `tree/package/kernel/mt76/patches/910-*`、`911-*` | 无线固件功率限制启用与刷新，沿用本项目 ImmortalWrt 侧对 OpenW1700k `0010-enable-firmware-txpower-limit`、`0011-refresh-power-limits-on-txpower-changes` 的适配；mt76 本体保持官方版本 |
+| `tree/package/firmware/wireless-regdb/patches/555-*` | US 高频段及 6 GHz 区域配置，来源上述 `bce05fa...`，作为 610 补丁前置 |
+| `patches/610-w1700k-cn-us-power-30.patch` | 本项目 CN/US 30 dBm 功率定制 |
+| `tree/package/network/utils/iwinfo/patches/999-*` | 分离 wiphy 与当前频率的功率列表展示，来源上述 `bce05fa...` |
+| `patches/998-single-wiphy.patch` | single-wiphy 无线设备的 LuCI 信道分析适配，源自 Gilly1970 |
 
-The CPUFreq port is a local candidate, not hardware-validated: initial genpd level-0 vote synchronization and PLL failure/readback remain review gates. Do not infer runtime correctness from patch applicability.
+## 维护原则
 
-NAND remains at official 50 MHz: no reproduced failure justifies the inherited 33 MHz downclock. RTL8261CE supports the W1700K board variant; this physical unit’s PHY has not been identified. Existing boot green / failsafe red / running white LED aliases are retained.
+- 非必要不加补丁；官方已有功能和特性以官方实现为准。
+- 不在构建时整批拉取 fork 补丁；新修复先核对来源、适用性及官方是否已包含。
+- 官方吸收后验证并移除本地重复补丁；必要补丁应用失败必须停止构建。
+- NAND 保持官方 50 MHz，不恢复 OC、额外网桥 flowtable、GRO/NPU 扩展或 vermagic 覆盖。
+- 保留中文 LuCI、Aurora、专属应用、WOL、ttyd、Usteer、既定访问与无线设置，以及启动绿灯、故障红灯、运行白灯。
+- `90-bridge-hw-offload` 仅清理旧配置遗留，不注入网桥卸载功能；运行行为由官方 fw4 与网络栈负责。
 
-30dBm configuration support is not measured radiated power or permission to exceed local regulations. Retaining cold-boot fixes is not proof the reported device outage is fixed.
-
-## User features and dependency boundary
-
-Chinese LuCI, Aurora, all previously selected packages, default access/Wi-Fi settings and the temperature/fan overview remain. Four `yahuisme/packages` apps are explicitly selected: WiFi7, Airoha NPU, FlowSense and fancontrol. Chinese language selection resolves all four translation packages. WOL, the ttyd web terminal and Usteer remain selected with their translations and runtime dependencies. Frequency menus/forms are hidden when official CPUFreq/Devfreq interfaces are unavailable; application retention does not require restoring fork kernel extensions. Kernel/firmware support comes from official device defaults plus the explicit RTL8261CE package, not from merely cloning those apps.
-
-The prior image's nine overview includes are accounted for by the eight official LuCI includes plus the existing `15_temperature.js` overlay. No additional fork overview module was identified. Fancontrol runs S99fan after official S99airoha_fan; both write hardware curves at boot, with the user's fan service last. Device service ownership/reload behavior remains a hardware validation item. FlowSense's standard routing-offload controls remain; official fw4 does not imply donor native bridge flowtable/GRO feature equivalence.
-
-`90-bridge-hw-offload` is only retained-config cleanup, not an offload feature injector. Static br_netfilter settings retain existing user defaults. Removed fork features are not silently reintroduced for UI capability parity.
-
-## Local non-build verification
-
-Migration baseline tested: official `b6ba4e9142b7e926dd3822beffdae26de34da98e`, Linux 6.18.52, mt76 `be5ce7910521492d4a2e4ce7ee3843680a46c047`, iwinfo `66bdd1a071895d91babc9b9228bb84626bbce226`, wireless-regdb 2026.05.30. Clean full official source + feeds + custom.sh were exercised, with an existing host Kconfig `conf` binary for real `make defconfig` (no compilation). All originally requested `CONFIG_PACKAGE_*=y` selections survived. Full kernel patch chain and package patches were applied to real source trees without compiling.
-
-Full build, image installed-package verification, cold boot, PHY/link, DHCP/LAN and radio-power measurements are not covered by these checks. Snapshot package repositories move independently; no ABI override is shipped to mask incompatible later kmods.
+当前方案已通过用户实机测试，原失联问题已解决。该反馈不等于逐项硬件机制或射频功率测量；后续滚动更新仍需核对补丁兼容性。

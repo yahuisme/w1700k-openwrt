@@ -1,81 +1,48 @@
-# AI 协力构建的 Quantum Fiber / Gemtek W1700K OpenWrt 固件
+# W1700K OpenWrt
 
-适用于 **Quantum Fiber / Gemtek W1700K** 路由器的定制 OpenWrt 固件构建项目。
+基于 [OpenWrt 官方 snapshot](https://github.com/openwrt/openwrt)，仅构建标准版。
 
-基于 [W1700K OpenWrt Builds](https://github.com/w1700k/builds) 构建框架，源码与软件源跟随 [官方 OpenWrt main](https://github.com/openwrt/openwrt) snapshot，仅构建标准版。
+适用于已完成 UBI2 安装的 Quantum Fiber / Gemtek W1700K。升级镜像见 [Releases](https://github.com/yahuisme/w1700k-openwrt/releases)。
 
-> ⚠️ **仅适用于 Quantum Fiber / Gemtek W1700K，请勿刷入其他型号设备。**
+## 特性
 
----
+- 中文 LuCI、Aurora 主题
+- 首页温度与风扇状态
+- 官方 NPU/PPE 硬件加速
+- 30 dBm 功率配置支持
 
-## ✨ 主要特性
+## 预装应用
 
-- 🌐 默认中文 LuCI 界面
-- 🎨 默认 Aurora 主题
-- 📦 内置定制专属全中文汉化应用
-- 🌡️ LuCI 首页增加温度及风扇转速显示
-- 🚀 集成 NPU 硬件加速
-- 🛡️ 最小硬件兼容补丁：E2 校准、PHY 扫描前复位、RTL8261CE 板型支持；NAND 保持官方 50MHz
-- 📡 保留 30dBm 配置支持（regdb/mt76/iwinfo）；实际输出受硬件及当地法规约束
-
----
-
-## 🧩 预装应用
-
-精简纯净原则，仅内置硬件深度适配与基础网络管理应用，源码由专属源 [yahuisme/packages](https://github.com/yahuisme/packages) 定制维护并全中文支持：
-
-| 插件 | 功能说明 |
-| :--- | :--- |
-| [`luci-app-airoha-npu`](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-npu) | Airoha NPU 状态监控与 SoC 管理（频率控制取决于驱动支持） |
-| [`luci-app-airoha-fancontrol`](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-fancontrol) | 动态温控曲线与四线 PWM 风扇调速 |
-| [`luci-app-airoha-flowsense`](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-flowsense) | PPE 硬件流控与加速状态实时监控 |
-| [`luci-app-wifi7`](https://github.com/yahuisme/packages/tree/main/luci-app-wifi7) | Wi-Fi 7 射频、MLO 与运行状态管理 |
-| `luci-app-usteer` | AP / Mesh 弱信号剔除与智能漫游辅助 |
-| `luci-app-wol` | 网络唤醒（Wake-on-LAN） |
-| `luci-app-ttyd` | 网页终端控制台 |
-
----
-
-## 📦 固件版本
-
-| 固件 | 说明 |
+| 应用 | 功能 |
 | --- | --- |
-| 官方 snapshot 标准版 | 现行 W1700K UBI 布局，标准 CPU 参数；仅发布 sysupgrade.itb |
-
----
+| [Airoha SoC](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-npu) | SoC 与 NPU 状态 |
+| [风扇控制](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-fancontrol) | 温控曲线与风扇调速 |
+| [FlowSense](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-flowsense) | 流量与加速管理 |
+| [WiFi7](https://github.com/yahuisme/packages/tree/main/luci-app-wifi7) | 无线射频与 MLO 管理 |
+| Usteer | 无线漫游辅助 |
+| 网络唤醒 | Wake-on-LAN |
+| 终端 | 网页终端 |
 
 ## 默认访问
 
 - 管理地址：`192.168.8.1`
 - 管理密码：无
-- Wi-Fi SSID：`W1700K`
 - Wi-Fi 密码：`12345678`
 
----
+## 默认无线
 
-## 📡 默认无线配置
+区域为 US，2.4/5 GHz 使用 WPA2-PSK，6 GHz 使用 WPA3-SAE。
 
 | 项目 | 2.4 GHz | 5 GHz | 6 GHz |
 | --- | --- | --- | --- |
-| 状态 | 开启 | 开启 | **关闭** |
-| 区域 | US | US | US |
-| 信道 | 1 | 36 | 37 |
-| 频宽 / 模式 | Wi‑Fi 7（EHT20） | Wi‑Fi 7（EHT160） | Wi‑Fi 7（EHT320） |
+| 状态 | 开启 | 开启 | 关闭 |
 | SSID | `W1700K` | `W1700K` | `W1700K-6G` |
-| 加密 | WPA2-PSK | WPA2-PSK | WPA3-SAE |
-| 密码 | `12345678` | `12345678` | `12345678` |
-| 发射功率 | 23 dBm | 25 dBm | 25 dBm |
+| 信道 | 1 | 36 | 37 |
+| 模式 | EHT20 | EHT160 | EHT320 |
+| 功率 | 23 dBm | 25 dBm | 25 dBm |
 
----
+## 构建
 
-## 🌡️ 温度监控
+每日香港时间 12:00 自动构建，也可手动运行 Actions。仅发布 `sysupgrade.itb`。
 
-LuCI 状态首页显示 CPU、主板、10G WAN/LAN PHY、2.4/5/6 GHz WiFi 温度及风扇转速/占空比，随温度区间变色提示。
-
----
-
-## 🔄 自动构建
-
-每日香港时间 12:00 自动构建，也可手动运行。保留 ARM runner、下载缓存、ccache 与精确匹配工具链缓存；单标准版总预算 10GB（包含旧缓存与余量）。源码准备清除构建容器预置文件，不使用 fork 包源或 vermagic 覆盖。
-
-补丁来源与边界见 [SOURCES.md](SOURCES.md)。只保留官方标准卸载，不引入 fork bridge flowtable、GRO/NPU 增强或 CPU 超频补丁。四个专属应用仍内置；缺少 CPUFreq/Devfreq 接口时，频率菜单和表单自动隐藏。
+[补丁来源](SOURCES.md)

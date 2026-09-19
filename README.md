@@ -4,6 +4,8 @@
 
 适用于已完成 UBI2 安装的 Quantum Fiber / Gemtek W1700K。升级镜像见 [Releases](https://github.com/yahuisme/w1700k-openwrt/releases)。
 
+首次安装或需要重建 UBI2 布局，请参阅 [W1700K UBI2 Installer](https://github.com/yahuisme/w1700k-ubi2-installer)，按教程拆机连接 USB-TTL，刷入 U-Boot Chainloader 并运行安装器。已完成 UBI2 安装的设备无需重复操作。
+
 ## 特性
 
 - 中文 LuCI、Aurora 主题

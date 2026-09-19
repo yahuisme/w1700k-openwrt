@@ -143,13 +143,18 @@ jobs:
           grep -qxF "$symbol=y" "$RUNNER_TEMP/firmware.config" || { echo "::error::Wrong firmware target: $symbol"; exit 1; }
         done
         [ "$(grep -E '^CONFIG_TARGET_.*_DEVICE_.*=y$' "$RUNNER_TEMP/firmware.config")" = 'CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_w1700k-ubi=y' ]
-        for app in wifi7 airoha-npu airoha-flowsense airoha-fancontrol wol ttyd usteer; do
+        for app in wifi7 airoha-npu airoha-flowsense airoha-fancontrol wol ttyd; do
           for package in "luci-app-$app" "luci-i18n-$app-zh-cn"; do
             grep -qxF "CONFIG_PACKAGE_$package=y" "$RUNNER_TEMP/firmware.config" || { echo "::error::Missing required package: $package"; exit 1; }
           done
         done
-        for package in etherwake ttyd usteer wpad-openssl; do
+        for package in etherwake ttyd wpad-openssl; do
           grep -qxF "CONFIG_PACKAGE_$package=y" "$RUNNER_TEMP/firmware.config" || { echo "::error::Missing required package: $package"; exit 1; }
+        done
+        for package in usteer luci-app-usteer luci-i18n-usteer-zh-cn; do
+          if grep -qE "^CONFIG_PACKAGE_$package=[ym]$" "$RUNNER_TEMP/firmware.config"; then
+            echo "::error::Forbidden package: $package"; exit 1
+          fi
         done
         shopt -s nullglob
         profiles=(openwrt_bin/targets/*/*/profiles.json)

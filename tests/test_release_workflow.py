@@ -11,10 +11,10 @@ IMAGE = 'openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb'
 CONFIG = ('CONFIG_TARGET_airoha=y\nCONFIG_TARGET_airoha_an7581=y\n'
           'CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_w1700k-ubi=y\n')
 CONFIG += ''.join(f'CONFIG_PACKAGE_{package}=y\n'
-                  for app in ('wifi7', 'airoha-npu', 'airoha-flowsense', 'airoha-fancontrol', 'wol', 'ttyd', 'usteer')
+                  for app in ('wifi7', 'airoha-npu', 'airoha-flowsense', 'airoha-fancontrol', 'wol', 'ttyd')
                   for package in (f'luci-app-{app}', f'luci-i18n-{app}-zh-cn'))
 
-CONFIG += ''.join(f'CONFIG_PACKAGE_{pkg}=y\n' for pkg in ('etherwake', 'ttyd', 'usteer', 'wpad-openssl'))
+CONFIG += ''.join(f'CONFIG_PACKAGE_{pkg}=y\n' for pkg in ('etherwake', 'ttyd', 'wpad-openssl'))
 
 
 class ReleaseTests(unittest.TestCase):
@@ -39,9 +39,29 @@ class ReleaseTests(unittest.TestCase):
                                'sudo() { :; }; docker_exec() { shift; "$@"; };\n' + block],
                               cwd=base, env=env, capture_output=True, text=True)
 
+    def test_usteer_selection_contract(self):
+        packages = ('usteer', 'luci-app-usteer', 'luci-i18n-usteer-zh-cn')
+        for package in packages:
+            for state in ('y', 'm', 'n', 'unset', 'absent'):
+                with self.subTest(package=package, state=state), tempfile.TemporaryDirectory() as tmp:
+                    base = Path(tmp)
+                    output, data = self.fixture(base)
+                    (output / 'profiles.json').write_text(json.dumps(data))
+                    symbol = 'CONFIG_PACKAGE_' + package
+                    line = (f'# {symbol} is not set\n' if state == 'unset' else
+                            '' if state == 'absent' else f'{symbol}={state}\n')
+                    (base / '.config').write_text(CONFIG + line)
+                    result = self.run_block(base, 'Validate and stage firmware')
+                    if state in ('y', 'm'):
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn('Forbidden package: ' + package, result.stdout + result.stderr)
+                        self.assertFalse((base / 'firmware').exists())
+                    else:
+                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_required_user_packages_cannot_be_omitted(self):
-        packages = ['etherwake', 'ttyd', 'usteer', 'wpad-openssl']
-        packages += [pkg for app in ('wol', 'ttyd', 'usteer')
+        packages = ['etherwake', 'ttyd', 'wpad-openssl']
+        packages += [pkg for app in ('wol', 'ttyd')
                      for pkg in ('luci-app-' + app, 'luci-i18n-' + app + '-zh-cn')]
         for package in packages:
             with self.subTest(package=package), tempfile.TemporaryDirectory() as tmp:

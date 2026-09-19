@@ -36,7 +36,7 @@ class OfficialMigrationTests(unittest.TestCase):
         for line in (ROOT / 'user/default/config.diff').read_text().splitlines():
             if line.startswith('CONFIG_PACKAGE_') and line.endswith('=y'):
                 self.assertIn(line, config)
-        for app in ('wifi7', 'airoha-npu', 'airoha-flowsense', 'airoha-fancontrol', 'wol', 'ttyd', 'usteer'):
+        for app in ('wifi7', 'airoha-npu', 'airoha-flowsense', 'airoha-fancontrol', 'wol', 'ttyd'):
             self.assertIn(f'CONFIG_PACKAGE_luci-app-{app}=y', config)
             self.assertIn(f'CONFIG_PACKAGE_luci-i18n-{app}-zh-cn=y', config)
         self.assertIn('CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_w1700k-ubi=y', config)

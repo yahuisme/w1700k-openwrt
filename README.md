@@ -21,7 +21,6 @@
 | [风扇控制](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-fancontrol) | 温控曲线与风扇调速 |
 | [FlowSense](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-flowsense) | 流量与加速管理 |
 | [WiFi7](https://github.com/yahuisme/packages/tree/main/luci-app-wifi7) | 无线射频与 MLO 管理 |
-| Usteer | 无线漫游辅助 |
 | 网络唤醒 | Wake-on-LAN |
 | 终端 | 网页终端 |
 

@@ -12,7 +12,7 @@ class FetchFailureTests(unittest.TestCase):
     def test_fetch_failure_stops_before_reset(self):
         lines = (ROOT / '.github/workflows/W1700K.yaml').read_text().splitlines()
         start = next(i for i, line in enumerate(lines) if 'git fetch origin ' in line)
-        end = next(i for i in range(start, len(lines)) if 'git reset --hard origin/' in lines[i])
+        end = next(i for i in range(start, len(lines)) if 'git reset --hard' in lines[i])
         fragment = '\n'.join(line.strip() for line in lines[start:end + 1])
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

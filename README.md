@@ -2,7 +2,7 @@
 
 适用于 **Quantum Fiber / Gemtek W1700K** 路由器的定制 OpenWrt 固件构建项目。
 
-基于 [W1700K OpenWrt Builds](https://github.com/w1700k/builds) 构建框架，源码基线为 [OpenW1700k](https://github.com/OpenWRT-fanboy/OpenW1700k)（ubi2 / ubi2-oc 分支）。
+基于 [W1700K OpenWrt Builds](https://github.com/w1700k/builds) 构建框架，源码与软件源跟随 [官方 OpenWrt main](https://github.com/openwrt/openwrt) snapshot，仅构建标准版。
 
 > ⚠️ **仅适用于 Quantum Fiber / Gemtek W1700K，请勿刷入其他型号设备。**
 
@@ -15,9 +15,8 @@
 - 📦 内置定制专属全中文汉化应用
 - 🌡️ LuCI 首页增加温度及风扇转速显示
 - 🚀 集成 NPU 硬件加速
-- ⚡ 底层网络优化
-- 🛡️ 纯净系统 + 集成最新优化补丁
-- 📡 WiFi 稳定性修复 + 解除功率限制
+- 🛡️ 最小硬件兼容补丁：E2 校准、PHY 扫描前复位、RTL8261CE 板型支持；NAND 保持官方 50MHz
+- 📡 保留 30dBm 配置支持（regdb/mt76/iwinfo）；实际输出受硬件及当地法规约束
 
 ---
 
@@ -27,7 +26,7 @@
 
 | 插件 | 功能说明 |
 | :--- | :--- |
-| [`luci-app-airoha-npu`](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-npu) | Airoha NPU 状态监控与 SoC 频率控制 |
+| [`luci-app-airoha-npu`](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-npu) | Airoha NPU 状态监控与 SoC 管理（频率控制取决于驱动支持） |
 | [`luci-app-airoha-fancontrol`](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-fancontrol) | 动态温控曲线与四线 PWM 风扇调速 |
 | [`luci-app-airoha-flowsense`](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-flowsense) | PPE 硬件流控与加速状态实时监控 |
 | [`luci-app-wifi7`](https://github.com/yahuisme/packages/tree/main/luci-app-wifi7) | Wi-Fi 7 射频、MLO 与运行状态管理 |
@@ -41,8 +40,7 @@
 
 | 固件 | 说明 |
 | --- | --- |
-| `ubi2` | 常规版本，使用标准 CPU 工作参数 |
-| `ubi2-oc` | 超频版本，使用项目提供的超频配置 |
+| 官方 snapshot 标准版 | 现行 W1700K UBI 布局，标准 CPU 参数；仅发布 sysupgrade.itb |
 
 ---
 
@@ -78,4 +76,6 @@ LuCI 状态首页显示 CPU、主板、10G WAN/LAN PHY、2.4/5/6 GHz WiFi 温度
 
 ## 🔄 自动构建
 
-每日自动构建。
+每日香港时间 12:00 自动构建，也可手动运行。保留 ARM runner、下载缓存、ccache 与精确匹配工具链缓存；单标准版总预算 10GB（包含旧缓存与余量）。源码准备清除构建容器预置文件，不使用 fork 包源或 vermagic 覆盖。
+
+补丁来源与边界见 [SOURCES.md](SOURCES.md)。只保留官方标准卸载，不引入 fork bridge flowtable、GRO/NPU 增强或 CPU 超频补丁。四个专属应用仍内置；缺少 CPUFreq/Devfreq 接口时，频率菜单和表单自动隐藏。

@@ -1,0 +1,18 @@
+--- a/package/kernel/linux/modules/netdevices.mk
++++ b/package/kernel/linux/modules/netdevices.mk
+@@ -2521,3 +2521,15 @@
+ endef
+ 
+ $(eval $(call KernelPackage,sparx5-switch))
++
++# W1700K RTL8261C/CE hardware variant (0x001cc890).
++define KernelPackage/phy-rtl8261ce
++  SUBMENU:=$(NETWORK_DEVICES_MENU)
++  TITLE:=Realtek RTL8261CE 10GBASE-T PHY driver
++  KCONFIG:=CONFIG_RTL8261CE_PHY
++  DEPENDS:=+kmod-libphy +kmod-hwmon-core
++  FILES:=$(LINUX_DIR)/drivers/net/phy/rtl8261ce/rtk-rtl8261ce-phy.ko
++  AUTOLOAD:=$(call AutoLoad,18,rtk-rtl8261ce-phy,1)
++endef
++
++$(eval $(call KernelPackage,phy-rtl8261ce))

@@ -32,28 +32,21 @@ restore; a source-content mutation must miss and compile on the cold path.
 It modifies the supplied disposable tree. Empty toolchain layout fixtures are
 **not GCC validation**. These checks do not establish full firmware build speed.
 
-## Parallel upload capacity
+## Single-standard upload capacity
 
-Standard/OC writers have disjoint **6.15/3.85 decimal GB** budgets, totaling
-10,000,000,000 bytes. Every admission counts all generations/refs in its group,
-unknown namespaces, the candidate and at least 64 MiB wrapper margin. Save and
-confirm the exact nonempty current-ref replacement before pruning its old keys;
-never pre-delete a known-good seed to make room. Matrix jobs remain parallel.
+One writer has a **10,000,000,000-byte total** budget. Every admission counts
+all generations/refs, retired/unknown namespaces, the candidate and at least
+64 MiB wrapper margin. Save and confirm the exact nonempty current-ref
+replacement before pruning its old keys; never pre-delete a known-good seed.
+Compiler, exact toolchain and download save/cleanup sequencing is retained.
+Retired OC entries are charged but not treated as standard generations.
+Per-entry caps and exact-key matching are unchanged. Denial preserves old data;
+accumulated old caches may need separately authorized maintenance.
 
-The 2026-09-15 inventory and run 34922925962 compressed sizes require
-6,066,612,571 bytes for standard download replacement and 3,762,191,409 for OC
-toolchain replacement. The former fails under 6 GB. A 6.2/3.8 split leaves OC
-only 37,808,591 bytes; 6.15/3.85 balances spare capacity at 83,387,429 and
-87,808,591 bytes. These are measured-snapshot margins, **not permanent growth
-guarantees**: simultaneous growth, additional generations/refs and unknown caches
-consume the same space. Cold population at all per-entry caps fits, but warm
-replacement at every per-entry maximum need not fit. Denial preserves old data;
-accumulated generations may require separately reviewed maintenance, not an
-automatic destructive fallback. Per-entry caps and exact keys are unchanged.
-
-Run `test_cache_helper.py` and `test_cache_order.py` via unittest discovery for
-measured replacement, full YAML-tail sequencing, capacity boundaries, unknown
-namespace accounting, parallel isolation, cold/warm and failed-save coverage.
+Run `test_cache_helper.py` and `test_cache_order.py` through unittest discovery
+for complete YAML-tail sequencing, 10GB boundaries, legacy accounting,
+cold/warm, failed upload and readback coverage. The migration removes a second
+firmware build, but no new CI timings establish a specific speedup or optimum.
 
 ## Compression choice
 

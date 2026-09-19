@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class SourceRevisionTests(unittest.TestCase):
     def test_nested_prepare_logs_and_failures(self):
-        block = render(step('inputs')['run'], {'matrix.target': 'ubi2'})
+        block = render(step('inputs')['run'], {})
         for phase in ('', 'fetch', 'revision', 'update', 'install', 'list', 'custom', 'download'):
             with self.subTest(phase=phase), tempfile.TemporaryDirectory() as tmp:
                 base = Path(tmp)
@@ -58,12 +58,14 @@ class SourceRevisionTests(unittest.TestCase):
                     self.assertIn('Source: ' + env['SOURCE_SHA'], result.stdout)
                     self.assertIn('luci src-git ' + env['FEED_SHA'], result.stdout)
                     self.assertIn('feeds list -s\n', calls)
-                    self.assertEqual((source / '.config').read_text(), 'CONFIG_TEST=y\nCONFIG_VERSION_NUMBER=ubi2\n')
+                    self.assertEqual((source / '.config').read_text(), 'CONFIG_TEST=y\n')
                     self.assertEqual((base / 'output').read_text(), 'key=tc-v3-ubi2-fixture-key\n')
 
     def test_custom_donor_checkouts(self):
         script = (ROOT / 'user/default/custom.sh').read_text()
-        packages = script[script.index('PKG_REPO='):script.index('# Existing W1700K custom files')]
+        packages = ('PKG_REPO=$(mktemp -d)\ntrap \'rm -rf "$PKG_REPO"\' EXIT\n'
+                    + script[script.index('if ! git clone --depth=1 https://github.com/yahuisme/packages.git'):
+                             script.index('# Existing W1700K custom files')])
         aurora = script[script.index('for pkg in luci-theme-aurora'):script.index('# 修改 Aurora')]
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)

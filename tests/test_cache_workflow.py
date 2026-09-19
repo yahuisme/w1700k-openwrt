@@ -87,32 +87,31 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('--restored', check['run'])
         admit = step('dl_budget')
         save = next(s for s in STEPS if s.get('uses') == 'actions/cache/save@main' and s['with']['path'] == 'dlarchive')
-        for target in ('ubi2', 'ubi2-oc'):
-            for changed in ('true', 'false', ''):
-                for admitted in ('true', 'false', ''):
-                    for archive in ('present', ''):
-                        values = {'matrix.target': target, 'steps.dl_changed.outputs.save': changed,
-                                  'steps.dl_budget.outputs.save': admitted,
-                                  "hashFiles('dlarchive/dl.tar.gz')": archive}
-                        for s, expected in (
-                            (check, target == 'ubi2'),
-                            (admit, target == 'ubi2' and changed == 'true'),
-                            (save, target == 'ubi2' and changed == 'true' and admitted == 'true' and bool(archive)),
-                        ):
-                            condition = s['if']
-                            for key in sorted(values, key=len, reverse=True):
-                                condition = condition.replace(key, repr(values[key]))
-                            # Only trusted local workflow comparisons and fixture literals;
-                            # no event input, network data, or builtins are evaluated.
-                            self.assertEqual(eval(condition.replace('&&', ' and '), {'__builtins__': {}}), expected)
-                values = {'matrix.target': target, 'steps.dl_changed.outputs.save': changed,
-                          'steps.tc.outputs.cache-hit': 'true'}
-                block = render(step('Package build caches')['run'], values)
-                stub = 'docker_exec() { printf "%s\\n" "$*"; }; sudo() { :; };\n'
-                result = subprocess.run(['bash', '-e', '-c', stub + block], capture_output=True, text=True)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual('cache.py dl /dlcache' in result.stdout, target == 'ubi2' and changed == 'true')
-                self.assertIn('cache.py ccache /ghcache', result.stdout)
+        for changed in ('true', 'false', ''):
+            for admitted in ('true', 'false', ''):
+                for archive in ('present', ''):
+                    values = {'steps.dl_changed.outputs.save': changed,
+                              'steps.dl_budget.outputs.save': admitted,
+                              "hashFiles('dlarchive/dl.tar.gz')": archive}
+                    for s, expected in (
+                        (check, True),
+                        (admit, changed == 'true'),
+                        (save, changed == 'true' and admitted == 'true' and bool(archive)),
+                    ):
+                        condition = s.get('if', 'True')
+                        for key in sorted(values, key=len, reverse=True):
+                            condition = condition.replace(key, repr(values[key]))
+                        # Only trusted local workflow comparisons and fixture literals;
+                        # no event input, network data, or builtins are evaluated.
+                        self.assertEqual(eval(condition.replace('&&', ' and '), {'__builtins__': {}}), expected)
+            values = {'steps.dl_changed.outputs.save': changed,
+                      'steps.tc.outputs.cache-hit': 'true'}
+            block = render(step('Package build caches')['run'], values)
+            stub = 'docker_exec() { printf "%s\\n" "$*"; }; sudo() { :; };\n'
+            result = subprocess.run(['bash', '-e', '-c', stub + block], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual('cache.py dl /dlcache' in result.stdout, changed == 'true')
+            self.assertIn('cache.py ccache /ghcache', result.stdout)
 
     def test_snapshot_and_post_compile_check_blocks(self):
         with tempfile.TemporaryDirectory(dir=ROOT / 'tests') as tmp:
@@ -125,8 +124,7 @@ class WorkflowTests(unittest.TestCase):
             output = base / 'output'
             env = dict(os.environ, RUNNER_TEMP=tmp, GITHUB_OUTPUT=str(output))
             def run(name):
-                block = render(step(name)['run'], {'steps.dl.outputs.cache-matched-key': 'dl-v3.old',
-                                                  'matrix.target': 'ubi2'})
+                block = render(step(name)['run'], {'steps.dl.outputs.cache-matched-key': 'dl-v3.old'})
                 result = subprocess.run(['bash', '-e', '-c', 'sudo() { "$@"; };\n' + block],
                                         cwd=base, env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
@@ -161,7 +159,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(STEPS.index(step('tc')), STEPS.index(source) + 1)
 
     def test_source_key_success_and_failure(self):
-        block = render(step('inputs')['run'], {'matrix.target': 'ubi2'})
+        block = render(step('inputs')['run'], {})
         stub = '''docker_exec() {
             if [ "$2" = bash ]; then
                 printf 'source\n' >> "$LOG"
@@ -189,20 +187,19 @@ class WorkflowTests(unittest.TestCase):
                 else:
                     self.assertEqual(output.read_text(), 'key=tc-v3-ubi2-fixture-key\n')
 
-    def test_unpack_snapshot_writer_only(self):
-        for target in ('ubi2', 'ubi2-oc'):
-            with tempfile.TemporaryDirectory() as tmp:
-                block = render(step('Extract rolling caches')['run'], {'matrix.target': target})
-                stub = 'sudo() { printf "%s\\n" "$*"; };\n'
-                result = subprocess.run(['bash', '-e', '-c', stub + block], cwd=tmp,
-                                        capture_output=True, text=True)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual('dlcache.py snapshot' in result.stdout, target == 'ubi2')
+    def test_unpack_creates_download_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            block = render(step('Extract rolling caches')['run'], {})
+            stub = 'sudo() { printf "%s\\n" "$*"; };\n'
+            result = subprocess.run(['bash', '-e', '-c', stub + block], cwd=tmp,
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('dlcache.py snapshot', result.stdout)
 
     def test_cache_save_cleanup_order_and_failure_gates(self):
         workflow = yaml.safe_load(WORKFLOW.read_text())
         self.assertEqual(workflow['concurrency'], {'group': 'w1700k-cache', 'cancel-in-progress': False})
-        self.assertEqual(workflow['jobs']['build']['strategy']['matrix']['target'], ['ubi2', 'ubi2-oc'])
+        self.assertNotIn('strategy', workflow['jobs']['build'])
         previous = -1
         for kind, path in [('cc', 'ccarchive'), ('tc', 'tcarchive'), ('dl', 'dlarchive')]:
             admission = step(kind + '_budget')

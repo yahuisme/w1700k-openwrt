@@ -12,7 +12,12 @@ echo "Running custom commands"
 # luci-app-airoha-flowsense / luci-app-airoha-fancontrol
 # are maintained in yahuisme/packages with native LuCI UI,
 # built-in 100% i18n, and strict platform safety checks.
-PKG_REPO=/tmp/yahuisme-packages
+PKG_REPO=$(mktemp -d)
+trap 'rm -rf "$PKG_REPO"' EXIT
+
+# Checked-in, narrowly scoped hardware/power delta; never fetch fork patches.
+cp -a "$DK_PROFILE/tree/." .
+patch -p1 --fuzz=0 < "$DK_PROFILE/patches/001-w1700k-platform.patch"
 if ! git clone --depth=1 https://github.com/yahuisme/packages.git "$PKG_REPO"; then
     echo "ERROR: Failed to clone user packages repo!"
     exit 1
@@ -30,6 +35,16 @@ cp -r "$PKG_REPO/luci-app-wifi7" "$PKG_REPO/luci-app-airoha-npu" \
 mkdir -p feeds/luci/modules/luci-mod-status/patches
 cp -f "$DK_PROFILE/patches/998-single-wiphy.patch" \
     feeds/luci/modules/luci-mod-status/patches/998-single-wiphy.patch
+
+# Preserve the user's status LED colors, not donor platform enhancements.
+DTS=target/linux/airoha/dts/an7581-w1700k-ubi.dts
+sed -i -e 's/led-boot = &led_status_red;/led-boot = \&led_status_green;/' \
+       -e 's/led-failsafe = &led_status_blue;/led-failsafe = \&led_status_red;/' \
+       -e 's/led-running = &led_status_green;/led-running = \&led_status_white;/' "$DTS"
+for alias in 'boot green' 'failsafe red' 'running white'; do
+    read -r state color <<< "$alias"
+    grep -q "led-$state = &led_status_$color;" "$DTS" || { echo "ERROR: LED alias mismatch: $state" >&2; exit 1; }
+done
 
 # -------------------------------------------------
 # Install latest Aurora LuCI theme
@@ -88,7 +103,7 @@ rm -f tmp/.packageinfo 2>/dev/null || true
 
 
 # -------------------------------------------------
-# Wireless regdb power boost (quilt-applied, after fork 555)
+# Wireless regdb power boost (quilt-applied, after local 555 mirror)
 # 610 CN 2.4G/5.2G + US 5.2G/5.5G to 30dBm
 # -------------------------------------------------
 mkdir -p package/firmware/wireless-regdb/patches

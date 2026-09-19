@@ -13,13 +13,13 @@ ROOT = Path(__file__).resolve().parents[1]
 STEPS = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())['jobs']['build']['steps']
 # Reconstructed from run 34728875877 inventory total and the three recorded
 # upload sizes (34706572059, 34711268819, current API). IDs are fixture-only.
-REAL = [entry(1, 'tc-v3-ubi2-oc-a8b702', 1564072318),
-        entry(2, 'cc-v3-ubi2-oc.34706572059.1', 534728921),
-        entry(3, 'cc-v3-ubi2-oc.34711268819.1', 534835080)]
+REAL = [entry(1, 'tc-v3-ubi2-a8b702', 1564072318),
+        entry(2, 'cc-v3-ubi2.34706572059.1', 534728921),
+        entry(3, 'cc-v3-ubi2.34711268819.1', 534835080)]
 
 
 class CacheOrderTests(unittest.TestCase):
-    def run_tail(self, entries, target='ubi2-oc', warm=False, cc=535453831,
+    def run_tail(self, entries, warm=False, cc=535453831,
                  tc=1575367741, fault='', fail_reads=(), delay=0, toolchain_first=False, dl=100):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -41,9 +41,9 @@ class CacheOrderTests(unittest.TestCase):
                 if size is not None:
                     with p.open('wb') as f:
                         f.truncate(size)
-            values = {'matrix.target': target, 'steps.tc.outputs.cache-hit': 'true' if warm else 'false',
-                      'steps.inputs.outputs.key': f'tc-v3-{target}-new',
-                      'steps.gh.outputs.cache-primary-key': f'cc-v3-{target}.new',
+            values = {'steps.tc.outputs.cache-hit': 'true' if warm else 'false',
+                      'steps.inputs.outputs.key': 'tc-v3-ubi2-new',
+                      'steps.gh.outputs.cache-primary-key': 'cc-v3-ubi2.new',
                       'steps.dl.outputs.cache-primary-key': 'dl-v3.new',
                       'steps.dl_changed.outputs.save': 'true'}
             env = dict(os.environ, PATH=tmp + os.pathsep + os.environ['PATH'],
@@ -53,7 +53,7 @@ class CacheOrderTests(unittest.TestCase):
                     return 'present' if (base / expr.split("'")[1]).exists() else ''
                 return values.get(expr, '')
             def condition(expr):
-                expr = re.sub(r"hashFiles\('[^']+'\)|(?:steps|matrix)\.[\w.-]+", lambda m: repr(resolve(m[0])), expr)
+                expr = re.sub(r"hashFiles\('[^']+'\)|steps\.[\w.-]+", lambda m: repr(resolve(m[0])), expr)
                 # Only trusted repository YAML comparisons and repr-quoted fixture
                 # literals reach eval; no event input or network text is evaluated.
                 return eval(expr.replace('&&', ' and '), {'__builtins__': {}})
@@ -97,30 +97,26 @@ class CacheOrderTests(unittest.TestCase):
                     state.write_text(json.dumps(s))
             return saves, json.loads(state.read_text()), '\n'.join(logs)
 
-    def test_measured_download_and_peer_replacement_tail(self):
-        # 2026-09-15 API sizes; saves conservatively use inner gzip sizes.
+    def test_measured_download_tail_preserves_retired_oc(self):
+        # Historical OC entries still count toward the standard writer's budget.
         entries = [entry(1, 'tc-v3-ubi2-old', 1568383907),
                    entry(2, 'cc-v3-ubi2.old', 548162862),
                    entry(3, 'tc-v3-ubi2-oc-old', 1568156316),
                    entry(4, 'cc-v3-ubi2-oc.old', 547492660),
                    entry(5, 'dl-v3.old', 1941241977)]
-        for target, cc, tc in [('ubi2', 548360578, 1579480024),
-                               ('ubi2-oc', 547780097, 1579433569)]:
-            for warm in (False, True):
-                with self.subTest(target=target, warm=warm):
-                    saves, state, log = self.run_tail(entries, target=target,
-                        warm=warm, cc=cc, tc=tc, dl=1941714961)
-                    self.assertEqual(saves, ['cc'] + ([] if warm else ['tc'])
-                                     + (['dl'] if target == 'ubi2' else []), log)
-                    peer = {3, 4} if target == 'ubi2' else {1, 2, 5}
-                    self.assertTrue(peer <= {e['id'] for e in state['entries']})
+        for warm in (False, True):
+            with self.subTest(warm=warm):
+                saves, state, log = self.run_tail(entries, warm=warm,
+                    cc=548360578, tc=1579480024, dl=1941714961)
+                self.assertEqual(saves, ['cc'] + ([] if warm else ['tc']) + ['dl'], log)
+                self.assertTrue({3, 4} <= {e['id'] for e in state['entries']})
 
-    def test_actual_oc_inventory_seeds_both_after_cc_retention(self):
+    def test_recorded_inventory_seeds_caches_after_cc_retention(self):
         self.assertEqual(sum(e['size_in_bytes'] for e in REAL), 2633636319)
         saves, state, log = self.run_tail(REAL)
-        self.assertEqual(saves, ['cc', 'tc'], log)
+        self.assertEqual(saves, ['cc', 'tc', 'dl'], log)
         self.assertIn('inventory=2099258880 candidate+margin=1642476605', log)
-        self.assertEqual({e['key'] for e in state['entries']}, {'cc-v3-ubi2-oc.new', 'tc-v3-ubi2-oc-new'})
+        self.assertEqual({e['key'] for e in state['entries']}, {'cc-v3-ubi2.new', 'tc-v3-ubi2-new', 'dl-v3.new'})
 
     def test_unconfirmed_upload_blocks_later_admission(self):
         saves, state, log = self.run_tail(REAL, fault='warning')
@@ -128,23 +124,22 @@ class CacheOrderTests(unittest.TestCase):
         self.assertNotIn('Check toolchain cache budget', log)
         self.assertEqual(state['entries'], REAL)
 
-    def test_cold_and_warm_both_groups(self):
-        for target in ('ubi2', 'ubi2-oc'):
-            for warm in (False, True):
-                with self.subTest(target=target, warm=warm):
-                    saves, _, log = self.run_tail([], target=target, warm=warm)
-                    self.assertEqual(saves, ['cc'] + ([] if warm else ['tc']) + (['dl'] if target == 'ubi2' else []), log)
+    def test_cold_and_warm_standard_caches(self):
+        for warm in (False, True):
+            with self.subTest(warm=warm):
+                saves, _, log = self.run_tail([], warm=warm)
+                self.assertEqual(saves, ['cc'] + ([] if warm else ['tc']) + ['dl'], log)
 
     def test_budget_denial_allows_smaller_later_candidate(self):
-        saves, _, log = self.run_tail([entry(1, 'legacy', 2600000000)], cc=1500000000, tc=100)
-        self.assertEqual(saves, ['tc'], log)
-        saves, _, log = self.run_tail([entry(1, 'legacy', 2600000000)], target='ubi2', cc=100, tc=2000000001)
+        saves, _, log = self.run_tail([entry(1, 'legacy', 8600000000)], cc=1500000000, tc=100)
+        self.assertEqual(saves, ['tc', 'dl'], log)
+        saves, _, log = self.run_tail([entry(1, 'legacy', 2600000000)], cc=100, tc=2000000001)
         self.assertEqual(saves, ['cc', 'dl'], log)
 
     def test_missing_archive_and_admission_api_failure_can_continue(self):
         for options in ({'cc': None}, {'fail_reads': [1]}):
             saves, _, log = self.run_tail([], **options)
-            self.assertEqual(saves, ['tc'], log)
+            self.assertEqual(saves, ['tc', 'dl'], log)
 
     def test_upload_and_cleanup_failures_fail_closed(self):
         for options in ({'fault': 'zero'}, {'fault': 'wrong_ref'}, {'fault': 'action_failure'},
@@ -156,36 +151,24 @@ class CacheOrderTests(unittest.TestCase):
 
     def test_delayed_confirmation_then_prune_allows_toolchain(self):
         saves, state, log = self.run_tail(REAL, delay=2)
-        self.assertEqual(saves, ['cc', 'tc'], log)
-        self.assertEqual(len(state['entries']), 2)
+        self.assertEqual(saves, ['cc', 'tc', 'dl'], log)
+        self.assertEqual(len(state['entries']), 3)
 
     def test_toolchain_unconfirmed_blocks_download_after_cc_denial(self):
-        saves, state, log = self.run_tail([], target='ubi2', cc=None, fault='warning')
+        saves, state, log = self.run_tail([], cc=None, fault='warning')
         self.assertEqual(saves, ['tc'], log)
         self.assertNotIn('Check download cache budget', log)
         self.assertEqual(state['entries'], [])
 
-    def test_actual_warm_inventory_and_peer_ref_protection(self):
-        for target in ('ubi2', 'ubi2-oc'):
-            with self.subTest(target=target):
-                entries = [entry(1, f'tc-v3-{target}-new', 1564072318),
-                           entry(2, f'cc-v3-{target}.old', 534835080),
-                           entry(3, 'cc-v3-ubi2-oc.peer' if target == 'ubi2' else 'cc-v3-ubi2.peer', 100),
-                           entry(4, f'cc-v3-{target}.other', 100, 'refs/heads/other')]
-                saves, state, log = self.run_tail(entries, target=target, warm=True)
-                self.assertEqual(saves, ['cc'] + (['dl'] if target == 'ubi2' else []), log)
-                self.assertTrue({1, 3, 4} <= {e['id'] for e in state['entries']})
-                self.assertNotIn(2, {e['id'] for e in state['entries']})
-
-    def test_order_is_not_universal_toolchain_priority(self):
-        # Explicit synthetic counterexample: cc growth can consume tc headroom.
-        entries = [entry(1, 'tc-v3-ubi2-oc-old', 1800000000), entry(2, 'cc-v3-ubi2-oc.old', 100000000)]
-        saves, _, log = self.run_tail(entries, cc=1500000000, tc=1800000000)
-        self.assertEqual(saves, ['cc'], log)
-        self.assertLessEqual(1900000000 + 1800000000 + 67108864, 3850000000)
-        before, _, old_log = self.run_tail(entries, cc=1500000000, tc=1800000000,
-                                          toolchain_first=True)
-        self.assertEqual(before, ['tc', 'cc'], old_log)
+    def test_warm_inventory_preserves_retired_oc_and_other_refs(self):
+        entries = [entry(1, 'tc-v3-ubi2-new', 1564072318),
+                   entry(2, 'cc-v3-ubi2.old', 534835080),
+                   entry(3, 'cc-v3-ubi2-oc.peer', 100),
+                   entry(4, 'cc-v3-ubi2.other', 100, 'refs/heads/other')]
+        saves, state, log = self.run_tail(entries, warm=True)
+        self.assertEqual(saves, ['cc', 'dl'], log)
+        self.assertTrue({1, 3, 4} <= {e['id'] for e in state['entries']})
+        self.assertNotIn(2, {e['id'] for e in state['entries']})
 
 
 if __name__ == '__main__':

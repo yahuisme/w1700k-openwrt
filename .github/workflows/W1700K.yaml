@@ -14,9 +14,8 @@ permissions:
   contents: write
 jobs:
   build:
-    name: Build ${{ matrix.target }}
+    name: Build standard snapshot
     runs-on: ubuntu-24.04-arm
-    strategy: {fail-fast: false, matrix: {target: [ubi2, ubi2-oc]}}
     env:
       DK_OPENWRT: /bld/openwrt
       DK_BIN: /bld/openwrt_bin
@@ -31,7 +30,7 @@ jobs:
     - name: Restore compiler cache
       id: gh
       uses: actions/cache/restore@main
-      with: {path: ccarchive, key: 'cc-v3-${{ matrix.target }}.${{ github.run_id }}.${{ github.run_attempt }}', restore-keys: 'cc-v3-${{ matrix.target }}.'}
+      with: {path: ccarchive, key: 'cc-v3-ubi2.${{ github.run_id }}.${{ github.run_attempt }}', restore-keys: 'cc-v3-ubi2.'}
     - name: Restore download cache
       id: dl
       uses: actions/cache/restore@main
@@ -41,14 +40,10 @@ jobs:
         mkdir -p openwrt_bin ghcache dlcache tcarchive ccarchive dlarchive
         if [ -f ccarchive/ccache.tar.gz ]; then tar --gzip -xf ccarchive/ccache.tar.gz -C ghcache; fi
         if [ -f dlarchive/dl.tar.gz ]; then tar --gzip -xf dlarchive/dl.tar.gz -C dlcache; fi
-        if [ '${{ matrix.target }}' = ubi2 ]; then
-          sudo python3 scripts/dlcache.py snapshot dlcache "$RUNNER_TEMP/dlcache-before.json"
-        fi
+        sudo python3 scripts/dlcache.py snapshot dlcache "$RUNNER_TEMP/dlcache-before.json"
 
     - name: Initialize build container
       run: |
-        curl --fail --create-dirs -Lo user/default/files/etc/apk/repositories.d/distfeeds.list https://w1700k.github.io/builds/distfeeds.list
-        curl --fail -Lo user/default/files/etc/vermagic.txt https://w1700k.github.io/builds/vermagic.txt
         [ -f "user/default/config.diff" ] || { echo "::error::config.diff not found"; exit 1; }
         rsync -aI --mkpath user/default/ user/current/ 2>&-
         echo 'CONFIG_CCACHE_DIR="/ghcache"' >> user/current/config.diff
@@ -77,33 +72,32 @@ jobs:
         # Variables expand inside the container, not on the runner.
         # shellcheck disable=SC2016
         docker_exec DK bash -e -c '
-          REPO_URL="https://github.com/OpenWRT-fanboy/OpenW1700k"
-          REPO_BRANCH="${{ matrix.target }}"
-          mkdir -p $DK_OPENWRT/files
+          REPO_URL="https://github.com/openwrt/openwrt"
+          REPO_BRANCH="main"
+          mkdir -p $DK_OPENWRT
           cd $DK_OPENWRT
           if [ ! -d .git ]; then git init; fi
           git remote set-url origin $REPO_URL 2>&- || git remote add origin $REPO_URL
           git fetch origin "+refs/heads/$REPO_BRANCH:refs/remotes/origin/$REPO_BRANCH"
-          git checkout -f $REPO_BRANCH
-          git reset --hard origin/$REPO_BRANCH
+          git checkout -f -B "$REPO_BRANCH" "origin/$REPO_BRANCH"
+          git reset --hard "origin/$REPO_BRANCH"
+          # Remove ALL builder-preseeded patches, feeds, overlays and ABI files.
+          git clean -ffdx
           SOURCE_SHA=$(git rev-parse HEAD)
           echo "Source: $SOURCE_SHA"
           mountpoint $DK_BIN || { echo "::error::not mounted" >&2; exit 1; }
-          rm -rf bin dl staging_dir build_dir
           ln -s $DK_BIN bin && ln -s /dlcache dl
-          rm -rf feeds/* &>/dev/null
           ./scripts/feeds update -a &>/dev/null || { echo "::error::feeds update failed"; exit 1; }
           ./scripts/feeds install -a &>/dev/null || { echo "::error::feeds install failed"; exit 1; }
           ./scripts/feeds list -s
           cp $DK_PROFILE/config.diff .config
           cp -r $DK_PROFILE/files/ .
-          rm -f files/build_info  # clear build_info pre-seeded in the base-builder image
           bash $DK_PROFILE/custom.sh
-          make defconfig; echo "CONFIG_VERSION_NUMBER=${{ matrix.target }}" >> .config
+          make defconfig
           make download -j8 || exit 1
         '
         KEY=$(docker_exec DK python3 /cache-scripts/cache.py key "$DK_OPENWRT" /tcarchive "$IMAGE_ID")
-        echo "key=tc-v3-${{ matrix.target }}-$KEY" >> "$GITHUB_OUTPUT"
+        echo "key=tc-v3-ubi2-$KEY" >> "$GITHUB_OUTPUT"
     - name: Restore toolchain cache
       id: tc
       uses: actions/cache/restore@main
@@ -131,7 +125,6 @@ jobs:
     # Go can add dl/go-mod-cache entries during compilation, after make download.
     - name: Detect download cache changes
       id: dl_changed
-      if: matrix.target == 'ubi2'
       run: |
         # Runner owns GITHUB_OUTPUT; sudo only reads container-owned downloads.
         # shellcheck disable=SC2024
@@ -146,6 +139,14 @@ jobs:
           grep -qxF "$symbol=y" "$RUNNER_TEMP/firmware.config" || { echo "::error::Wrong firmware target: $symbol"; exit 1; }
         done
         [ "$(grep -E '^CONFIG_TARGET_.*_DEVICE_.*=y$' "$RUNNER_TEMP/firmware.config")" = 'CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_w1700k-ubi=y' ]
+        for app in wifi7 airoha-npu airoha-flowsense airoha-fancontrol wol ttyd usteer; do
+          for package in "luci-app-$app" "luci-i18n-$app-zh-cn"; do
+            grep -qxF "CONFIG_PACKAGE_$package=y" "$RUNNER_TEMP/firmware.config" || { echo "::error::Missing required package: $package"; exit 1; }
+          done
+        done
+        for package in etherwake ttyd usteer wpad-openssl; do
+          grep -qxF "CONFIG_PACKAGE_$package=y" "$RUNNER_TEMP/firmware.config" || { echo "::error::Missing required package: $package"; exit 1; }
+        done
         shopt -s nullglob
         profiles=(openwrt_bin/targets/*/*/profiles.json)
         images=(openwrt_bin/targets/*/*/*sysupgrade*)
@@ -168,39 +169,17 @@ jobs:
         mkdir -p firmware
         install -t firmware "${profiles[0]}" "${images[0]}"
         PREFIX="W1700K-OpenWrt_"
-        [ "${{ matrix.target }}" = "ubi2-oc" ] && PREFIX="W1700K-OpenWrt-OC_"
         VERSION="${PREFIX%_}-r$(jq -r '.version_code' firmware/profiles.json | sed 's/^r//; s/-.*//')-$(TZ=Asia/Hong_Kong date +'%y.%m.%d-%H.%M.%S')"
         echo "$VERSION" > firmware/version.txt
         RELEASE_NOTES="firmware/release-notes.md"
-        if [ "${{ matrix.target }}" = "ubi2" ]; then
-          cat > "$RELEASE_NOTES" <<EOF
-        ## Quantum Fiber / Gemtek W1700K OpenWrt — ubi2 标准版
+        cat > "$RELEASE_NOTES" <<EOF
+        ## Quantum Fiber / Gemtek W1700K OpenWrt — 官方 snapshot 标准版
 
-        **推荐版本。** 使用标准 CPU 工作参数，优先保障稳定性，适合绝大多数 W1700K 用户日常使用。
-
-        - 机型：Quantum Fiber / Gemtek W1700K
-        - 固件分支：\`ubi2\`
+        - 源码： https://github.com/openwrt/openwrt （main，标准 CPU 参数）
         - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
-        - 固件源码：https://github.com/OpenWRT-fanboy/OpenW1700k
-        - 本 Release 仅包含 \`sysupgrade.itb\` 升级镜像。
-
-        请确认设备为 W1700K，并在刷写前备份当前配置。
+        - 仅提供现行 UBI 布局的 sysupgrade.itb；刷写前请备份配置。
+        - 保留最小硬件兼容与功率补丁，不代表已实机验证失联问题修复。
         EOF
-        else
-          cat > "$RELEASE_NOTES" <<EOF
-        ## Quantum Fiber / Gemtek W1700K OpenWrt — ubi2-oc 超频版
-
-        **超频版本：默认性能模式并超频 +200 MHz。**
-
-        - 机型：Quantum Fiber / Gemtek W1700K
-        - 固件分支：\`ubi2-oc\`
-        - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
-        - 固件源码：https://github.com/OpenWRT-fanboy/OpenW1700k
-        - 本 Release 仅包含 \`sysupgrade.itb\` 升级镜像。
-
-        刷写前请确认设备为 W1700K，并备份当前配置。
-        EOF
-        fi
 
     - name: Publish firmware and prune old releases
       env:
@@ -220,10 +199,9 @@ jobs:
         RELEASE_TITLE="${VERSION%-*}_${VERSION##*-}"
         gh release create "$VERSION" firmware/*sysupgrade.itb --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file firmware/release-notes.md
         PREFIX="W1700K-OpenWrt_"
-        [ "${{ matrix.target }}" = "ubi2-oc" ] && PREFIX="W1700K-OpenWrt-OC_"
-        gh release list --json tagName --jq '.[].tagName' | grep -E "^(${PREFIX}|${PREFIX%_}-r[0-9]+-|W1700K-${{ matrix.target }}_)" | grep -vxF "$VERSION" | xargs -r -n1 gh release delete --cleanup-tag -y ||:
+        gh release list --json tagName --jq '.[].tagName' | grep -E "^(${PREFIX}|${PREFIX%_}-r[0-9]+-|W1700K-ubi2_)" | grep -vxF "$VERSION" | xargs -r -n1 gh release delete --cleanup-tag -y ||:
 
-    # Independent matrix budgets: standard 6.15 GB, OC 3.85 GB (including margin).
+    # One standard writer: total 10 GB including legacy entries and margin.
     # Count all own generations and unknown/legacy entries on each admission.
     # Save/readback/cleanup precedes the next admission in each writer.
     - name: Package build caches
@@ -232,39 +210,39 @@ jobs:
         if [ '${{ steps.tc.outputs.cache-hit }}' != true ]; then
           docker_exec DK python3 /cache-scripts/cache.py toolchain "$DK_OPENWRT" /tcarchive '${{ steps.inputs.outputs.key }}'
         fi
-        if [ '${{ matrix.target }}' = ubi2 ] && [ '${{ steps.dl_changed.outputs.save }}' = true ]; then
+        if [ '${{ steps.dl_changed.outputs.save }}' = true ]; then
           docker_exec DK python3 /cache-scripts/cache.py dl /dlcache /dlarchive unused
         fi
         sudo chown -R "$(id -u):$(id -g)" tcarchive ccarchive dlarchive
     # Retire confirmed rolling compiler generations before admitting toolchain.
     - name: Check compiler cache budget
       id: cc_budget
-      run: python3 scripts/cache_helper.py admit 'cc-v3-${{ matrix.target }}.' ccarchive/ccache.tar.gz '${{ steps.gh.outputs.cache-primary-key }}'
+      run: python3 scripts/cache_helper.py admit 'cc-v3-ubi2.' ccarchive/ccache.tar.gz '${{ steps.gh.outputs.cache-primary-key }}'
     - name: Save compiler cache
       uses: actions/cache/save@main
       if: steps.cc_budget.outputs.save == 'true' && hashFiles('ccarchive/ccache.tar.gz') != ''
       with: {path: ccarchive, key: '${{ steps.gh.outputs.cache-primary-key }}'}
     - name: Prune old compiler caches
       if: steps.cc_budget.outputs.save == 'true'
-      run: python3 scripts/cache_helper.py cleanup 'cc-v3-${{ matrix.target }}.' '${{ steps.gh.outputs.cache-primary-key }}'
+      run: python3 scripts/cache_helper.py cleanup 'cc-v3-ubi2.' '${{ steps.gh.outputs.cache-primary-key }}'
     - name: Check toolchain cache budget
       id: tc_budget
       if: steps.tc.outputs.cache-hit != 'true'
-      run: python3 scripts/cache_helper.py admit 'tc-v3-${{ matrix.target }}-' tcarchive/toolchain.tar.gz '${{ steps.inputs.outputs.key }}'
+      run: python3 scripts/cache_helper.py admit 'tc-v3-ubi2-' tcarchive/toolchain.tar.gz '${{ steps.inputs.outputs.key }}'
     - name: Save toolchain cache
       uses: actions/cache/save@main
       if: steps.tc_budget.outputs.save == 'true' && hashFiles('tcarchive/toolchain.tar.gz') != ''
       with: {path: tcarchive, key: '${{ steps.inputs.outputs.key }}'}
     - name: Prune old toolchain caches
       if: steps.tc_budget.outputs.save == 'true'
-      run: python3 scripts/cache_helper.py cleanup 'tc-v3-${{ matrix.target }}-' '${{ steps.inputs.outputs.key }}'
+      run: python3 scripts/cache_helper.py cleanup 'tc-v3-ubi2-' '${{ steps.inputs.outputs.key }}'
     - name: Check download cache budget
       id: dl_budget
-      if: matrix.target == 'ubi2' && steps.dl_changed.outputs.save == 'true'
+      if: steps.dl_changed.outputs.save == 'true'
       run: python3 scripts/cache_helper.py admit 'dl-v3.' dlarchive/dl.tar.gz '${{ steps.dl.outputs.cache-primary-key }}'
     - name: Save download cache
       uses: actions/cache/save@main
-      if: matrix.target == 'ubi2' && steps.dl_changed.outputs.save == 'true' && steps.dl_budget.outputs.save == 'true' && hashFiles('dlarchive/dl.tar.gz') != ''
+      if: steps.dl_changed.outputs.save == 'true' && steps.dl_budget.outputs.save == 'true' && hashFiles('dlarchive/dl.tar.gz') != ''
       with: {path: dlarchive, key: '${{ steps.dl.outputs.cache-primary-key }}'}
     - name: Prune old download caches
       if: steps.dl_budget.outputs.save == 'true'

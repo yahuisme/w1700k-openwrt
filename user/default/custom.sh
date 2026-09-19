@@ -19,6 +19,7 @@ trap 'rm -rf "$PKG_REPO"' EXIT
 # Keep container ownership: the mounted profile belongs to the runner UID.
 cp -a --no-preserve=ownership "$DK_PROFILE/tree/." .
 patch -p1 --fuzz=0 < "$DK_PROFILE/patches/001-w1700k-platform.patch"
+patch -p1 --fuzz=0 < "$DK_PROFILE/patches/002-w1700k-cpufreq-resources.patch"
 if ! git clone --depth=1 https://github.com/yahuisme/packages.git "$PKG_REPO"; then
     echo "ERROR: Failed to clone user packages repo!"
     exit 1

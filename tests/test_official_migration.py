@@ -24,10 +24,10 @@ class OfficialMigrationTests(unittest.TestCase):
     def test_minimal_kernel_delta(self):
         tree = ROOT / 'user/default/tree'
         patches = sorted(p.name for p in tree.glob('target/linux/airoha/patches-*/*.patch'))
-        self.assertEqual([p[:3] for p in patches], ['745', '746'])
+        self.assertEqual([p[:3] for p in patches], ['745', '746', '940'])
         self.assertEqual(len(list(tree.glob('package/kernel/mt76/patches/*.patch'))), 2)
         self.assertFalse((tree / 'package/network/config/firewall4').exists())
-        self.assertFalse(list(tree.rglob('*cpufreq*')))
+        self.assertFalse(list(tree.rglob('939-*')))
 
     @unittest.skipUnless(os.environ.get('OPENWRT_SOURCE'), 'set OPENWRT_SOURCE to real prepared official tree')
     def test_real_defconfig_and_clean_removes_preseeded_inputs(self):

@@ -14,7 +14,7 @@ permissions:
   contents: write
 jobs:
   build:
-    name: Build standard snapshot
+    name: w1700k Build firmware
     runs-on: ubuntu-24.04-arm
     env:
       DK_OPENWRT: /bld/openwrt

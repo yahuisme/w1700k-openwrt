@@ -1,6 +1,6 @@
 # Source and minimal local delta
 
-Builds follow `https://github.com/openwrt/openwrt` **main**, including its official feeds and package source revisions. No fork distfeeds, kernel vermagic override, dynamic fork patch download, bridge-flowtable/GRO/NPU enhancement or CPUFreq/PLL enhancement is imported. The existing ARM builder image supplies host tools only: source preparation performs `git reset --hard` and `git clean -ffdx` before feeds/customization, removing preseeded tracked and untracked build inputs.
+Builds follow `https://github.com/openwrt/openwrt` **main**, including its official feeds and package source revisions. No fork distfeeds, kernel vermagic override, dynamic fork patch download, bridge-flowtable/GRO/NPU enhancement or OC extension is imported. The existing ARM builder image supplies host tools only: source preparation performs `git reset --hard` and `git clean -ffdx` before feeds/customization, removing preseeded tracked and untracked build inputs.
 
 ## Checked-in additions
 
@@ -11,12 +11,15 @@ Paths under `user/default/tree/` mirror their buildroot destination; `custom.sh`
 | `tree/target/linux/airoha/patches-6.18/745-*` | OpenWRT-fanboy/OpenW1700k `bce05fa86b222741d8afcef2e5468a9481679041`: include E2 in manual PCS RX calibration |
 | `tree/target/linux/airoha/patches-6.18/746-*` | Same donor: deassert external PHY reset before MDIO identification |
 | `tree/target/linux/generic/{hack-6.18/999-*,files/drivers/net/phy/rtl8261ce/*}` | Same donor: external RTL8261C/CE PHY model `0x001cc890`, including vendor register sequences and hwmon; retain source licenses |
+| `tree/target/linux/airoha/patches-6.18/940-*`, `patches/002-w1700k-cpufreq-resources.patch` | Standard CPUFreq compatibility: original 940 C hunks from OpenW1700k `972634e64d19cba0095b662a0bfd9561ebef635c`, omitting only duplicate Kconfig; W1700K-only DT resources. Official attach_list, state 0–14, 500–1200 MHz and governor unchanged; no OC |
 | `patches/001-w1700k-platform.patch` | Minimal local integration of RTL8261CE kmod recipe; package selection explicit in config.diff |
 | `tree/package/kernel/mt76/patches/910-*`, `911-*` | Existing yahuisme/w1700k-immortalwrt local rebases of donor `0010-enable-firmware-txpower-limit` and `0011-refresh-power-limits-on-txpower-changes`; official mt76 package retained |
 | `tree/package/firmware/wireless-regdb/patches/555-*` | Same donor: existing US upper-5GHz/6GHz regulatory settings, prerequisite of retained 610 patch |
 | `patches/610-w1700k-cn-us-power-30.patch` | Existing user CN/US 30dBm delta, retained unchanged |
 | `tree/package/network/utils/iwinfo/patches/999-*` | Same donor: split-wiphy, current-frequency power-list reporting |
 | `patches/998-single-wiphy.patch` | Existing Gilly1970 LuCI channel-analysis netdev resolution fix, retained unchanged |
+
+The CPUFreq port is a local candidate, not hardware-validated: initial genpd level-0 vote synchronization and PLL failure/readback remain review gates. Do not infer runtime correctness from patch applicability.
 
 NAND remains at official 50 MHz: no reproduced failure justifies the inherited 33 MHz downclock. RTL8261CE supports the W1700K board variant; this physical unit’s PHY has not been identified. Existing boot green / failsafe red / running white LED aliases are retained.
 

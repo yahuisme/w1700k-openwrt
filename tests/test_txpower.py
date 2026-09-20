@@ -22,8 +22,9 @@ def function(source, name):
     return source[start:end]
 
 
-@unittest.skipUnless(os.environ.get('TXPOWER_SOURCE') and shutil.which('ucode'),
-                     'set TXPOWER_SOURCE and install native ucode for lifecycle tests')
+@unittest.skipUnless(os.environ.get('TXPOWER_SOURCE') and
+                     (os.environ.get('TXPOWER_RUNTIME_ROOT') or shutil.which('ucode')),
+                     'set TXPOWER_SOURCE and provide a released runtime or native ucode')
 class TxpowerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -48,7 +49,10 @@ class TxpowerTests(unittest.TestCase):
     def run_ucode(self, code):
         path = self.tree / 'test.uc'
         path.write_text(code)
-        proc = subprocess.run(['ucode', str(path)], text=True, capture_output=True)
+        runtime = os.environ.get('TXPOWER_RUNTIME_ROOT')
+        command = (['/usr/sbin/chroot', runtime, '/usr/bin/ucode', '-e', code]
+                   if runtime else [shutil.which('ucode'), str(path)])
+        proc = subprocess.run(command, env={}, text=True, capture_output=True, timeout=5)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         return json.loads(proc.stdout)
 
@@ -93,14 +97,17 @@ setup(); printf('%J',{commands,config:passed});''')
         # Execute actual exported callback object, without module initialization.
         start = self.host.index('\nreturn {\n\tshutdown:')
         callbacks = self.host[start:].replace('\nreturn {', '\nlet callbacks = {', 1)
-        helper = function(self.host, 'bss_txpower') if 'function bss_txpower(' in self.host else ''
+        # Keep the contiguous production declarations in their original order.
+        names = ('bss_event', 'bss_txpower') if 'function bss_txpower(' in self.host else ('bss_event',)
+        first = min(self.host.index('function ' + name + '(') for name in names)
+        declarations = self.host[first:start]
         return '''let commands=[];let logs=[];let events=[];let fail=false;
 global.system=(cmd)=>{push(commands,cmd);return fail?1:0;};
 let hostapd={data:{config:{},dpp_hooks:{},
  obj:{notify:(type,data)=>push(events,{type,data})},
  ubus:{call:(object,method,data)=>push(events,{object,method,data})}},printf:(s)=>push(logs,s)};
 function wdev_set_radio_mask(n,m){}
-''' + function(self.host, 'bss_event') + helper + callbacks
+''' + declarations + callbacks
 
     def test_async_callbacks_reload_cancel_failure_mlo(self):
         result = self.run_ucode(self.host_code() + '''
@@ -126,7 +133,7 @@ printf('%J',{before,commands,logs});
 ''')
         self.assertEqual(result['before'], 0)
         self.assertEqual(result['commands'], [
-            ['iw', 'dev', name, 'set', 'txpower', 'fixed', power]
+            ['/usr/sbin/iw', 'dev', name, 'set', 'txpower', 'fixed', power]
             for name, power in [('ap0','2300'),('owe0','2300'),('ap0','2500'),('owe0','2500')]])
         self.assertTrue(any('Failed to set txpower' in log for log in result['logs']))
 
@@ -175,7 +182,6 @@ printf('%J',{before,aborted,removed,commands});
         runtime = os.environ.get('TXPOWER_RUNTIME_ROOT')
         if not runtime:
             self.skipTest('set TXPOWER_RUNTIME_ROOT to extracted rootfs with native uloop')
-        root = Path(runtime)
         code = "import * as uloop from 'uloop';\n" + self.host_code() + '''
 // Event delivery uses actual timers; driver and hostapd C boundaries remain mocked.
 let first={txpower:'fixed 2300',bss:[{ifname:'ap0'}]};
@@ -199,13 +205,7 @@ push(timers,uloop.timer(60,()=>{callbacks.bss_add('phy0.0','ap0',{});}));
 push(timers,uloop.timer(80,()=>uloop.end()));
 uloop.run();printf('%J',{before,commands});
 '''
-        path = self.tree / 'uloop.uc'
-        path.write_text(code)
-        command = [str(root/'lib/libc.so'), '--library-path', f'{root}/lib:{root}/usr/lib',
-                   str(root/'usr/bin/ucode'), '-L', f'{root}/usr/lib/ucode/*.so', str(path)]
-        proc = subprocess.run(command, text=True, capture_output=True, timeout=5)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        result = json.loads(proc.stdout)
+        result = self.run_ucode(code)
         self.assertEqual(result['before'], 0)
         self.assertEqual([cmd[-1] for cmd in result['commands']], ['2300','auto'])
 
@@ -222,12 +222,34 @@ uloop.run();printf('%J',{before,commands});
                     configs[phy] = {'radio_idx': index, 'txpower': setup['config']['txpower'],
                                     'bss': [{'ifname': name}]}
                     callbacks.append(f'callbacks.bss_add({json.dumps(phy)},{json.dumps(name)},{{}});')
-                    expected.append(['iw', 'dev', name, 'set', 'txpower', 'fixed', str(power * 100)])
+                    expected.append(['/usr/sbin/iw', 'dev', name, 'set', 'txpower', 'fixed', str(power * 100)])
                 # Both radios coexist; revisit the first after the second callback.
                 result = self.run_ucode(self.host_code() + '\nhostapd.data.config=' +
                                         json.dumps(configs) + ';' + ''.join(callbacks + callbacks[:1]) +
                                         "printf('%J',commands);")
                 self.assertEqual(result, expected + expected[:1])
+
+    def test_released_iw_without_path(self):
+        runtime = os.environ.get('TXPOWER_RUNTIME_ROOT')
+        if not runtime:
+            self.skipTest('set TXPOWER_RUNTIME_ROOT to extracted release (requires chroot)')
+        commands = self.run_ucode(self.host_code() + '''
+ hostapd.data.config['phy0.0']={txpower:'auto',bss:[{ifname:'ap0'}]};
+ callbacks.bss_add('phy0.0','ap0',{}); printf('%J',commands);
+''')
+        # Use the executable selected by production, but never issue a radio write.
+        executable = commands[0][0]
+        code = '''if (length(getenv())) die('environment is not empty');
+let bare=system(['iw','--version']);
+let selected=system([''' + json.dumps(executable) + ''','--version']);
+printf('bare=%d selected=%d\\n',bare,selected);
+exit(selected);
+'''
+        proc = subprocess.run(['/usr/sbin/chroot', runtime, '/usr/bin/ucode', '-e', code],
+                              env={}, text=True, capture_output=True, timeout=5)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn('bare=255 selected=0', proc.stdout)
+        self.assertIn('iw version', proc.stdout)
 
     def test_failure_notifies_through_real_bss_event(self):
         result = self.run_ucode(self.host_code() + '''

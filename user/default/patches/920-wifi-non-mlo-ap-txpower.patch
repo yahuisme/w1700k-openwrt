@@ -88,9 +88,9 @@ void callbacks cannot propagate a synchronous error to netifd config_set.
  			continue;
  		}
  
-@@ -1797,6 +1807,31 @@
- hostapd.data.auth_obj = ubus.publish("hostapd-auth", auth_obj);
- hostapd.udebug_set("hostapd", hostapd.data.ubus);
+@@ -1806,6 +1816,31 @@
+ 	ubus.call("service", "event", { type: `hostapd.${name}.${type}`, data: {} });
+ }
  
 +// Apply only to a BSS owned by the current non-MLO configuration.
 +// No delayed worker: hostapd owns creation, restart and cancellation.
@@ -107,7 +107,7 @@ void callbacks cannot propagate a synchronous error to netifd config_set.
 +	if (!owned || owned.mld_ap)
 +		return;
 +
-+	let cmd = [ 'iw', 'dev', name, 'set', 'txpower' ];
++	let cmd = [ '/usr/sbin/iw', 'dev', name, 'set', 'txpower' ];
 +	for (let arg in split(config.txpower, ' '))
 +		push(cmd, arg);
 +	let status = system(cmd);
@@ -117,9 +117,9 @@ void callbacks cannot propagate a synchronous error to netifd config_set.
 +	}
 +}
 +
- function bss_event(type, name, data) {
- 	let ubus = hostapd.data.ubus;
- 
+ return {
+ 	shutdown: function() {
+ 		for (let phy in hostapd.data.config)
 @@ -1822,6 +1857,7 @@
  			wdev_set_radio_mask(name, 1 << phy.radio_idx);
  	},

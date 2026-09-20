@@ -27,6 +27,8 @@ trap 'rm -rf "$PKG_REPO"' EXIT
 cp -a --no-preserve=ownership "$DK_PROFILE/tree/." .
 patch -p1 --fuzz=0 < "$DK_PROFILE/patches/001-w1700k-platform.patch"
 patch -p1 --fuzz=0 < "$DK_PROFILE/patches/002-w1700k-cpufreq-resources.patch"
+# wifi-scripts installs directly from source; its Build/Prepare is empty.
+patch -p1 --fuzz=0 < "$DK_PROFILE/patches/920-wifi-non-mlo-ap-txpower.patch"
 if ! git clone --depth=1 https://github.com/yahuisme/packages.git "$PKG_REPO"; then
     echo "ERROR: Failed to clone user packages repo!"
     exit 1

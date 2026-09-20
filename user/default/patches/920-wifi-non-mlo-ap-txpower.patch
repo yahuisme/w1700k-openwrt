@@ -1,0 +1,130 @@
+W1700K: apply non-MLO AP power at hostapd BSS lifecycle boundaries
+
+Scope is indexed radios containing only non-MLO APs. Preserve upstream MLO
+and other-mode behavior; this is not a per-link API. bss_add runs after
+beacon setup (including delayed ACS/CAC); no iface ENABLED gate is needed.
+Power changes use hostapd's existing restart/cancellation path. Failures are
+logged and notified, not reported as successful power application; these
+void callbacks cannot propagate a synchronous error to netifd config_set.
+
+--- a/package/network/config/wifi-scripts/files-ucode/lib/netifd/wireless/mac80211.sh
++++ b/package/network/config/wifi-scripts/files-ucode/lib/netifd/wireless/mac80211.sh
+@@ -95,7 +95,7 @@
+ 		rxantenna: config.rxantenna
+ 	});
+ 
+-	if (config.txpower)
++	if (config.txpower != null)
+ 		config.txpower = 'fixed ' + config.txpower + '00';
+ 	else
+ 		config.txpower = 'auto';
+@@ -106,7 +106,8 @@
+ 		system(`iw phy ${phy} set antenna ${config.txantenna} ${config.rxantenna} >/dev/null 2>&1`);
+ 	}
+ 	system(`iw phy ${phy} set distance ${config.distance} >/dev/null 2>&1`);
+-	system(`iw phy ${phy} set txpower ${config.txpower}`);
++	if (!config.per_interface_txpower)
++		system(`iw phy ${phy} set txpower ${config.txpower}`);
+ 
+ 	if (config.frag)
+ 		system(`iw phy ${phy} set frag ${config.frag}`);
+@@ -206,6 +207,13 @@
+ 	delete config.hwmode;
+ 
+ 	validate('device', config);
++
++	// Scope: indexed radios with only non-MLO APs (including an empty radio).
++	// Other modes and MLO retain the upstream power path.
++	config.per_interface_txpower = config.radio != null && config.radio >= 0;
++	for (let _, vif in data.interfaces)
++		if (vif.config.mode != 'ap' || vif.config.mlo)
++			config.per_interface_txpower = false;
+ 	setup_phy(data.phy, data.config, data.data);
+ 
+ 	let supplicant_mesh;
+--- a/package/network/config/wifi-scripts/files-ucode/usr/share/ucode/wifi/hostapd.uc
++++ b/package/network/config/wifi-scripts/files-ucode/usr/share/ucode/wifi/hostapd.uc
+@@ -577,6 +577,8 @@
+ 	data.config.phy = data.phy;
+ 
+ 	generate(data.config);
++	if (data.config.per_interface_txpower)
++		append("\n#txpower", data.config.txpower);
+ 
+ 	if (data.config.num_global_macaddr)
+ 		append('\n#num_global_macaddr', data.config.num_global_macaddr);
+--- a/package/network/services/hostapd/files/hostapd.uc
++++ b/package/network/services/hostapd/files/hostapd.uc
+@@ -745,7 +745,8 @@
+ {
+ 	let phy = phydev.name;
+ 
+-	if (!old_config)
++	// Recreate BSSes on power changes, including during ACS/CAC or pending setup.
++	if (!old_config || old_config.txpower != config.txpower)
+ 		return false;
+ 
+ 	switch (radio_reload_class(old_config.radio, config.radio)) {
+@@ -1072,6 +1073,10 @@
+ 
+ function iface_config_remove(name, old_config)
+ {
++	let pending = hostapd.data.pending_config[name];
++	if (pending)
++		pending.abort();
++
+ 	delete hostapd.data.apsta_freq[name];
+ 	hostapd.remove_iface(name);
+ 	return iface_remove(old_config);
+@@ -1166,6 +1171,11 @@
+ 
+ 		if (val[0] == "channel") {
+ 			config.radio.channel = val[1];
++			continue;
++		}
++
++		if (val[0] == "#txpower") {
++			config.txpower = val[1];
+ 			continue;
+ 		}
+ 
+@@ -1797,6 +1807,31 @@
+ hostapd.data.auth_obj = ubus.publish("hostapd-auth", auth_obj);
+ hostapd.udebug_set("hostapd", hostapd.data.ubus);
+ 
++// Apply only to a BSS owned by the current non-MLO configuration.
++// No delayed worker: hostapd owns creation, restart and cancellation.
++function bss_txpower(phy, name)
++{
++	let config = hostapd.data.config[phy];
++	if (config?.txpower == null)
++		return;
++
++	let owned;
++	for (let bss in config.bss)
++		if (bss.ifname == name)
++			owned = bss;
++	if (!owned || owned.mld_ap)
++		return;
++
++	let cmd = [ 'iw', 'dev', name, 'set', 'txpower' ];
++	for (let arg in split(config.txpower, ' '))
++		push(cmd, arg);
++	let status = system(cmd);
++	if (status) {
++		hostapd.printf(`Failed to set txpower on ${phy}/${name}: ${config.txpower} (status ${status})`);
++		bss_event("txpower_failed", name, { phy, status });
++	}
++}
++
+ function bss_event(type, name, data) {
+ 	let ubus = hostapd.data.ubus;
+ 
+@@ -1822,6 +1857,7 @@
+ 			wdev_set_radio_mask(name, 1 << phy.radio_idx);
+ 	},
+ 	bss_add: function(phy, name, obj) {
++		bss_txpower(phy, name);
+ 		bss_event("add", name);
+ 	},
+ 	bss_reload: function(phy, name, obj, reconf) {

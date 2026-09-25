@@ -29,6 +29,15 @@ class OfficialMigrationTests(unittest.TestCase):
         self.assertFalse((tree / 'package/network/config/firewall4').exists())
         self.assertFalse(list(tree.rglob('939-*')))
 
+    def test_official_realtek_replaces_standalone_driver(self):
+        profile = ROOT / 'user/default'
+        self.assertFalse((profile / 'patches/001-w1700k-platform.patch').exists())
+        self.assertFalse((profile / 'tree/target/linux/generic/files/drivers/net/phy/rtl8261ce').exists())
+        self.assertFalse(list((profile / 'tree').rglob('*rtl8261ce*')))
+        self.assertNotIn('001-w1700k-platform', (profile / 'custom.sh').read_text())
+        self.assertNotIn('CONFIG_PACKAGE_kmod-phy-rtl8261ce=',
+                         (profile / 'config.diff').read_text())
+
     @unittest.skipUnless(os.environ.get('OPENWRT_SOURCE'), 'set OPENWRT_SOURCE to real prepared official tree')
     def test_real_defconfig_and_clean_removes_preseeded_inputs(self):
         source = Path(os.environ['OPENWRT_SOURCE'])
@@ -40,6 +49,19 @@ class OfficialMigrationTests(unittest.TestCase):
             self.assertIn(f'CONFIG_PACKAGE_luci-app-{app}=y', config)
             self.assertIn(f'CONFIG_PACKAGE_luci-i18n-{app}-zh-cn=y', config)
         self.assertIn('CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_w1700k-ubi=y', config)
+        for package in ('kmod-phy-realtek', 'rtl826x-firmware', 'rtl8261c-firmware'):
+            self.assertIn(f'CONFIG_PACKAGE_{package}=y', config)
+        self.assertFalse(any(line.startswith('CONFIG_PACKAGE_kmod-phy-rtl8261ce=')
+                             for line in config))
+        self.assertFalse((source / 'target/linux/generic/files/drivers/net/phy/rtl8261ce').exists())
+        self.assertFalse(list((source / 'target/linux/generic').rglob('*rtl8261ce*')))
+        for path in ('package/kernel/linux/modules/netdevices.mk',
+                     'package/firmware/linux-firmware/realtek.mk',
+                     'package/firmware/rtl826x-firmware/Makefile',
+                     'target/linux/airoha/image/an7581.mk',
+                     'target/linux/airoha/an7581/base-files/etc/board.d/01_leds'):
+            self.assertEqual((source / path).read_bytes(), subprocess.check_output(
+                ['git', 'show', 'HEAD:' + path], cwd=source))
         with tempfile.TemporaryDirectory() as tmp:
             clone = Path(tmp) / 'source'
             subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(source), str(clone)], check=True)

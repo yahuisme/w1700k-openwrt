@@ -107,6 +107,3 @@ CONFIG_PACKAGE_wpad-openssl=y
 CONFIG_LUCI_LANG_zh_Hans=y
 CONFIG_PACKAGE_luci-theme-aurora=y
 CONFIG_PACKAGE_luci-app-aurora-config=y
-
-# Explicit hardware variant package; not supplied by four LuCI applications.
-CONFIG_PACKAGE_kmod-phy-rtl8261ce=y

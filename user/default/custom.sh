@@ -25,7 +25,6 @@ trap 'rm -rf "$PKG_REPO"' EXIT
 # Checked-in, narrowly scoped hardware/power delta; never fetch fork patches.
 # Keep container ownership: the mounted profile belongs to the runner UID.
 cp -a --no-preserve=ownership "$DK_PROFILE/tree/." .
-patch -p1 --fuzz=0 < "$DK_PROFILE/patches/001-w1700k-platform.patch"
 patch -p1 --fuzz=0 < "$DK_PROFILE/patches/002-w1700k-cpufreq-resources.patch"
 # wifi-scripts installs directly from source; its Build/Prepare is empty.
 patch -p1 --fuzz=0 < "$DK_PROFILE/patches/920-wifi-non-mlo-ap-txpower.patch"

@@ -118,7 +118,7 @@ jobs:
         # shellcheck disable=SC2016
         docker_exec DK bash -e -c '
           cd $DK_OPENWRT
-          export FORCE_UNSAFE_CONFIGURE=1 CCACHE_MAXSIZE=1.5G CCACHE_NOHASHDIR=true CCACHE_COMPILERCHECK=content
+          export FORCE_UNSAFE_CONFIGURE=1 CCACHE_MAXSIZE=3G CCACHE_NOHASHDIR=true CCACHE_COMPILERCHECK=content
           CCACHE=staging_dir/host/bin/ccache
           [ -x "$CCACHE" ] || make tools/ccache/compile -j$(($(nproc) + 1))
           $CCACHE -d /ghcache --zero-stats
@@ -135,6 +135,7 @@ jobs:
         sudo python3 scripts/dlcache.py check dlcache "$RUNNER_TEMP/dlcache-before.json" --restored '${{ steps.dl.outputs.cache-matched-key }}' >> "$GITHUB_OUTPUT"
 
     - name: Validate and stage firmware
+      id: stage
       run: |
         sudo chown -R "$(id -u):$(id -g)" openwrt_bin
         # Validate the final container config, not the input fragment.
@@ -190,26 +191,6 @@ jobs:
         - 保留必要硬件兼容与功率定制，使用标准 CPU 参数。
         EOF
 
-    - name: Publish firmware and prune releases
-      env:
-        GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-      run: |
-        # A point-in-time gate, not an atomic lock against concurrent pushes.
-        # Skip publication on uncertainty without blocking independent cache saves.
-        if ! MAIN_SHA=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha'); then
-          echo "::warning::Cannot verify main SHA; skipping release and retention"
-          exit 0
-        fi
-        if [[ ! "$MAIN_SHA" =~ ^[0-9a-f]{40}$ ]] || [ "$MAIN_SHA" != "$GITHUB_SHA" ]; then
-          echo "::warning::Build is not current main; skipping release and retention"
-          exit 0
-        fi
-        VERSION="$(cat firmware/version.txt)"
-        RELEASE_TITLE="${VERSION%-*}_${VERSION##*-}"
-        gh release create "$VERSION" firmware/*sysupgrade.itb --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file firmware/release-notes.md
-        PREFIX="W1700K-OpenWrt_"
-        gh release list --json tagName --jq '.[].tagName' | grep -E "^(${PREFIX}|${PREFIX%_}-r[0-9]+-|W1700K-ubi2_)" | grep -vxF "$VERSION" | xargs -r -n1 gh release delete --cleanup-tag -y ||:
-
     # One standard writer: total 10 GB including legacy entries and margin.
     # Count all own generations and unknown/legacy entries on each admission.
     # Save/readback/cleanup precedes the next admission in each writer.
@@ -256,3 +237,24 @@ jobs:
     - name: Prune old download caches
       if: steps.dl_budget.outputs.save == 'true'
       run: python3 scripts/cache_helper.py cleanup 'dl-v3.' '${{ steps.dl.outputs.cache-primary-key }}'
+
+    - name: Publish firmware and prune releases
+      if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
+      env:
+        GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+      run: |
+        # A point-in-time gate, not an atomic lock against concurrent pushes.
+        # Skip publication on uncertainty without blocking independent cache saves.
+        if ! MAIN_SHA=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha'); then
+          echo "::warning::Cannot verify main SHA; skipping release and retention"
+          exit 0
+        fi
+        if [[ ! "$MAIN_SHA" =~ ^[0-9a-f]{40}$ ]] || [ "$MAIN_SHA" != "$GITHUB_SHA" ]; then
+          echo "::warning::Build is not current main; skipping release and retention"
+          exit 0
+        fi
+        VERSION="$(cat firmware/version.txt)"
+        RELEASE_TITLE="${VERSION%-*}_${VERSION##*-}"
+        gh release create "$VERSION" firmware/*sysupgrade.itb --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file firmware/release-notes.md
+        PREFIX="W1700K-OpenWrt_"
+        gh release list --json tagName --jq '.[].tagName' | grep -E "^(${PREFIX}|${PREFIX%_}-r[0-9]+-|W1700K-ubi2_)" | grep -vxF "$VERSION" | xargs -r -n1 gh release delete --cleanup-tag -y ||:

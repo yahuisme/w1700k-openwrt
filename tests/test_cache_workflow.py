@@ -50,6 +50,7 @@ class WorkflowTests(unittest.TestCase):
                 nproc() { printf '4\\n'; }
                 make() {
                   printf 'make %s\\n' "$*" >> "$LOG"
+                  [ "$CCACHE_MAXSIZE" = 3G ] || { printf 'Expected CCACHE_MAXSIZE=3G, got %s\\n' "$CCACHE_MAXSIZE" >&2; return 98; }
                   if [[ "$*" == tools/ccache/compile* ]]; then
                     [ "$PRE" = 0 ] || return "$PRE"
                     cp "$STUB" staging_dir/host/bin/ccache

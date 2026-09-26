@@ -92,6 +92,32 @@ class HelperTests(unittest.TestCase):
     def deletes(self):
         return [c for c in self.snapshot()['calls'] if c[:2] == ['cache', 'delete']]
 
+    def test_ccache_three_gb_compressed_cap(self):
+        from unittest.mock import patch
+        from test_cache_key import load, SCRIPT
+        cache = load(SCRIPT)
+        self.assertEqual(cache.LIMITS['ccache'], 3_000_000_000)
+        self.assertEqual(h.SLOTS['cc-v3-ubi2.'], 3_000_000_000)
+        self.assertEqual(h.BUDGET, 10_000_000_000)
+        self.assertEqual(h.HEADROOM, 64 * 1024 * 1024)
+        packed = self.base / 'packed'
+        archive = packed / 'ccache.tar.gz'
+        # Stub compression only: test the real pack/admission size boundaries
+        # with sparse compressed-output fixtures, never allocate multi-GB data.
+        for size, accepted in ((3_000_000_000, True), (3_000_000_001, False)):
+            with self.subTest(size=size):
+                def compress(args, **kwargs):
+                    self.assertEqual(args[0], 'tar')
+                    self.assertEqual(args[args.index('-cf') + 1], str(archive))
+                    with archive.open('wb') as out:
+                        out.truncate(size)
+                with patch.object(cache.subprocess, 'run', side_effect=compress):
+                    cache.pack(self.base, packed, 'ccache', 'unused')
+                self.assertEqual(archive.exists(), accepted)
+                self.reset([])
+                self.assertEqual(self.admit(size), accepted, self.log)
+                self.assertFalse(self.deletes())
+
     def test_measured_download_replacement_fits_without_predeletion(self):
         # API inventory and inner gzip from run 34922925962 (2026-09-15).
         entries = [entry(1, 'tc-v3-ubi2-old', 1_568_383_907),
@@ -137,6 +163,17 @@ class HelperTests(unittest.TestCase):
             self.assertTrue(self.admit(1, prefix))
             self.reset([entry(1, 'legacy', cap-h.HEADROOM)])
             self.assertFalse(self.admit(1, prefix))
+
+    def test_full_slots_decline_compiler_replacement_without_predeletion(self):
+        entries = [entry(i, prefix + 'old', size)
+                   for i, (prefix, size) in enumerate(h.SLOTS.items(), 1)]
+        self.reset(entries)
+        self.assertGreater(sum(h.SLOTS.values()) +
+                           h.SLOTS['cc-v3-ubi2.'] + h.HEADROOM, h.BUDGET)
+        self.assertFalse(self.admit(h.SLOTS['cc-v3-ubi2.']))
+        self.assertIn('repository budget exceeded', self.log)
+        self.assertFalse(self.deletes())
+        self.assertEqual(self.snapshot()['entries'], entries)
 
     def test_warm_inventory_and_cold_updates(self):
         # Explicit synthetic 4.5 GB warm inventory, representative not a live

@@ -3,9 +3,10 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import re
 import tempfile
 import unittest
-from test_cache_workflow import step, render
+from test_cache_workflow import STEPS, step, render
 
 IMAGE = 'openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb'
 CONFIG = ('CONFIG_TARGET_airoha=y\nCONFIG_TARGET_airoha_an7581=y\n'
@@ -127,6 +128,122 @@ class ReleaseTests(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
                     self.assertFalse((base / 'firmware/version.txt').exists())
 
+    def test_publication_after_cache_tail_and_failure_isolation(self):
+        stage = step('Validate and stage firmware')
+        publish = step('Publish firmware and prune releases')
+        cache_tail = STEPS[STEPS.index(step('Package build caches')):
+                           STEPS.index(step('Prune old download caches')) + 1]
+        self.assertEqual(stage.get('id'), 'stage')
+        self.assertEqual(publish.get('if'), "${{ !cancelled() && steps.stage.outcome == 'success' }}")
+        self.assertLess(STEPS.index(stage), STEPS.index(cache_tail[0]))
+        self.assertLess(STEPS.index(cache_tail[-1]), STEPS.index(publish))
+        self.assertEqual(publish['env'], {'GH_TOKEN': '${{ secrets.RELEASE_TOKEN }}'})
+        cases = ['', 'Compile firmware', stage['name'], publish['name'], 'cancel_before_compile',
+                 'cancel_after_stage'] + [s['name'] for s in cache_tail]
+        for fault in cases:
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                target, data = self.fixture(base)
+                (target / 'profiles.json').write_text(json.dumps(data))
+                if fault == stage['name']:
+                    (base / '.config').write_text('invalid target\n')
+                (base / 'bin').mkdir()
+                gh = base / 'bin/gh'
+                gh.write_text('''#!/bin/bash
+printf '%s\\n' "$*" >> "$LOG"
+case "$1 $2" in
+  'api '*) printf '%s\\n' "$GITHUB_SHA" ;;
+  'release create') [ "$FAULT" != 'Publish firmware and prune releases' ] ;;
+  'release list') : ;;
+  *) exit 99 ;;
+esac
+''')
+                gh.chmod(0o755)
+                cc = base / 'staging_dir/host/bin/ccache'
+                cc.parent.mkdir(parents=True)
+                cc.write_text('#!/bin/bash\nexit 0\n')
+                cc.chmod(0o755)
+                # Execute actual YAML shell blocks, mocking only external build,
+                # cache, sudo and GitHub commands. Never invoke a host compiler.
+                stubs = '''
+sudo() { if [ "$1" = python3 ]; then "$@"; fi; }
+nproc() { printf '1\\n'; }
+make() { [ "$FAULT" != 'Compile firmware' ]; }
+python3() {
+  [ "$STEP_NAME" != "$FAULT" ] || return 23
+  if [ "$2" = admit ]; then printf 'save=true\\n' >> "$GITHUB_OUTPUT"; else printf 'save=true\\n'; fi
+}
+docker_exec() {
+  shift
+  [ "$STEP_NAME" != 'Package build caches' ] || [ "$FAULT" != "$STEP_NAME" ] || return 23
+  "$@"
+}
+export -f sudo nproc make python3 docker_exec
+'''
+                env = dict(os.environ, DK_OPENWRT=tmp, RUNNER_TEMP=tmp,
+                           GITHUB_OUTPUT=str(base / 'output'), GITHUB_SHA='a' * 40,
+                           GITHUB_REPOSITORY='fixture/repo', LOG=str(base / 'calls'),
+                           PATH=str(base / 'bin') + ':' + os.environ['PATH'], FAULT=fault)
+                values = {'steps.tc.outputs.cache-hit': 'false'}
+                successful = True
+                cancelled = fault == 'cancel_before_compile'
+                executed, saved, outcomes = [], [], {}
+                for current in STEPS[STEPS.index(step('Compile firmware')):]:
+                    # Evaluate the real if expression, including GitHub's implicit
+                    # success() when no status function appears. No copied gate.
+                    expr = current.get('if', 'True').removeprefix('${{').removesuffix('}}').strip()
+                    has_status = re.search(r'\b(success|failure|cancelled|always)\(', expr)
+                    for name, value in {'success()': successful and not cancelled,
+                                        'failure()': not successful, 'cancelled()': cancelled,
+                                        'always()': True}.items():
+                        expr = expr.replace(name, repr(value))
+                    expr = re.sub(r"hashFiles\('[^']+'\)", "'fixture-archive'", expr)
+                    expr = re.sub(r'steps\.[\w.-]+', lambda m: repr(values.get(m[0], '')), expr)
+                    expr = re.sub(r'!(?!=)', 'not ', expr).replace('&&', ' and ').replace('||', ' or ')
+                    # Trusted local YAML and repr-quoted fixture values only;
+                    # no event/network input or builtins reach this evaluator.
+                    eligible = (bool(has_status) or (successful and not cancelled)) and eval(
+                        expr, {'__builtins__': {}})
+                    name = current['name']
+                    outcome = 'skipped'
+                    if eligible:
+                        executed.append(name)
+                        if 'run' in current:
+                            result = subprocess.run(['bash', '-eo', 'pipefail', '-c',
+                                                     stubs + render(current['run'], values)],
+                                                    cwd=base, env=dict(env, STEP_NAME=name),
+                                                    text=True, capture_output=True)
+                            outcome = 'success' if result.returncode == 0 else 'failure'
+                            if current.get('id') and (base / 'output').exists():
+                                for line in (base / 'output').read_text().splitlines():
+                                    key, value = line.split('=', 1)
+                                    values[f"steps.{current['id']}.outputs.{key}"] = value
+                                (base / 'output').unlink()
+                        else:
+                            self.assertEqual(current['uses'], 'actions/cache/save@main')
+                            outcome = 'failure' if name == fault else 'success'
+                            if outcome == 'success':
+                                saved.append(current['with']['path'])
+                        successful = successful and outcome == 'success'
+                    outcomes[name] = outcome
+                    if current.get('id'):
+                        values[f"steps.{current['id']}.outcome"] = outcome
+                    if name == stage['name'] and fault == 'cancel_after_stage':
+                        cancelled = True
+                should_publish = fault not in ('Compile firmware', stage['name'],
+                                               'cancel_before_compile', 'cancel_after_stage')
+                self.assertEqual(publish['name'] in executed, should_publish, (fault, outcomes))
+                calls = (base / 'calls').read_text() if (base / 'calls').exists() else ''
+                self.assertEqual('release create' in calls, should_publish)
+                if not fault or fault == publish['name']:
+                    self.assertEqual(saved, ['ccarchive', 'tcarchive', 'dlarchive'])
+                if fault in [s['name'] for s in cache_tail]:
+                    self.assertEqual(outcomes[fault], 'failure')
+                    self.assertEqual(outcomes[publish['name']], 'success')
+                    after = cache_tail.index(step(fault)) + 1
+                    self.assertTrue(all(outcomes[s['name']] == 'skipped' for s in cache_tail[after:]))
+                self.assertEqual(successful, not fault or fault.startswith('cancel_'))
+
     def test_release_full_block_and_retired_oc_retention(self):
         for case in ('current', 'stale', 'api_failure', 'empty', 'malformed', 'create_failure'):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
@@ -159,7 +276,7 @@ elif args[:2] != ['release', 'delete']: sys.exit(99)
                 calls = [json.loads(line) for line in (base / 'calls').read_text().splitlines()]
                 if case not in ('current', 'create_failure'):
                     self.assertEqual(len(calls), 1)
-                    # Successful skip keeps all later cache steps success-eligible.
+                    # Successful skip leaves already-saved caches untouched.
                     self.assertEqual(result.returncode, 0)
                 else:
                     create = calls[1]

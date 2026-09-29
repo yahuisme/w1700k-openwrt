@@ -21,7 +21,7 @@ LIMITS = {'toolchain': 2_000_000_000, 'ccache': 3_000_000_000, 'dl': 2_200_000_0
 def key(root, builder):
     # Full final configuration and source; no historical projection or fallback.
     # Archive/upload edits do not participate in the compatibility policy.
-    digest = hashlib.sha256(json.dumps(['tc-inputs-v7', builder, os.uname().machine,
+    digest = hashlib.sha256(json.dumps(['tc-inputs-v8', builder, os.uname().machine,
                                       str(root), EPOCH, INPUTS,
                                       inspect.getsource(key)]).encode())
     if not (root / '.config').is_file():
@@ -29,6 +29,32 @@ def key(root, builder):
     config = (root / '.config').read_text()
     if re.search(r'^CONFIG_(EXTERNAL_TOOLCHAIN|SRC_TREE_OVERRIDE)=y|^CONFIG_EXTERNAL_KERNEL_TREE="[^"]+', config, re.M):
         raise ValueError('external compiler/kernel/source tree is outside the input lock')
+    # target.mk loads the platform Makefile and subtarget target.mk before
+    # kernel-version.mk. Retain every declared normal/testing version (even
+    # unselected subtargets); unknown expressions keep the full generic tree.
+    versions = set()
+    normal_version = False
+    platform = root / 'target/linux/airoha'
+    for p in [platform / 'Makefile', *sorted(platform.glob('*/target.mk'))]:
+        if p.is_symlink():
+            raise ValueError('unsupported linked input: ' + str(p.relative_to(root)))
+        if not p.is_file():
+            continue
+        for line in p.read_text().splitlines():
+            line = line.split('#', 1)[0].strip()
+            if re.match(r'-?include\s', line) and line not in (
+                    'include $(TOPDIR)/rules.mk', 'include $(INCLUDE_DIR)/target.mk'):
+                versions.add('unknown')
+            if not re.search(r'\bKERNEL_(?:TESTING_)?PATCHVER\b', line):
+                continue
+            match = re.fullmatch(r'KERNEL_(?:TESTING_)?PATCHVER\s*:?=\s*([0-9]+\.[0-9]+)', line)
+            if match:
+                versions.add(match[1])
+                normal_version |= line.startswith('KERNEL_PATCHVER')
+            else:
+                versions.add('unknown')
+    if not normal_version:
+        versions.clear()
     files = {}
     modes = {}
     for name in INPUTS:
@@ -42,6 +68,16 @@ def key(root, builder):
             if any(rel.is_relative_to(Path('target/linux') / overlay) for overlay in (
                     'generic/base-files', 'airoha/base-files', 'airoha/an7581/base-files')):
                 continue
+            # Only direct, recognized generic version roots are version-scoped
+            # by target.mk/kernel-version.mk. Shared and unfamiliar names stay.
+            if versions and 'unknown' not in versions and rel.parts[:3] == ('target', 'linux', 'generic'):
+                versioned = re.fullmatch(r'(backport|pending|hack|files|config|kernel)-([0-9]+\.[0-9]+)', rel.parts[3])
+                if versioned and versioned[2] not in versions:
+                    version_root = root.joinpath(*rel.parts[:4])
+                    if not version_root.is_symlink() and (
+                            versioned[1] in ('backport', 'pending', 'hack', 'files') and version_root.is_dir()
+                            or versioned[1] in ('config', 'kernel') and version_root.is_file()):
+                        continue
             # Generated Kconfig binaries must not fingerprint the previous host.
             if rel.parts[:2] == ('scripts', 'config') and subprocess.run(
                     ['git', 'check-ignore', '-q', str(rel)], cwd=root).returncode == 0:

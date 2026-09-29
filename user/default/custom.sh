@@ -118,13 +118,8 @@ rm -f tmp/.packageinfo 2>/dev/null || true
 # -------------------------------------------------
 mkdir -p package/firmware/wireless-regdb/patches
 
-if [ -f "$DK_PROFILE/patches/610-w1700k-cn-us-power-30.patch" ]; then
-    cp -f "$DK_PROFILE/patches/610-w1700k-cn-us-power-30.patch" package/firmware/wireless-regdb/patches/
-    echo "regdb patch: 610-w1700k-cn-us-power-30.patch"
-else
-    echo "ERROR: regdb patch missing: 610-w1700k-cn-us-power-30.patch" >&2
-    exit 1
-fi
+cp -f "$DK_PROFILE/patches/610-w1700k-cn-us-power-30.patch" package/firmware/wireless-regdb/patches/
+echo "regdb patch: 610-w1700k-cn-us-power-30.patch"
 
 echo "=============================================="
 echo "Custom commands completed"

@@ -113,8 +113,7 @@ rm -f tmp/.packageinfo 2>/dev/null || true
 
 
 # -------------------------------------------------
-# Wireless regdb power boost (quilt-applied, after local 555 mirror)
-# 610 CN 2.4G/5.2G + US 5.2G/5.5G to 30dBm
+# Wireless regdb CN/US power and band customization (after official 500)
 # -------------------------------------------------
 mkdir -p package/firmware/wireless-regdb/patches
 

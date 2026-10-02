@@ -76,7 +76,7 @@ return baseclass.extend({
 			return E('div', {
 				'style':
 					'padding:14px 12px;' +
-					'border:1px solid var(--border-color-medium,#ddd);' +
+					'border:1px solid var(--hairline,var(--border-color-medium,#e0e0e0));' +
 					'border-radius:10px;' +
 					'text-align:center;' +
 					'min-width:0;'

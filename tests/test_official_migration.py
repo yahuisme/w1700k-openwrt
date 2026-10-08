@@ -25,7 +25,8 @@ class OfficialMigrationTests(unittest.TestCase):
         tree = ROOT / 'user/default/tree'
         patches = sorted(p.name for p in tree.glob('target/linux/airoha/patches-*/*.patch'))
         self.assertEqual([p[:3] for p in patches], ['745', '746', '940'])
-        self.assertEqual(len(list(tree.glob('package/kernel/mt76/patches/*.patch'))), 2)
+        mt76_patches = sorted(p.name for p in tree.glob('package/kernel/mt76/patches/*.patch'))
+        self.assertEqual(mt76_patches, ['911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch'])
         self.assertFalse((tree / 'package/network/config/firewall4').exists())
         self.assertFalse(list(tree.rglob('939-*')))
 

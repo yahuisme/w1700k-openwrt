@@ -65,18 +65,7 @@ void callbacks cannot propagate a synchronous error to netifd config_set.
  		return false;
  
  	switch (radio_reload_class(old_config.radio, config.radio)) {
-@@ -1072,6 +1073,10 @@
- 
- function iface_config_remove(name, old_config)
- {
-+	let pending = hostapd.data.pending_config[name];
-+	if (pending)
-+		pending.abort();
-+
- 	delete hostapd.data.apsta_freq[name];
- 	hostapd.remove_iface(name);
- 	return iface_remove(old_config);
-@@ -1166,6 +1171,11 @@
+@@ -1166,6 +1167,11 @@
  
  		if (val[0] == "channel") {
  			config.radio.channel = val[1];
@@ -88,7 +77,7 @@ void callbacks cannot propagate a synchronous error to netifd config_set.
  			continue;
  		}
  
-@@ -1806,6 +1816,31 @@
+@@ -1806,6 +1812,31 @@
  	ubus.call("service", "event", { type: `hostapd.${name}.${type}`, data: {} });
  }
  
@@ -120,7 +109,7 @@ void callbacks cannot propagate a synchronous error to netifd config_set.
  return {
  	shutdown: function() {
  		for (let phy in hostapd.data.config)
-@@ -1822,6 +1857,7 @@
+@@ -1822,6 +1853,7 @@
  			wdev_set_radio_mask(name, 1 << phy.radio_idx);
  	},
  	bss_add: function(phy, name, obj) {

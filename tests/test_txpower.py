@@ -140,7 +140,7 @@ printf('%J',{before,commands,logs});
     def test_real_pending_state_machine_aborts_old_setup(self):
         names = ('__iface_pending_next', 'iface_pending_next', 'iface_pending_abort',
                  'iface_pending_ubus_call', 'iface_pending_init')
-        code = self.host_code() + '''
+        code = "import * as uloop from 'uloop';\n" + self.host_code() + '''
 let deferred=[]; let created=[];
 hostapd.data.pending_config={};
 hostapd.data.ubus.defer=(obj,method,arg,cb)=>{
@@ -169,6 +169,8 @@ hostapd.data.config['phy0.0']=fresh;
 iface_pending_init(phydev,fresh);
 // Complete the fresh supplicant status request. The aborted request is not delivered.
 deferred[1].callback(0,{state:'COMPLETED'});
+let stop=uloop.timer(20,()=>uloop.end());
+uloop.run();
 printf('%J',{before,aborted,removed,commands});
 '''
         result = self.run_ucode(code)
@@ -274,12 +276,13 @@ exit(selected);
 
     def test_config_power_change_bypasses_csa_and_early_reload(self):
         code = '''let restarted=0;let csa=0;let removed=0;
-let hostapd={data:{config:{},pending_config:{}},printf:()=>{}};
+let hostapd={data:{config:{},pending_config:{}},interfaces:{'phy0.0':{}},printf:()=>{}};
 function phy_open(p,r){return {name:'phy0.0'};}
 function iface_check_mld(){} function iface_update_supplicant_macaddr(){}
 function iface_restart(){restarted++;return 0;}
 function iface_config_remove(){removed++;}
 function is_equal(a,b){return sprintf('%J',a)==sprintf('%J',b);}
+function bss_list_prev_macaddr(current,previous){return current;}
 function radio_reload_class(){return 'channel';}
 function iface_channel_switch(){csa++;return true;}
 ''' + function(self.host, 'iface_reload_config') + function(self.host, 'iface_set_config') + '''
@@ -333,6 +336,7 @@ let fs={stat:()=>false}; function flush_config(){} function generate(c){append('
 function dump_config(n){input=split(join('\n',lines),'\n');return join('\n',lines);}
 function setup_interface(){append('interface','ap0');append('bssid','00:11:22:33:44:55');}
 let phy_features={};
+let ap={owe_transition:()=>null};
 let netifd={add_process:()=>{},setup_failed:()=>{}};
 global.ubus={list:()=>true,call:(a,b,c)=>{payload=c;return {pid:1};}};
 function open(p,m){return {read:()=>shift(input),close:()=>{}};}

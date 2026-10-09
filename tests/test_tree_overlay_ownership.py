@@ -14,7 +14,7 @@ class TreeOverlayOwnership(unittest.TestCase):
         workflow = (ROOT / '.github/workflows/W1700K.yaml').read_text()
         custom = workflow.index('bash $DK_PROFILE/custom.sh')
         config = workflow.index('make defconfig', custom)
-        self.assertIn('git rev-parse --verify HEAD > /dev/null', workflow[custom:config])
+        self.assertIn('revision=$(git rev-parse --verify HEAD)', workflow[custom:config])
 
     def test_overlay_preserves_buildroot_and_git_identity(self):
         script = (ROOT / 'user/default/custom.sh').read_text()

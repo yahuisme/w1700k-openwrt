@@ -198,6 +198,13 @@ class HelperTests(unittest.TestCase):
             entries.append(entry(len(entries)+1, prefix+'new', size+h.HEADROOM))
         self.assertLessEqual(sum(e['size_in_bytes'] for e in entries), 10_000_000_000)
 
+    def test_legacy_oc_counts_against_single_budget(self):
+        size = 1_000_000_000
+        self.reset([entry(1, 'tc-v3-ubi2-oc-old', h.BUDGET-size-h.HEADROOM)])
+        self.assertTrue(self.admit(size))
+        self.assertFalse(self.admit(size+1))
+        self.assertEqual(self.deletes(), [])
+
     def test_paginated_inventory_and_admission_read_failure(self):
         self.reset([entry(i, 'legacy'+str(i), 3_400_000_000) for i in range(1, 4)])
         self.assertFalse(self.admit(1))  # third entry on page two matters

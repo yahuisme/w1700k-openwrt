@@ -14,7 +14,7 @@ RTL8261C/CE 使用官方 Realtek 驱动、配套固件及 W1700K 设备配置，
 | `tree/target/linux/airoha/patches-6.18/746-*` | 在 MDIO 识别前解除外部 PHY 复位，来源同上 |
 | `tree/target/linux/airoha/patches-6.18/940-*`、`patches/002-w1700k-cpufreq-resources.patch` | 标准 CPUFreq 兼容，来源 OpenW1700k `972634e64d19cba0095b662a0bfd9561ebef635c` 的 940 C 代码及 W1700K 设备树资源；不重复引入 Kconfig，保留官方 attach_list、0–14 状态、500–1200 MHz 与调频策略，不超频 |
 | `tree/package/kernel/mt76/patches/911-*` | 功率变更时刷新固件限制，沿用本项目对 OpenW1700k `0011-refresh-power-limits-on-txpower-changes` 的适配；SKU 启用使用官方 mt76 `5a9b590919a6`，不保留原 `910` 的重叠实现及额外 backoff 扩展 |
-| `patches/610-w1700k-cn-us-power-30.patch` | CN/US 功率及频段定制，合并本项目功率配置与上述 `bce05fa...` 的 US 高频段、6 GHz 配置，在官方 500 补丁后应用 |
+| `patches/610-w1700k-power-30.patch` | CN/US 功率及频段定制，合并本项目功率配置与上述 `bce05fa...` 的 US 高频段、6 GHz 配置，在官方 500 补丁后应用 |
 | `tree/package/network/utils/iwinfo/patches/999-*` | 分离 wiphy 与当前频率的功率列表展示，来源上述 `bce05fa...` |
 | `patches/998-single-wiphy.patch` | single-wiphy 无线设备的 LuCI 信道分析适配，源自 Gilly1970 |
 

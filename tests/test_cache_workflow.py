@@ -193,7 +193,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(workflow['jobs']['build']['env']['DK_PROFILE'], '/bld/user/default')
         block = step('inputs')['run']
         start = block.index('cp $DK_PROFILE/config.diff .config')
-        end = block.index('cp -r $DK_PROFILE/files/', start)
+        end = block.index('cp -r', start)
         with tempfile.TemporaryDirectory() as tmp:
             profile = ROOT / 'user/default'
             original = (profile / 'config.diff').read_bytes()
@@ -208,6 +208,15 @@ class WorkflowTests(unittest.TestCase):
                                     env=dict(os.environ, DK_PROFILE=tmp),
                                     capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
+
+    def test_unpack_creates_download_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            block = render(step('Extract rolling caches')['run'], {})
+            stub = 'sudo() { printf "%s\\n" "$*"; };\n'
+            result = subprocess.run(['bash', '-e', '-c', stub + block], cwd=tmp,
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('dlcache.py snapshot', result.stdout)
 
     def test_cache_save_cleanup_order_and_failure_gates(self):
         workflow = yaml.safe_load(WORKFLOW.read_text())

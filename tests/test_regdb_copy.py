@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-NAME = '610-w1700k-cn-us-power-30.patch'
+NAME = '610-w1700k-power-30.patch'
 
 
 class RegdbCopyTests(unittest.TestCase):

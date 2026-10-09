@@ -10,7 +10,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = ROOT / 'user/default'
-PATCH = PROFILE / 'patches/610-w1700k-cn-us-power-30.patch'
+PATCH = PROFILE / 'patches/610-w1700k-power-30.patch'
 
 
 class RegdbMergeTests(unittest.TestCase):

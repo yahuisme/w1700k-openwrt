@@ -1,8 +1,10 @@
 #!/bin/sh
-# Remove the old script include when upgrading with retained configuration.
+# Retained-config migration only: official fw4 has no fork bridge flowtable.
 uci -q delete firewall.bridge_flow_offload
-rm -f /usr/share/bridge-flow-offload/apply-rules.sh
-rm -f /etc/hotplug.d/iface/51-bridge-flow-offload
-# Official fw4 does not use the former custom bridge-table include.
-rm -f /usr/share/nftables.d/ruleset-post/30-bridge-offload.nft
+rm -f /usr/share/bridge-flow-offload/apply-rules.sh \
+    /etc/hotplug.d/iface/51-bridge-flow-offload \
+    /etc/hotplug.d/iface/51-bridge-hw-offload \
+    /etc/hotplug.d/net/50-bridge-hw-offload \
+    /usr/share/nftables.d/ruleset-post/30-bridge-offload.nft
+# The normal boot runner commits UCI after all defaults scripts.
 exit 0

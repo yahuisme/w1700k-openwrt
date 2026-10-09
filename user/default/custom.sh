@@ -113,12 +113,12 @@ rm -f tmp/.packageinfo 2>/dev/null || true
 
 
 # -------------------------------------------------
-# Wireless regdb CN/US power and band customization (after official 500)
+# Wireless regdb customization; distro-specific delta follows official patches.
 # -------------------------------------------------
 mkdir -p package/firmware/wireless-regdb/patches
 
-cp -f "$DK_PROFILE/patches/610-w1700k-cn-us-power-30.patch" package/firmware/wireless-regdb/patches/
-echo "regdb patch: 610-w1700k-cn-us-power-30.patch"
+cp -f "$DK_PROFILE/patches/610-w1700k-power-30.patch" package/firmware/wireless-regdb/patches/
+echo "regdb patch: 610-w1700k-power-30.patch"
 
 echo "=============================================="
 echo "Custom commands completed"

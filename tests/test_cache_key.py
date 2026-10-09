@@ -131,6 +131,14 @@ class KeyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'linked input'):
             self.key()
 
+    def test_rejected_legacy_admit(self):
+        result = subprocess.run(['python3', str(SCRIPT), 'admit', str(self.root),
+                                 str(Path(self.tmp.name) / 'archive'), 'old'],
+                                text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('unknown cache command', result.stderr)
+        self.assertFalse((Path(self.tmp.name) / 'archive').exists())
+
     def test_runtime_overlay_add_edit_rename_delete_and_symlink(self):
         before = self.key()
         for overlay in ('generic', 'airoha', 'airoha/an7581'):
@@ -266,12 +274,19 @@ class PreparedKernelKeyTests(unittest.TestCase):
                     shutil.copytree(src, dst, symlinks=True)
                 else:
                     shutil.copy2(src, dst)
+            declared = (root / 'target/linux/airoha/Makefile').read_text()
+            import re
+            match = re.search(r'^KERNEL_PATCHVER\s*:?=\s*([0-9]+\.[0-9]+)', declared, re.M)
+            assert match is not None, 'official KERNEL_PATCHVER must be literal for this probe'
+            active = match[1]
+            inactive = '0.0'  # deliberately absent from official target declarations
+            self.assertNotIn(inactive, declared)
             baseline = cache.key(root, 'prepared-image')
-            for name in ('kernel-6.12', 'config-6.12',
-                         'backport-6.12/cache-probe.patch',
-                         'pending-6.12/cache-probe.patch',
-                         'hack-6.12/cache-probe.patch',
-                         'files-6.12/include/cache-probe.h'):
+            for name in (f'kernel-{inactive}', f'config-{inactive}',
+                         f'backport-{inactive}/cache-probe.patch',
+                         f'pending-{inactive}/cache-probe.patch',
+                         f'hack-{inactive}/cache-probe.patch',
+                         f'files-{inactive}/include/cache-probe.h'):
                 p = root / 'target/linux/generic' / name
                 original = p.read_bytes() if p.exists() else None
                 p.parent.mkdir(parents=True, exist_ok=True)
@@ -283,9 +298,9 @@ class PreparedKernelKeyTests(unittest.TestCase):
                 self.assertEqual(baseline, cache.key(root, 'prepared-image'), name)
                 if original is not None:
                     p.write_bytes(original)
-            for name in ('target/linux/generic/kernel-6.18',
-                         'target/linux/generic/config-6.18',
-                         'target/linux/generic/backport-6.18/cache-probe.patch',
+            for name in (f'target/linux/generic/kernel-{active}',
+                         f'target/linux/generic/config-{active}',
+                         f'target/linux/generic/backport-{active}/cache-probe.patch',
                          'target/linux/generic/files/include/cache-probe.h',
                          'include/kernel-version.mk', 'include/target.mk',
                          'include/quilt.mk', 'target/linux/airoha/Makefile', '.config'):
@@ -314,7 +329,7 @@ class PreparedKernelKeyTests(unittest.TestCase):
             result = subprocess.run(['make', '-rR', '-s', '-f', str(probe), 'probe'],
                                     cwd=root, check=True, text=True, capture_output=True)
             self.assertEqual(result.stdout.splitlines(),
-                             ['6.18', str(root / 'target/linux/generic/kernel-6.18')])
+                             ['6.18', str(root / f'target/linux/generic/kernel-{active}')])
 
 
 if __name__ == '__main__':

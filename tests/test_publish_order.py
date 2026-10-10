@@ -10,6 +10,7 @@ from test_cache_workflow import STEPS, step, render
 import test_release_safety as release
 from test_cache_workflow import ROOT
 from test_cache_helper import GH, entry
+from record_fixture import prepare, READBACK
 
 class PublishOrderTests(unittest.TestCase):
     fixture = release.ReleaseTests.fixture
@@ -34,7 +35,7 @@ class PublishOrderTests(unittest.TestCase):
         self.assertLess(STEPS.index(cache_tail[-1]), STEPS.index(publish))
         self.assertEqual(publish['env'], {'GH_TOKEN': '${{ secrets.RELEASE_TOKEN }}'})
         cases = ['', 'Compile firmware', stage['name'], publish['name'], 'cancel_before_compile',
-                 'cancel_after_stage'] + [s['name'] for s in cache_tail]
+                 'cancel_after_stage', 'Collect build record', 'Upload build record'] + [s['name'] for s in cache_tail]
         for fault in cases:
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as tmp:
                 base = Path(tmp)
@@ -78,6 +79,7 @@ export -f sudo nproc make python3 docker_exec
                 env = dict(os.environ, DK_OPENWRT=tmp, RUNNER_TEMP=tmp,
                            GITHUB_OUTPUT=str(base / 'output'), GITHUB_SHA='a' * 40,
                            GITHUB_REPOSITORY='fixture/repo', LOG=str(base / 'calls'),
+                           IMAGE_ID='sha256:'+'a'*64, BUILDER_FINGERPRINT='b'*64,
                            PATH=str(base / 'bin') + ':' + os.environ['PATH'], FAULT=fault)
                 values = {'steps.tc.outputs.cache-hit': 'false'}
                 successful = True
@@ -115,9 +117,9 @@ export -f sudo nproc make python3 docker_exec
                                     values[f"steps.{current['id']}.outputs.{key}"] = value
                                 (base / 'output').unlink()
                         else:
-                            self.assertEqual(current['uses'], 'actions/cache/save@main')
+                            self.assertIn(current['uses'], ('actions/cache/save@main', 'actions/upload-artifact@v4'))
                             outcome = 'failure' if name == fault else 'success'
-                            if outcome == 'success':
+                            if outcome == 'success' and current['uses'] == 'actions/cache/save@main':
                                 saved.append(current['with']['path'])
                         successful = successful and outcome == 'success'
                     outcomes[name] = outcome
@@ -148,7 +150,7 @@ class CachePublicationIntegrationTests(unittest.TestCase):
         self.assertEqual(publish['env'], {'GH_TOKEN': '${{ secrets.RELEASE_TOKEN }}'})
         self.assertEqual(STEPS[-1], publish)
         self.assertLess(STEPS.index(step('Prune old download caches')), STEPS.index(publish))
-        for item in STEPS[STEPS.index(step('Prepare build caches')):STEPS.index(publish)]:
+        for item in STEPS[STEPS.index(step('Prepare build caches')):STEPS.index(step('Prune old download caches')) + 1]:
             self.assertNotRegex(item.get('if', ''), r'\b(always|failure|cancelled)\(')
             self.assertFalse(item.get('continue-on-error', False))
 
@@ -156,6 +158,9 @@ class CachePublicationIntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             release.ReleaseTests().fixture(base)
+            prepare(base)
+            if fault == 'metadata':
+                (base / '.custom-revisions.tsv').unlink()
             if fault == 'validation':
                 (base / '.config').write_text('CONFIG_TARGET_wrong=y\n')
             cc = base / 'staging_dir/host/bin/ccache'
@@ -170,6 +175,10 @@ class CachePublicationIntegrationTests(unittest.TestCase):
                                              fail_reads=[2] if fault == 'readback' else [])))
             gh = GH.replace("if a == ['api', '--paginate'", """if a[:2] == ['api', 'repos/fixture/repo/git/ref/heads/main']:
     p.write_text(json.dumps(s)); print(os.environ['GITHUB_SHA']); sys.exit(0)
+elif a[0] == 'api' and '/releases/tags/' in a[1]:
+    p.write_text(json.dumps(s))
+""" + READBACK + """
+    sys.exit(0)
 elif a[:2] == ['release', 'create']:
     p.write_text(json.dumps(s)); sys.exit(19 if os.environ['FAULT']=='publish' else 0)
 elif a == ['api', '--paginate', '--slurp', 'repos/fixture/repo/releases?per_page=100']:
@@ -183,14 +192,16 @@ elif a == ['api', '--paginate'""")
                        MOCK_STATE=str(state), GITHUB_REF='refs/heads/main',
                        GITHUB_SHA='a'*40, GITHUB_REPOSITORY='fixture/repo',
                        GITHUB_OUTPUT=str(base / 'output'), RUNNER_TEMP=tmp,
-                       DK_OPENWRT=tmp, FAULT=fault)
+                       DK_OPENWRT=tmp, FAULT=fault, IMAGE_ID='sha256:'+'a'*64, BUILDER_FINGERPRINT='b'*64)
             # Real nested compile shell and stage; compiler, Docker and archive
             # compressor are external boundaries. No firmware build/network occurs.
             prefix = '''
 make() { [ "$FAULT" != compile ]; }
 docker_exec() {
     shift
-    if [ "$1" = python3 ] && [ "$2" = /cache-scripts/cache.py ]; then
+    if [ "$1" = python3 ] && [ "$2" = /cache-scripts/build_record.py ]; then
+        python3 scripts/build_record.py "$DK_OPENWRT" build-record
+    elif [ "$1" = python3 ] && [ "$2" = /cache-scripts/cache.py ]; then
         [ "$FAULT" != package ] || return 17
         mkdir -p "${5#/}"
         truncate -s 100 "${5#/}/$3.tar.gz"
@@ -241,9 +252,10 @@ export -f make docker_exec sudo
                     rc = result.returncode
                     logs.append(name + '\n' + result.stdout + result.stderr)
                 else:
-                    self.assertEqual(item['uses'], 'actions/cache/save@main')
-                    rc = 23 if fault == 'save' else 0
-                    if not rc:
+                    self.assertIn(item['uses'], ('actions/cache/save@main', 'actions/upload-artifact@v4'))
+                    rc = 23 if ((fault == 'save' and item['uses'] == 'actions/cache/save@main') or
+                                   (fault == 'upload' and item['uses'] == 'actions/upload-artifact@v4')) else 0
+                    if not rc and item['uses'] == 'actions/cache/save@main':
                         inventory = json.loads(state.read_text())
                         inventory['entries'].append(entry(100+len(executed), render(item['with']['key'], values)))
                         state.write_text(json.dumps(inventory))
@@ -261,7 +273,7 @@ export -f make docker_exec sudo
             return outcomes, executed, json.loads(state.read_text()), '\n'.join(logs)
 
     def test_full_compile_stage_cache_publish_failure_matrix(self):
-        for fault in ('none', 'compile', 'validation', 'cancel', 'package', 'save', 'readback', 'publish'):
+        for fault in ('none', 'compile', 'validation', 'cancel', 'package', 'save', 'readback', 'publish', 'metadata', 'upload'):
             with self.subTest(fault=fault):
                 outcomes, executed, inventory, log = self.replay(fault)
                 published = fault not in ('compile', 'validation', 'cancel')
@@ -269,7 +281,7 @@ export -f make docker_exec sudo
                 self.assertEqual(bool(creates), published, log)
                 self.assertEqual(outcomes['Publish firmware and prune releases'],
                                  'failure' if fault == 'publish' else 'success' if published else 'skipped', log)
-                if fault in ('none', 'publish'):
+                if fault in ('none', 'publish', 'metadata', 'upload'):
                     self.assertEqual({item['key'] for item in inventory['entries']},
                                      {'cc-v3-ubi2.new', 'tc-v3-ubi2-new', 'dl-v3.new'}, log)
                     self.assertLess(executed.index('Prune old download caches'),

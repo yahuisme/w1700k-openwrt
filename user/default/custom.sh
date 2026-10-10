@@ -33,6 +33,7 @@ if ! git clone --depth=1 https://github.com/yahuisme/packages.git "$PKG_REPO"; t
     exit 1
 fi
 PKG_SHA=$(git -C "$PKG_REPO" rev-parse HEAD)
+printf 'yahuisme/packages\t%s\t%s\n' "$(git -C "$PKG_REPO" remote get-url origin)" "$PKG_SHA" > .custom-revisions.tsv
 echo "yahuisme/packages: $PKG_SHA"
 cp -r "$PKG_REPO/luci-app-wifi7" "$PKG_REPO/luci-app-airoha-npu" \
       "$PKG_REPO/luci-app-airoha-flowsense" \
@@ -72,6 +73,7 @@ for pkg in luci-theme-aurora luci-app-aurora-config; do
         exit 1
     fi
     PKG_SHA=$(git -C "package/$pkg" rev-parse HEAD)
+    printf '%s\t%s\t%s\n' "$pkg" "$(git -C "package/$pkg" remote get-url origin)" "$PKG_SHA" >> .custom-revisions.tsv
     echo "$pkg: $PKG_SHA"
 done
 

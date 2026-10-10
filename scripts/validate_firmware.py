@@ -22,11 +22,11 @@ def validate(config, targets, distro):
                      'CONFIG_TARGET_BOARD="airoha"', 'CONFIG_TARGET_SUBTARGET="an7581"'):
         if lines.count(required) != 1:
             raise ValueError('missing/duplicate final target: ' + required)
-    for app in ('airoha-fancontrol', 'airoha-flowsense', 'airoha-npu', 'wifi7', 'wol', 'ttyd'):
+    for app in ('airoha-fancontrol', 'airoha-flowsense', 'airoha-npu', 'wifi7', 'wol', 'ttyd', 'aurora-config'):
         for package in ('luci-app-' + app, 'luci-i18n-' + app + '-zh-cn'):
             if lines.count('CONFIG_PACKAGE_' + package + '=y') != 1:
                 raise ValueError('missing/duplicate required application: ' + package)
-    for package in ('etherwake', 'ttyd', 'wpad-openssl'):
+    for package in ('etherwake', 'ttyd', 'wpad-openssl', 'luci-theme-aurora'):
         if lines.count('CONFIG_PACKAGE_' + package + '=y') != 1:
             raise ValueError('missing/duplicate required dependency: ' + package)
     for package in ('usteer', 'luci-app-usteer', 'luci-i18n-usteer-zh-cn'):

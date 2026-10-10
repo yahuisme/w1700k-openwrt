@@ -4,7 +4,7 @@
 
 The key hashes the complete final `.config`, source contents and modes under
 `INPUTS`, builder fingerprint, host architecture, build path and fingerprint policy.
-`tc-inputs-v7` replaces image-ID compatibility; the workflow still inspects and
+`tc-inputs-v8` replaces image-ID compatibility; the workflow still inspects and
 runs the exact local `IMAGE_ID`, but never hashes OCI creation timestamps.
 
 `scripts/builder_fingerprint.py` runs inside that container before source prep.
@@ -31,9 +31,14 @@ This policy change deliberately starts a new exact-key generation; no old-key
 fallback is allowed. Package/version settings and literal DEFAULT_PACKAGES changes
 remain invalidators. External mutable compiler/kernel/source trees are rejected.
 
-Only the three explicit generic/Airoha runtime `base-files` overlays and ignored
-`scripts/config` generated outputs are excluded. Kernel files/patches and target
-recipes remain inputs. Input mtimes are normalized to `EPOCH`; completion stamps
+The three explicit generic/Airoha runtime `base-files` overlays and ignored
+`scripts/config` generated outputs are excluded. Recognized direct generic
+`backport/pending/hack/files/config/kernel-<version>` roots for versions not
+declared by the Airoha platform/subtargets are also excluded when every version
+expression is understood and a normal KERNEL_PATCHVER is present. Unknown
+expressions/includes or missing normal versions retain the full generic tree;
+shared/unrecognized roots and symlinks are not excluded by version. Selected
+kernel files/patches and target recipes remain inputs. Input mtimes are normalized to `EPOCH`; completion stamps
 are never touched. PAX archives preserve nanoseconds and restore matching
 `build_dir/host`, `build_dir/toolchain-*`, `staging_dir/host` and
 `staging_dir/toolchain-*` together after clearing old build/staging trees.

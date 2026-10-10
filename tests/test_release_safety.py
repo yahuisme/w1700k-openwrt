@@ -8,6 +8,7 @@ import unittest
 
 from test_cache_workflow import ROOT, render, step
 import test_cache_key as cache_tests
+from record_fixture import READBACK
 
 load, SCRIPT = cache_tests.load, cache_tests.SCRIPT
 
@@ -18,11 +19,11 @@ CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_w1700k-ubi=y
 CONFIG_TARGET_BOARD="airoha"
 CONFIG_TARGET_SUBTARGET="an7581"
 '''
-for app in ('airoha-fancontrol', 'airoha-flowsense', 'airoha-npu', 'wifi7', 'wol', 'ttyd'):
+for app in ('airoha-fancontrol', 'airoha-flowsense', 'airoha-npu', 'wifi7', 'wol', 'ttyd', 'aurora-config'):
     CONFIG += f'CONFIG_PACKAGE_luci-app-{app}=y\nCONFIG_PACKAGE_luci-i18n-{app}-zh-cn=y\n'
 
 
-CONFIG += ''.join(f'CONFIG_PACKAGE_{pkg}=y\n' for pkg in ('etherwake', 'ttyd', 'wpad-openssl'))
+CONFIG += ''.join(f'CONFIG_PACKAGE_{pkg}=y\n' for pkg in ('etherwake', 'ttyd', 'wpad-openssl', 'luci-theme-aurora'))
 
 
 class ReleaseTests(unittest.TestCase):
@@ -65,8 +66,8 @@ class ReleaseTests(unittest.TestCase):
                         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_required_user_packages_cannot_be_omitted(self):
-        packages = ['etherwake', 'ttyd', 'wpad-openssl']
-        packages += [pkg for app in ('wol', 'ttyd')
+        packages = ['etherwake', 'ttyd', 'wpad-openssl', 'luci-theme-aurora']
+        packages += [pkg for app in ('wol', 'ttyd', 'aurora-config')
                      for pkg in ('luci-app-' + app, 'luci-i18n-' + app + '-zh-cn')]
         for package in packages:
             with self.subTest(package=package), tempfile.TemporaryDirectory() as tmp:
@@ -148,6 +149,8 @@ args=sys.argv[1:]; root=Path(os.environ['STUB_ROOT']); mode=os.environ['CASE']
 with (root/'calls').open('a') as f: f.write(json.dumps(args)+'\\n')
 if args == ['api', '--paginate', '--slurp', 'repos/fixture/repo/releases?per_page=100']:
     print((root/'releases.json').read_text())
+elif args[0]=='api' and '/releases/tags/' in args[1]:
+''' + READBACK + '''
 elif args[0]=='api':
     second=(root/'checked').exists(); (root/'checked').touch()
     if mode=='error' or (second and mode=='recheck-error'): sys.exit(1)

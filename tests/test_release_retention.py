@@ -7,7 +7,8 @@ import subprocess
 import tempfile
 import unittest
 
-from test_cache_workflow import step
+from test_cache_workflow import step, ROOT
+from record_fixture import READBACK
 
 BLOCK = step('Publish firmware and prune releases')['run']
 PREFIX_MATCH = re.search(r'PREFIX="([^"]+)"', BLOCK)
@@ -26,6 +27,8 @@ if args == ['api', 'repos/fixture/repo/git/ref/heads/main', '--jq', '.object.sha
 elif args == ['api', '--paginate', '--slurp', 'repos/fixture/repo/releases?per_page=100']:
     print(Path('pages.json').read_text())
     sys.exit(19 if os.environ['FAULT'] == 'list' else 0)
+elif args[0] == 'api' and '/releases/tags/' in args[1]:
+''' + READBACK + '''
 elif args[:2] == ['release', 'create']:
     sys.exit(17 if os.environ['FAULT'] == 'create' else 0)
 elif args[:2] == ['release', 'delete']:
@@ -45,6 +48,7 @@ class RetentionTests(unittest.TestCase):
     def replay(self, pages, expected=(), fault='', success=True):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
+            (base / 'scripts').symlink_to(ROOT / 'scripts')
             (base / 'firmware').mkdir()
             (base / 'firmware/version.txt').write_text(CURRENT + '\n')
             (base / 'firmware/release-notes.md').write_text('fixture')

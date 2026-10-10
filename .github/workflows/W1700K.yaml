@@ -37,7 +37,7 @@ jobs:
       with: {path: dlarchive, key: 'dl-v3.${{ github.run_id }}.${{ github.run_attempt }}', restore-keys: 'dl-v3.'}
     - name: Prepare build environment
       run: |
-        mkdir -p openwrt_bin ghcache dlcache tcarchive ccarchive dlarchive
+        mkdir -p build-record openwrt_bin ghcache dlcache tcarchive ccarchive dlarchive
         if [ -f ccarchive/ccache.tar.gz ]; then tar --gzip -xf ccarchive/ccache.tar.gz -C ghcache; fi
         if [ -f dlarchive/dl.tar.gz ]; then tar --gzip -xf dlarchive/dl.tar.gz -C dlcache; fi
         sudo python3 scripts/dlcache.py snapshot dlcache "$RUNNER_TEMP/dlcache-before.json"
@@ -49,7 +49,7 @@ jobs:
         IMAGE_ID=$(docker image inspect --format "{{.Id}}" "$IMAGE")
         [[ "$IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]]
         echo "IMAGE_ID=$IMAGE_ID" >> "$GITHUB_ENV"
-        docker run -d --name DK -v "$PWD/user:$DK_USER" -v "$PWD/openwrt_bin:$DK_BIN" -v "$PWD/ghcache:/ghcache" -v "$PWD/scripts:/cache-scripts:ro" -v "$PWD/docker:/builder-context:ro" -v "$PWD/tcarchive:/tcarchive" -v "$PWD/ccarchive:/ccarchive" -v "$PWD/dlarchive:/dlarchive" -v "$PWD/dlcache:/dlcache" "$IMAGE_ID" sleep infinity
+        docker run -d --name DK -v "$PWD/build-record:/build-record" -v "$PWD/user:$DK_USER" -v "$PWD/openwrt_bin:$DK_BIN" -v "$PWD/ghcache:/ghcache" -v "$PWD/scripts:/cache-scripts:ro" -v "$PWD/docker:/builder-context:ro" -v "$PWD/tcarchive:/tcarchive" -v "$PWD/ccarchive:/ccarchive" -v "$PWD/dlarchive:/dlarchive" -v "$PWD/dlcache:/dlcache" "$IMAGE_ID" sleep infinity
         BUILDER_FINGERPRINT=$(docker exec -u 0 DK python3 /cache-scripts/builder_fingerprint.py /builder-context)
         [[ "$BUILDER_FINGERPRINT" =~ ^[0-9a-f]{64}$ ]]
         echo "BUILDER_FINGERPRINT=$BUILDER_FINGERPRINT" >> "$GITHUB_ENV"
@@ -78,8 +78,8 @@ jobs:
           git clean -ffdx
           mountpoint $DK_BIN || { echo "::error::not mounted" >&2; exit 1; }
           ln -s $DK_BIN bin && ln -s /dlcache dl
-          ./scripts/feeds update -a &>/dev/null || { echo "::error::feeds update failed"; exit 1; }
-          ./scripts/feeds install -a &>/dev/null || { echo "::error::feeds install failed"; exit 1; }
+          ./scripts/feeds update -a >/dev/null || { echo "::error::feeds update failed"; exit 1; }
+          ./scripts/feeds install -a >/dev/null || { echo "::error::feeds install failed"; exit 1; }
           cp $DK_PROFILE/config.diff .config
           echo "CONFIG_CCACHE_DIR=\"/ghcache\"" >> .config
           cp -r "$DK_PROFILE/files/" .
@@ -204,6 +204,29 @@ jobs:
       if: steps.dl_budget.outputs.save == 'true'
       run: python3 scripts/cache_helper.py cleanup 'dl-v3.' '${{ steps.dl.outputs.cache-primary-key }}'
 
+    - name: Collect build record
+      id: record
+      continue-on-error: true
+      if: ${{ always() }}
+      run: |
+        mkdir -p build-record
+        printf 'repository=%s\nworkflow_sha=%s\nrun_id=%s\nrun_attempt=%s\nrunner_os=%s\nrunner_arch=%s\nimage_id=%s\nbuilder_fingerprint=%s\n' \
+          "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
+          "$RUNNER_OS" "$RUNNER_ARCH" "$IMAGE_ID" "$BUILDER_FINGERPRINT" > build-record/environment.txt
+        docker_exec DK python3 /cache-scripts/build_record.py "$DK_OPENWRT" /build-record > build-record/collection.log 2>&1 || { cat build-record/collection.log; exit 1; }
+        [[ "$IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ && "$BUILDER_FINGERPRINT" =~ ^[0-9a-f]{64}$ ]]
+
+    - name: Upload build record
+      id: record_upload
+      continue-on-error: true
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-record-${{ github.run_id }}-${{ github.run_attempt }}
+        path: build-record/
+        retention-days: 30
+        if-no-files-found: error
+
     - name: Publish firmware and prune releases
       if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
       env:
@@ -224,6 +247,7 @@ jobs:
         VERSION="$(cat firmware/version.txt)"
         RELEASE_TITLE="${VERSION%-*}_${VERSION##*-}"
         gh release create "$VERSION" firmware/*sysupgrade.itb --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file firmware/release-notes.md
+        python3 scripts/verify_release.py "$VERSION" firmware/*sysupgrade.itb
         # Recheck before pruning, before removing older standard releases.
         current_main
         PREFIX="W1700K-OpenWrt_"

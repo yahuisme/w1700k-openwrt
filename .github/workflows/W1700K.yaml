@@ -152,8 +152,10 @@ jobs:
 
         - 源码：[OpenWrt main](https://github.com/openwrt/openwrt)
         - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
-        - 仅提供现行 UBI 布局的 sysupgrade.itb；刷写前请备份配置。
+        - 镜像：sysupgrade.itb，仅适用于已完成 UBI2 安装的设备；刷写前请备份配置。
         - 保留必要硬件兼容与功率定制。
+
+        [默认设置与使用说明](https://github.com/yahuisme/w1700k-openwrt#默认访问)
         EOF
 
     # One standard writer: total 10 GB including legacy entries and margin.

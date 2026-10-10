@@ -4,7 +4,7 @@
 
 适用于已完成 UBI2 安装的 Quantum Fiber / Gemtek W1700K。升级镜像见 [Releases](https://github.com/yahuisme/w1700k-openwrt/releases)。
 
-首次安装或需要重建 UBI2 布局，请参阅 [W1700K UBI2 Installer](https://github.com/yahuisme/w1700k-ubi2-installer)，按教程拆机连接 USB-TTL，刷入 U-Boot Chainloader 并运行安装器。已完成 UBI2 安装的设备无需重复操作。
+首次安装或重建 UBI2 布局，请参阅 [安装教程](https://github.com/yahuisme/w1700k-ubi2-installer)。
 
 ## 特性
 
@@ -21,8 +21,8 @@
 | [风扇控制](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-fancontrol) | 温控曲线与风扇调速 |
 | [FlowSense](https://github.com/yahuisme/packages/tree/main/luci-app-airoha-flowsense) | 流量与加速管理 |
 | [WiFi7](https://github.com/yahuisme/packages/tree/main/luci-app-wifi7) | 无线射频与 MLO 管理 |
-| 网络唤醒 | Wake-on-LAN |
-| 终端 | 网页终端 |
+| 网络唤醒 | 唤醒局域网设备 |
+| 网页终端 | 浏览器终端访问 |
 
 ## 默认访问
 
@@ -40,7 +40,7 @@
 | SSID | `W1700K` | `W1700K` | `W1700K-6G` |
 | 信道 | 1 | 36 | 37 |
 | 模式 | EHT20 | EHT160 | EHT320 |
-| 功率 | 23 dBm | 25 dBm | 25 dBm |
+| 配置功率 | 23 dBm | 25 dBm | 25 dBm |
 
 ## 构建
 

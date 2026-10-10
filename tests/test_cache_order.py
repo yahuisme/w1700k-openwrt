@@ -67,6 +67,8 @@ class CacheOrderTests(unittest.TestCase):
                     continue
                 if 'run' in step:
                     text = re.sub(r'\$\{\{\s*(.*?)\s*\}\}', lambda m: resolve(m[1]), step['run'])
+                    # Archives are sparse fixtures; run the real admission/cleanup.
+                    text = 'docker_exec() { :; }; sudo() { :; };\n' + text
                     result = subprocess.run(['bash', '-eo', 'pipefail', '-c', text], cwd=base, env=env, text=True, capture_output=True)
                     logs.append(step['name'] + '\n' + result.stdout + result.stderr)
                     successful = result.returncode == 0

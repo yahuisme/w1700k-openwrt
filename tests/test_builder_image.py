@@ -10,7 +10,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 STEPS = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())['jobs']['build']['steps']
-BLOCK = next(s['run'] for s in STEPS if s.get('name') == 'Start build container')
+BLOCK = next(s['run'] for s in STEPS if s.get('name') == 'Prepare build environment')
 BLOCK = BLOCK[BLOCK.index('IMAGE='):BLOCK.index('install -m 755')]
 IMAGE_ID = 'sha256:' + 'b' * 64
 FINGERPRINT = 'c' * 64

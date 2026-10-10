@@ -26,7 +26,7 @@ class PublishOrderTests(unittest.TestCase):
     def test_publication_after_cache_tail_and_failure_isolation(self):
         stage = step('Validate and stage firmware')
         publish = step('Publish firmware and prune releases')
-        cache_tail = STEPS[STEPS.index(step('Package build caches')):
+        cache_tail = STEPS[STEPS.index(step('Prepare build caches')):
                            STEPS.index(step('Prune old download caches')) + 1]
         self.assertEqual(stage.get('id'), 'stage')
         self.assertEqual(publish.get('if'), "${{ !cancelled() && steps.stage.outcome == 'success' }}")
@@ -70,7 +70,7 @@ python3() {
 }
 docker_exec() {
   shift
-  [ "$STEP_NAME" != 'Package build caches' ] || [ "$FAULT" != "$STEP_NAME" ] || return 23
+  [ "$STEP_NAME" != 'Prepare build caches' ] || [ "$FAULT" != "$STEP_NAME" ] || return 23
   "$@"
 }
 export -f sudo nproc make python3 docker_exec
@@ -148,7 +148,7 @@ class CachePublicationIntegrationTests(unittest.TestCase):
         self.assertEqual(publish['env'], {'GH_TOKEN': '${{ secrets.RELEASE_TOKEN }}'})
         self.assertEqual(STEPS[-1], publish)
         self.assertLess(STEPS.index(step('Prune old download caches')), STEPS.index(publish))
-        for item in STEPS[STEPS.index(step('Package build caches')):STEPS.index(publish)]:
+        for item in STEPS[STEPS.index(step('Prepare build caches')):STEPS.index(publish)]:
             self.assertNotRegex(item.get('if', ''), r'\b(always|failure|cancelled)\(')
             self.assertFalse(item.get('continue-on-error', False))
 
@@ -229,7 +229,7 @@ export -f make docker_exec sudo
                 return eval(expression.replace('&&', ' and '), {'__builtins__': {}})
             for item in STEPS[STEPS.index(step('Compile firmware')):]:
                 name = item['name']
-                if fault == 'cancel' and name == 'Package build caches':
+                if fault == 'cancel' and name == 'Prepare build caches':
                     cancelled = True
                 if not condition(item.get('if', 'True')):
                     outcomes[name] = 'skipped'

@@ -35,15 +35,12 @@ jobs:
       id: dl
       uses: actions/cache/restore@main
       with: {path: dlarchive, key: 'dl-v3.${{ github.run_id }}.${{ github.run_attempt }}', restore-keys: 'dl-v3.'}
-    - name: Extract rolling caches
+    - name: Prepare build environment
       run: |
         mkdir -p openwrt_bin ghcache dlcache tcarchive ccarchive dlarchive
         if [ -f ccarchive/ccache.tar.gz ]; then tar --gzip -xf ccarchive/ccache.tar.gz -C ghcache; fi
         if [ -f dlarchive/dl.tar.gz ]; then tar --gzip -xf dlarchive/dl.tar.gz -C dlcache; fi
         sudo python3 scripts/dlcache.py snapshot dlcache "$RUNNER_TEMP/dlcache-before.json"
-
-    - name: Start build container
-      run: |
         [ -f "user/default/config.diff" ] || { echo "::error::config.diff not found"; exit 1; }
         sudo tee /etc/docker/daemon.json <<< '{"max-concurrent-downloads":50,"max-concurrent-uploads":50,"experimental":true}'
         sudo systemctl reload docker
@@ -162,7 +159,8 @@ jobs:
     # One standard writer: total 10 GB including legacy entries and margin.
     # Count all own generations and unknown/legacy entries on each admission.
     # Save/readback/cleanup precedes the next admission in each writer.
-    - name: Package build caches
+    - name: Prepare build caches
+      id: cc_budget
       run: |
         docker_exec DK python3 /cache-scripts/cache.py ccache /ghcache /ccarchive unused
         if [ '${{ steps.tc.outputs.cache-hit }}' != true ]; then
@@ -172,10 +170,8 @@ jobs:
           docker_exec DK python3 /cache-scripts/cache.py dl /dlcache /dlarchive unused
         fi
         sudo chown -R "$(id -u):$(id -g)" tcarchive ccarchive dlarchive
-    # Retire confirmed rolling compiler generations before admitting toolchain.
-    - name: Check compiler cache budget
-      id: cc_budget
-      run: python3 scripts/cache_helper.py admit 'cc-v3-ubi2.' ccarchive/ccache.tar.gz '${{ steps.gh.outputs.cache-primary-key }}'
+        # Retire confirmed rolling compiler generations before admitting toolchain.
+        python3 scripts/cache_helper.py admit 'cc-v3-ubi2.' ccarchive/ccache.tar.gz '${{ steps.gh.outputs.cache-primary-key }}'
     - name: Save compiler cache
       uses: actions/cache/save@main
       if: steps.cc_budget.outputs.save == 'true' && hashFiles('ccarchive/ccache.tar.gz') != ''

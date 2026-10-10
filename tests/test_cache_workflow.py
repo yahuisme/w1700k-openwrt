@@ -80,7 +80,7 @@ class WorkflowTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, (s.get('name'), result.stderr))
 
     def test_download_gates_and_pack(self):
-        snapshot = step('Extract rolling caches')
+        snapshot = step('Prepare build environment')
         check = step('Check download cache changes')
 
         self.assertLess(STEPS.index(snapshot), STEPS.index(step('Prepare source and cache key')))
@@ -107,7 +107,9 @@ class WorkflowTests(unittest.TestCase):
                         self.assertEqual(eval(condition.replace('&&', ' and '), {'__builtins__': {}}), expected)
             values = {'steps.dl_changed.outputs.save': changed,
                       'steps.tc.outputs.cache-hit': 'true'}
-            block = render(step('Package build caches')['run'], values)
+            block = render(step('Prepare build caches')['run'], values)
+            # This check isolates packing; complete merged execution is tested separately.
+            block = block.split('python3 scripts/cache_helper.py admit', 1)[0]
             stub = 'docker_exec() { printf "%s\\n" "$*"; }; sudo() { :; };\n'
             result = subprocess.run(['bash', '-e', '-c', stub + block], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -126,10 +128,12 @@ class WorkflowTests(unittest.TestCase):
             env = dict(os.environ, RUNNER_TEMP=tmp, GITHUB_OUTPUT=str(output))
             def run(name):
                 block = render(step(name)['run'], {'steps.dl.outputs.cache-matched-key': 'dl-v3.old'})
+                if name == 'Prepare build environment':
+                    block = block.split('[ -f "user/default/config.diff" ]', 1)[0]
                 result = subprocess.run(['bash', '-e', '-c', 'sudo() { "$@"; };\n' + block],
                                         cwd=base, env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
-            run('Extract rolling caches')
+            run('Prepare build environment')
             run('Check download cache changes')
             self.assertEqual(output.read_text(), 'save=false\n')
             module = dl / 'go-mod-cache/module.zip'
@@ -211,7 +215,8 @@ class WorkflowTests(unittest.TestCase):
 
     def test_unpack_creates_download_snapshot(self):
         with tempfile.TemporaryDirectory() as tmp:
-            block = render(step('Extract rolling caches')['run'], {})
+            block = render(step('Prepare build environment')['run'], {})
+            block = block.split('[ -f "user/default/config.diff" ]', 1)[0]
             stub = 'sudo() { printf "%s\\n" "$*"; };\n'
             result = subprocess.run(['bash', '-e', '-c', stub + block], cwd=tmp,
                                     capture_output=True, text=True)

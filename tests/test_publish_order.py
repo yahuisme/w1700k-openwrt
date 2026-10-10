@@ -47,9 +47,9 @@ class PublishOrderTests(unittest.TestCase):
                 gh.write_text('''#!/bin/bash
 printf '%s\\n' "$*" >> "$LOG"
 case "$1 $2" in
+  'api --paginate') printf '[[]]\\n' ;;
   'api '*) printf '%s\\n' "$GITHUB_SHA" ;;
   'release create') [ "$FAULT" != 'Publish firmware and prune releases' ] ;;
-  'release list') : ;;
   *) exit 99 ;;
 esac
 ''')
@@ -172,8 +172,8 @@ class CachePublicationIntegrationTests(unittest.TestCase):
     p.write_text(json.dumps(s)); print(os.environ['GITHUB_SHA']); sys.exit(0)
 elif a[:2] == ['release', 'create']:
     p.write_text(json.dumps(s)); sys.exit(19 if os.environ['FAULT']=='publish' else 0)
-elif a[:2] == ['release', 'list']:
-    p.write_text(json.dumps(s)); print('W1700K-'+('OpenWrt' if release.IMAGE.startswith('openwrt-') else 'ImmortalWrt')+'_old'); sys.exit(0)
+elif a == ['api', '--paginate', '--slurp', 'repos/fixture/repo/releases?per_page=100']:
+    p.write_text(json.dumps(s)); print('[[]]'); sys.exit(0)
 elif a[:2] == ['release', 'delete']:
     p.write_text(json.dumps(s)); sys.exit(0)
 elif a == ['api', '--paginate'""")

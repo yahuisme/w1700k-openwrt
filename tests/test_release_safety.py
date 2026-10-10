@@ -146,7 +146,9 @@ import os,json,sys
 from pathlib import Path
 args=sys.argv[1:]; root=Path(os.environ['STUB_ROOT']); mode=os.environ['CASE']
 with (root/'calls').open('a') as f: f.write(json.dumps(args)+'\\n')
-if args[0]=='api':
+if args == ['api', '--paginate', '--slurp', 'repos/fixture/repo/releases?per_page=100']:
+    print((root/'releases.json').read_text())
+elif args[0]=='api':
     second=(root/'checked').exists(); (root/'checked').touch()
     if mode=='error' or (second and mode=='recheck-error'): sys.exit(1)
     if mode=='empty': sys.exit(0)
@@ -154,25 +156,26 @@ if args[0]=='api':
     print('b'*40 if mode=='stale' or (second and mode=='advance') else os.environ['GITHUB_SHA'])
 elif args[:2]==['release','create']:
     if mode=='create-error': sys.exit(1)
-elif args[:2]==['release','list']:
-    print((root/'tags').read_text())
 elif args[:2]!=['release','delete']: sys.exit(99)
 ''')
                 gh.chmod(0o755)
                 version = (base / 'firmware/version.txt').read_text().strip()
                 standard = ['W1700K-OpenWrt_old', 'W1700K-OpenWrt-r1-old', 'W1700K-ubi2_old']
                 oc = ['W1700K-OpenWrt-OC_old', 'W1700K-OpenWrt-OC-r1-old', 'W1700K-ubi2-oc_old']
-                (base / 'tags').write_text('\n'.join(standard + oc + [version, 'unrelated']))
+                entries = [dict(tag_name=tag, id=i, draft=False, prerelease=False,
+                                published_at=f'2026-01-{i+1:02d}T00:00:00Z')
+                           for i, tag in enumerate(standard + oc + [version, 'unrelated'])]
+                (base / 'releases.json').write_text(json.dumps([entries]))
                 env = dict(os.environ, PATH=tmp + ':' + os.environ['PATH'], STUB_ROOT=tmp, CASE=case,
                            GITHUB_SHA='a'*40, GITHUB_REPOSITORY='fixture/repo')
                 result = subprocess.run(['bash', '-eo', 'pipefail', '-c', render(step('Publish firmware and prune releases')['run'], {})], cwd=base, env=env, text=True, capture_output=True)
                 calls = [json.loads(line) for line in (base / 'calls').read_text().splitlines()]
                 creates = [c for c in calls if c[:2] == ['release', 'create']]
-                deletes = [c[-1] for c in calls if c[:2] == ['release', 'delete']]
+                deletes = [c[2] for c in calls if c[:2] == ['release', 'delete']]
                 self.assertEqual(result.returncode == 0, case in ('fresh', 'stale', 'advance'), result.stderr)
                 self.assertEqual(bool(creates), case in ('fresh', 'advance', 'recheck-error', 'create-error'))
                 if creates: self.assertEqual(creates[0][creates[0].index('--target') + 1], 'a'*40)
-                self.assertEqual(set(deletes), set(standard) if case == 'fresh' else set())
+                self.assertEqual(set(deletes), set(standard[:2]) if case == 'fresh' else set())
                 self.assertEqual(calls[0], ['api', 'repos/fixture/repo/git/ref/heads/main', '--jq', '.object.sha'])
                 if case == 'stale':
                     # A successful skipped publication leaves ordinary cache steps runnable.

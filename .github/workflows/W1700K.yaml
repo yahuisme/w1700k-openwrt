@@ -227,4 +227,20 @@ jobs:
         # Recheck before pruning, before removing older standard releases.
         current_main
         PREFIX="W1700K-OpenWrt_"
-        gh release list --json tagName --jq '.[].tagName' | grep -E "^(${PREFIX}|${PREFIX%_}-r[0-9]+-|W1700K-ubi2_)" | grep -vxF "$VERSION" | xargs -r -n1 gh release delete --cleanup-tag -y ||:
+        # Keep the current release plus the most recently published predecessor.
+        if releases=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100") &&
+          old_tags=$(jq -er --arg current "$VERSION" --arg pattern "^(${PREFIX}|${PREFIX%_}-r[0-9]+-|W1700K-ubi2_)" '
+            flatten | map(select(.draft == false and .prerelease == false and
+              (.tag_name | test($pattern)))) |
+            sort_by(.published_at, .id) | reverse |
+            if any(.tag_name == $current) then
+              [.[] | select(.tag_name != $current)][1:] | map(.tag_name) | join("\n")
+            else error("Published release missing from inventory") end
+          ' <<< "$releases"); then
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            gh release delete "$tag" --cleanup-tag -y || echo "::warning::Failed to delete release $tag"
+          done <<< "$old_tags"
+        else
+          echo "::warning::Release inventory unavailable; retaining all releases"
+        fi

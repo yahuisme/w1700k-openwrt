@@ -1,0 +1,8 @@
+#!/bin/sh /etc/rc.common
+# One synchronous boot update after native done (95) and led (96).
+START=97
+
+boot() {
+    touch /var/run/wan-status-led-ready
+    ACTION=boot INTERFACE= sh /etc/hotplug.d/iface/95-wan-status-led
+}

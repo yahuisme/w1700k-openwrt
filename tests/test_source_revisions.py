@@ -20,6 +20,7 @@ class SourceRevisionTests(unittest.TestCase):
                 (source / 'scripts').mkdir(parents=True)
                 profile = base / 'profile'
                 (profile / 'tree').mkdir(parents=True)
+                (profile / 'files').mkdir()
                 (source / 'feeds/luci/.git').mkdir(parents=True)
                 (profile / 'settings.ini').write_text('REPO_URL=https://github.com/immortalwrt/immortalwrt\nREPO_BRANCH=master\n')
                 (profile / 'feeds.conf').write_text('# fixture\n')

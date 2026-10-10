@@ -151,12 +151,12 @@ jobs:
         echo "$VERSION" > firmware/version.txt
         RELEASE_NOTES="firmware/release-notes.md"
         cat > "$RELEASE_NOTES" <<EOF
-        ## Quantum Fiber / Gemtek W1700K OpenWrt — 官方 snapshot 标准版
+        ## Quantum Fiber / Gemtek W1700K OpenWrt
 
         - 源码：[OpenWrt main](https://github.com/openwrt/openwrt)
         - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
         - 仅提供现行 UBI 布局的 sysupgrade.itb；刷写前请备份配置。
-        - 保留必要硬件兼容与功率定制，使用标准 CPU 参数。
+        - 保留必要硬件兼容与功率定制。
         EOF
 
     # One standard writer: total 10 GB including legacy entries and margin.

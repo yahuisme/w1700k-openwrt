@@ -1,6 +1,6 @@
 # W1700K OpenWrt
 
-基于 [OpenWrt 官方 snapshot](https://github.com/openwrt/openwrt)，仅构建标准版。
+基于 [OpenWrt 官方 snapshot](https://github.com/openwrt/openwrt)。
 
 适用于已完成 UBI2 安装的 Quantum Fiber / Gemtek W1700K。升级镜像见 [Releases](https://github.com/yahuisme/w1700k-openwrt/releases)。
 
@@ -44,6 +44,6 @@
 
 ## 构建
 
-每日香港时间 12:00 自动构建，也可手动运行 Actions。仅发布 `sysupgrade.itb`。
+每日自动构建，也可手动运行 Actions。仅发布 `sysupgrade.itb`。
 
 [补丁来源](SOURCES.md)

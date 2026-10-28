@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+from record_fixture import external_provenance
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,7 +34,8 @@ class RecordContract(unittest.TestCase):
         (base / '.config').write_text('CONFIG_FIXTURE=y\n')
         (base / '.custom-revisions.tsv').write_text(''.join(
             f'{name}\thttps://example.invalid/{name}\t' + 'a' * 40 + '\n'
-            for name in ('yahuisme/packages', 'luci-theme-aurora', 'luci-app-aurora-config')))
+            for name in ('yahuisme/packages',)))
+        external_provenance(base)
         target = base / 'bin/targets' / profile['target']
         target.mkdir(parents=True)
         (target / 'fixture.manifest').write_text('fixture - 1\n')
@@ -65,12 +67,68 @@ class RecordContract(unittest.TestCase):
             self.assertEqual(record['builder']['image_id'], environment['image_id'])
             self.assertEqual(record['source'], revisions[0])
             self.assertEqual(record['feeds'] + record['custom_sources'], revisions[1:])
+            self.assertEqual([row['name'] for row in record['custom_sources']], ['custom/yahuisme/packages'])
+            self.assertEqual(record['external_packages'], json.loads((base / '.external-packages/provenance.json').read_text()))
+            self.assertEqual((base / 'record/external-packages.json').read_bytes(),
+                             (base / '.external-packages/provenance.json').read_bytes())
             self.assertEqual(record['target'], profile['target'])
             self.assertEqual(record['config']['digest'], 'sha256:' + hashlib.sha256((base / '.config').read_bytes()).hexdigest())
             self.assertEqual({e['name'] for e in record['images']}, {p.name for p in paths})
             self.assertEqual(json.loads((base / 'record/diagnostics.json').read_text()), dict(errors=[], warnings=[]))
             self.assertFalse((base / 'record/images.json').exists())
             self.assertFalse((base / 'record/source-revisions.txt').exists())
+
+    def test_external_metadata_failures_keep_git_and_raw_provenance(self):
+        mutations = {
+            'json': lambda r: None,
+            'version': lambda r: r.update(version=True),
+            'architecture': lambda r: r.update(architecture='wrong'),
+            'repository-missing': lambda r: r.update(repositories=[]),
+            'repository-duplicate': lambda r: r['repositories'].append(r['repositories'][0]),
+            'repository-name': lambda r: r['repositories'][0].update(name='wrong'),
+            'repository-url': lambda r: r['repositories'][0].update(url='http://example.invalid'),
+            'repository-credentials': lambda r: r['repositories'][0].update(url='https://user:pass@example.invalid'),
+            'index-digest': lambda r: r['repositories'][0].update(index_sha256='x' * 64),
+            'key-digest': lambda r: r['repositories'][0].update(key_sha256=None),
+            'package-missing': lambda r: r['packages'].pop(),
+            'package-duplicate': lambda r: r['packages'].append(r['packages'][0]),
+            'package-name': lambda r: r['packages'][0].update(name='wrong'),
+            'package-version': lambda r: r['packages'][0].update(version=''),
+            'package-arch': lambda r: r['packages'][0].update(arch='wrong'),
+            'package-repository': lambda r: r['packages'][0].update(repository='wrong'),
+            'package-filename': lambda r: r['packages'][0].update(filename='../payload.apk'),
+            'package-digest': lambda r: r['packages'][0].update(sha256='invalid'),
+        }
+        for fault, mutate in mutations.items():
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                self.fixture(base)
+                path = base / '.external-packages/provenance.json'
+                external = json.loads(path.read_text())
+                mutate(external)
+                path.write_text('{' if fault == 'json' else json.dumps(external))
+                result = self.run_record(base)
+                self.assertNotEqual(result.returncode, 0)
+                record = json.loads((base / 'record/build.json').read_text())
+                self.assertIsNone(record['external_packages'])
+                self.assertEqual([r['name'] for r in record['custom_sources']], ['custom/yahuisme/packages'])
+                self.assertEqual((base / 'record/external-packages.json').read_bytes(), path.read_bytes())
+                self.assertTrue(record['config'])
+                self.assertTrue(record['images'])
+                errors = json.loads((base / 'record/diagnostics.json').read_text())['errors']
+                self.assertTrue(any(e.startswith('External package provenance invalid:') for e in errors), errors)
+
+    def test_obsolete_aurora_git_rows_rejected_without_losing_apk_provenance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            self.fixture(base)
+            path = base / '.custom-revisions.tsv'
+            path.write_text(path.read_text() + 'luci-theme-aurora\thttps://example.invalid/aurora\t' + 'a' * 40 + '\n')
+            result = self.run_record(base)
+            self.assertNotEqual(result.returncode, 0)
+            record = json.loads((base / 'record/build.json').read_text())
+            self.assertEqual(record['custom_sources'], [])
+            self.assertIsNotNone(record['external_packages'])
 
     def test_partial_failures_keep_config_revisions_and_diagnostics(self):
         for fault in ('empty', 'symlink', 'extra', 'wrong-name', 'missing', 'profiles', 'custom', 'git'):

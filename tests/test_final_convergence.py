@@ -24,10 +24,10 @@ class ConvergenceTests(unittest.TestCase):
         source = Path(os.environ['OPENWRT_SOURCE'])
         config = set((source / '.config').read_text().splitlines())
         for app in ('wifi7', 'airoha-npu', 'airoha-flowsense', 'airoha-fancontrol',
-                    'wol', 'ttyd', 'aurora-config'):
+                    'wol', 'ttyd'):
             for package in ('luci-app-' + app, 'luci-i18n-' + app + '-zh-cn'):
                 self.assertIn('CONFIG_PACKAGE_' + package + '=y', config)
-        for package in ('etherwake', 'ttyd', 'wpad-openssl', 'luci-theme-aurora'):
+        for package in ('etherwake', 'ttyd', 'wpad-openssl'):
             self.assertIn('CONFIG_PACKAGE_' + package + '=y', config)
         for package in ('usteer', 'luci-app-usteer', 'luci-i18n-usteer-zh-cn'):
             for state in ('y', 'm'):

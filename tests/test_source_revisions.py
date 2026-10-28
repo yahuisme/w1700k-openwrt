@@ -76,7 +76,7 @@ class SourceRevisionTests(unittest.TestCase):
         packages = ('PKG_REPO=$(mktemp -d)\ntrap \'rm -rf "$PKG_REPO"\' EXIT\n'
                     + script[script.index('if ! git clone --depth=1 https://github.com/yahuisme/packages.git'):
                              script.index('# Required patches')])
-        aurora = script[script.index('for pkg in luci-theme-aurora'):script.index('# 修改 Aurora')]
+
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             donor = base / 'donor'
@@ -96,7 +96,7 @@ class SourceRevisionTests(unittest.TestCase):
                     work = Path(work)
                     (work / 'package').mkdir()
                     # Redirect fixed staging and remote clones; rev-parse uses real Git.
-                    block = packages.replace('/tmp/yahuisme-packages', str(work / 'donor-clone')) + aurora
+                    block = packages.replace('/tmp/yahuisme-packages', str(work / 'donor-clone'))
                     stub = '''git() {
                       if [ "$1" = clone ]; then
                         [ "$FAIL" != clone ] || return 19
@@ -115,10 +115,10 @@ class SourceRevisionTests(unittest.TestCase):
                         self.assertNotIn('installed successfully.', result.stdout)
                     else:
                         self.assertEqual(result.returncode, 0, result.stderr)
-                        self.assertEqual(result.stdout.count(sha), 3, result.stdout)
+                        self.assertEqual(result.stdout.count(sha), 1, result.stdout)
                         self.assertIn('yahuisme/packages: ' + sha, result.stdout)
-                        for pkg in ('luci-theme-aurora', 'luci-app-aurora-config'):
-                            self.assertIn(pkg + ': ' + sha, result.stdout)
+                        rows = [line.split('\t') for line in (work / '.custom-revisions.tsv').read_text().splitlines()]
+                        self.assertEqual(rows, [['yahuisme/packages', str(donor), sha]])
 
     def test_actual_checkout_revisions(self):
         block = step('Prepare source and cache key')['run']

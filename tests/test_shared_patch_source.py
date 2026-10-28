@@ -62,21 +62,29 @@ class SharedPatchSource(unittest.TestCase):
    printf 'packages\\n' >> "$CALLS"
    cp -a "$DONOR/." "$dest/"
   else
-   mkdir -p "$dest/root/usr/share/aurora"
-   touch "$dest/Makefile"
-   printf "option nav_type 'mega-menu'\\noption struct_radius_base '0.5rem'\\n" > "$dest/root/usr/share/aurora/default.template"
+   echo "Unexpected clone: $*" >&2
+   return 99
   fi
  elif [[ "$*" = *rev-parse* ]]; then printf '%040d\\n' 123;
  else printf 'https://github.com/yahuisme/packages.git\\n'; fi
 }
-export -f git
+# APK source preparation has separate real-source integration tests; isolate
+# that boundary here while replaying every unrelated customization verbatim.
+python3() {
+ [ "$#" = 3 ] && [ "$1" = /cache-scripts/external_packages.py ] && \
+ [ "$2" = prepare ] && [ "$3" = . ] || return 99
+ printf 'aurora-prepare\n' >> "$CALLS"
+}
+export -f git python3
 '''
                 result = subprocess.run(['bash', '-ec', stub + 'bash "$CUSTOM"'], cwd=work,
                     env=dict(os.environ, DONOR=str(donor), CALLS=str(base / 'calls'),
                              CUSTOM=str(ROOT / 'user/default/custom.sh'), DK_PROFILE=str(ROOT / 'user/default')),
                     text=True, capture_output=True)
                 self.assertEqual(result.returncode == 0, missing is None, result.stdout + result.stderr)
-                self.assertEqual((base / 'calls').read_text(), 'packages\n')
+                reached_aurora = missing in (None, Path('patches/610-w1700k-power-30.patch'))
+                self.assertEqual((base / 'calls').read_text(),
+                                 'packages\naurora-prepare\n' if reached_aurora else 'packages\n')
                 if missing is None:
                     self.assertEqual(official_templates, {p: (work / p).read_bytes()
                                                         for p in official_templates})

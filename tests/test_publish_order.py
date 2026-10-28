@@ -166,6 +166,10 @@ class CachePublicationIntegrationTests(unittest.TestCase):
             prepare(base)
             if fault == 'metadata':
                 (base / '.custom-revisions.tsv').unlink()
+            if fault == 'metadata-external':
+                (base / '.external-packages/provenance.json').unlink()
+            if fault == 'metadata-external-invalid':
+                (base / '.external-packages/provenance.json').write_text('{')
             if fault == 'validation':
                 (base / '.config').write_text('CONFIG_TARGET_wrong=y\n')
             cc = base / 'staging_dir/host/bin/ccache'
@@ -293,7 +297,7 @@ export -f make docker_exec sudo git
                                      for call in inventory['calls']), log)
 
     def test_full_compile_stage_cache_publish_failure_matrix(self):
-        for fault in ('none', 'download', 'compile', 'validation', 'cancel', 'package', 'save', 'readback', 'publish', 'metadata', 'upload'):
+        for fault in ('none', 'download', 'compile', 'validation', 'cancel', 'package', 'save', 'readback', 'publish', 'metadata', 'metadata-external', 'metadata-external-invalid', 'upload'):
             with self.subTest(fault=fault):
                 outcomes, executed, inventory, log = self.replay(fault)
                 published = fault not in ('download', 'compile', 'validation', 'cancel')
@@ -305,7 +309,10 @@ export -f make docker_exec sudo git
                 self.assertEqual(bool(creates), published, log)
                 self.assertEqual(outcomes['Publish firmware and prune releases'],
                                  'failure' if fault == 'publish' else 'success' if published else 'skipped', log)
-                if fault in ('none', 'publish', 'metadata', 'upload'):
+                if fault in ('metadata', 'metadata-external', 'metadata-external-invalid'):
+                    self.assertEqual(outcomes['Collect build record'], 'failure', log)
+                    self.assertEqual(outcomes['Upload build record'], 'success', log)
+                if fault in ('none', 'publish', 'metadata', 'metadata-external', 'metadata-external-invalid', 'upload'):
                     self.assertEqual({item['key'] for item in inventory['entries']},
                                      {'cc-v3-ubi2.new', 'tc-v3-ubi2-new', 'dl-v3.new'}, log)
                     self.assertLess(executed.index('Prune old download caches'),

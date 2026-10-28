@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Execute complete Aurora clone/preset block with only Git mocked."""
+"""Execute signed Aurora preparation and the custom-app clone lifecycle."""
 import os
 from pathlib import Path
 import subprocess
@@ -11,45 +11,34 @@ CUSTOM = (ROOT / 'user/default/custom.sh').read_text()
 
 
 class CustomProfile(unittest.TestCase):
-    def test_complete_aurora_fragment(self):
-        start = CUSTOM.index('for pkg in luci-theme-aurora')
-        fragment = CUSTOM[start:CUSTOM.index('# The temperature & fan', start)]
-        mock = '''git() {
-    if [ "$1" = -C ]; then printf '%040d\\n' 123; return; fi
-    local dest="${@: -1}"
-    [ "$MODE:$dest" != "clone-failure:$FAIL_PACKAGE" ] || return 1
-    mkdir -p "$dest"
-    [ "$MODE:$dest" = "missing-makefile:$FAIL_PACKAGE" ] || touch "$dest/Makefile"
-    if [[ "$dest" = *luci-app-aurora-config ]]; then
-        local dir="$dest/root/usr/share/aurora"
-        [ "$MODE" != missing-dir ] || return 0
-        mkdir -p "$dir"
-        [ "$MODE" != empty-dir ] || return 0
-        for name in default custom; do
-            [ "$MODE:$name" != missing-default:default ] || continue
-            printf "\\toption nav_type 'mega-menu'  \\n\\toption struct_radius_base '0.5rem' \\n" > "$dir/$name.template"
-        done
-        if [ "$MODE" = mismatch ]; then
-            printf "option unknown 'upstream-changed'\\n" > "$dir/custom.template"
-        fi
-    fi
+    def test_signed_aurora_preparation_failure_stops_customization(self):
+        self.assertNotIn('https://github.com/eamonxg/', CUSTOM)
+        self.assertNotIn('TPL_DIR=', CUSTOM)
+        commands = [line for line in CUSTOM.splitlines()
+                    if line.startswith('python3 /cache-scripts/external_packages.py prepare ')]
+        self.assertEqual(len(commands), 1)
+        for status in (0, 23):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as tmp:
+                mock = r'''python3() {
+    printf '%s\n' "$PWD" "$@" > prepare-calls
+    return "$PREPARE_STATUS"
 }
 '''
-        for package in ('luci-theme-aurora', 'luci-app-aurora-config'):
-            for mode in ('success', 'clone-failure', 'missing-makefile', 'missing-dir',
-                         'empty-dir', 'missing-default', 'mismatch'):
-                with self.subTest(mode=mode, package=package), tempfile.TemporaryDirectory() as tmp:
-                    result = subprocess.run(['bash', '-ec', mock + fragment + '\ntouch reached'],
-                                            cwd=tmp, env=dict(os.environ, MODE=mode, FAIL_PACKAGE='package/' + package),
-                                            text=True, capture_output=True)
-                    self.assertEqual(result.returncode == 0, mode == 'success', result.stdout + result.stderr)
-                    self.assertEqual((Path(tmp) / 'reached').exists(), mode == 'success')
-                    if mode == 'success':
-                        for pkg in ('luci-theme-aurora', 'luci-app-aurora-config'):
-                            self.assertIn(pkg + ': ' + '123'.zfill(40), result.stdout)
-                        for tpl in Path(tmp).rglob('*.template'):
-                            self.assertIn("option nav_type 'sidebar'", tpl.read_text())
-                            self.assertIn("option struct_radius_base '0.125rem'", tpl.read_text())
+                result = subprocess.run(['bash', '-ec', mock + commands[0] + '\ntouch reached'],
+                                        cwd=tmp, env=dict(os.environ, PREPARE_STATUS=str(status)),
+                                        text=True, capture_output=True)
+                self.assertEqual(result.returncode, status, result.stdout + result.stderr)
+                self.assertEqual((Path(tmp) / 'reached').exists(), status == 0)
+                self.assertEqual((Path(tmp) / 'prepare-calls').read_text().splitlines(),
+                                 [tmp, '/cache-scripts/external_packages.py', 'prepare', '.'])
+
+    def test_aurora_is_external_without_changing_native_packages(self):
+        config = (ROOT / 'user/default/config.diff').read_text()
+        self.assertNotIn('CONFIG_PACKAGE_luci-theme-aurora', config)
+        self.assertNotIn('CONFIG_PACKAGE_luci-app-aurora-config', config)
+        self.assertNotIn('CONFIG_PACKAGE_luci-i18n-aurora-config', config)
+        for package in ('luci', 'luci-light', 'luci-app-package-manager', 'luci-theme-bootstrap'):
+            self.assertIn(f'CONFIG_PACKAGE_{package}=y', config.splitlines())
 
     def test_package_temp_cleanup_and_provenance(self):
         # Omit unrelated overlay/patch application; run real temporary clone/copy lifecycle.

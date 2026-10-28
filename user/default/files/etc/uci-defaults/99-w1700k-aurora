@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# Run after the signed Aurora package's 80_aurora initialization.
+# Retained sysupgrade settings always take precedence over project defaults.
+[ ! -f /sysupgrade.tgz ] && [ ! -f /tmp/sysupgrade.tar ] || exit 0
+
+# Do not create or reset an unknown schema; retry once Aurora is initialized.
+[ "$(uci -q get aurora.theme)" = 'aurora' ] || exit 1
+
+# Only these two first-install preferences differ from the official template.
+# Native boot commits the changes and removes this script after success.
+uci -q set aurora.theme.nav_type='sidebar' || exit 1
+uci -q set aurora.theme.struct_radius_base='0.125rem' || exit 1
+
+exit 0

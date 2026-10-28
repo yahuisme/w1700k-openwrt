@@ -19,11 +19,11 @@ CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_w1700k-ubi=y
 CONFIG_TARGET_BOARD="airoha"
 CONFIG_TARGET_SUBTARGET="an7581"
 '''
-for app in ('airoha-fancontrol', 'airoha-flowsense', 'airoha-npu', 'wifi7', 'wol', 'ttyd', 'aurora-config'):
+for app in ('airoha-fancontrol', 'airoha-flowsense', 'airoha-npu', 'wifi7', 'wol', 'ttyd'):
     CONFIG += f'CONFIG_PACKAGE_luci-app-{app}=y\nCONFIG_PACKAGE_luci-i18n-{app}-zh-cn=y\n'
 
 
-CONFIG += ''.join(f'CONFIG_PACKAGE_{pkg}=y\n' for pkg in ('etherwake', 'ttyd', 'wpad-openssl', 'luci-theme-aurora'))
+CONFIG += ''.join(f'CONFIG_PACKAGE_{pkg}=y\n' for pkg in ('etherwake', 'ttyd', 'wpad-openssl'))
 
 
 class ReleaseTests(unittest.TestCase):
@@ -66,8 +66,8 @@ class ReleaseTests(unittest.TestCase):
                         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_required_user_packages_cannot_be_omitted(self):
-        packages = ['etherwake', 'ttyd', 'wpad-openssl', 'luci-theme-aurora']
-        packages += [pkg for app in ('wol', 'ttyd', 'aurora-config')
+        packages = ['etherwake', 'ttyd', 'wpad-openssl']
+        packages += [pkg for app in ('wol', 'ttyd')
                      for pkg in ('luci-app-' + app, 'luci-i18n-' + app + '-zh-cn')]
         for package in packages:
             with self.subTest(package=package), tempfile.TemporaryDirectory() as tmp:

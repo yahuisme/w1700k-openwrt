@@ -8,15 +8,63 @@ import re
 import shutil
 import subprocess
 import sys
+from urllib.parse import urlsplit
 
 try:
     from .build_profile import load
     from .firmware_images import collect as collect_images
+    from .external_packages import ARCH, REPOSITORIES
 except ImportError:
     # Also support direct execution and importlib file-based test loaders.
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from build_profile import load
     from firmware_images import collect as collect_images
+    from external_packages import ARCH, REPOSITORIES
+
+
+def validate_external(record):
+    """Validate snapshot metadata, not Git identities or APK signatures anew."""
+    if (not isinstance(record, dict) or type(record.get('version')) is not int
+            or record['version'] != 1 or record.get('architecture') != ARCH):
+        raise ValueError('Expected provenance version 1 and architecture ' + ARCH)
+
+    def rows(field, expected):
+        values = record.get(field)
+        if (not isinstance(values, list) or len(values) != len(expected)
+                or any(not isinstance(row, dict) or not isinstance(row.get('name'), str)
+                       for row in values)
+                or {row['name'] for row in values} != set(expected)):
+            raise ValueError('Incomplete or duplicate external ' + field)
+        return values
+
+    def sha256(value, label):
+        if not isinstance(value, str) or not re.fullmatch(r'[0-9a-fA-F]{64}', value):
+            raise ValueError('Invalid SHA-256: ' + label)
+
+    for row in rows('repositories', REPOSITORIES):
+        url = row.get('url')
+        if not isinstance(url, str) or any(char.isspace() for char in url):
+            raise ValueError('Invalid HTTPS repository URL: ' + row['name'])
+        parsed = urlsplit(url)
+        if (parsed.scheme != 'https' or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None):
+            raise ValueError('Invalid HTTPS repository URL: ' + row['name'])
+        for field in ('index_sha256', 'key_sha256'):
+            sha256(row.get(field), row['name'] + '/' + field)
+
+    expected = {name: tag for tag, repo in REPOSITORIES.items() for name in repo['packages']}
+    for row in rows('packages', expected):
+        name, version = row['name'], row.get('version')
+        if (not isinstance(version, str) or not version.strip()
+                or row.get('arch') not in (ARCH, 'noarch')
+                or row.get('repository') != expected[name]):
+            raise ValueError('Invalid external package identity: ' + name)
+        filename = row.get('filename')
+        if (not isinstance(filename, str) or filename != f'{name}-{version}.apk'
+                or not re.fullmatch(r'[A-Za-z0-9_.+~\-]+\.apk', filename)):
+            raise ValueError('Invalid external APK filename: ' + name)
+        sha256(row.get('sha256'), name)
+    return record
 
 
 def collect(source, destination):
@@ -74,13 +122,15 @@ def collect(source, destination):
         revision('feed/' + feed.name, feed)
     copy(source / '.config', 'final.config')
     copy(source / '.custom-revisions.tsv', 'custom-revisions.tsv')
+    provenance = source / '.external-packages/provenance.json'
+    copy(provenance, 'external-packages.json')
     for name in ('feeds.conf', 'feeds.conf.default'):
         if (source / name).is_file():
             copy(source / name, name)
     custom = []
     try:
         rows = [line.split('\t') for line in (source / '.custom-revisions.tsv').read_text().splitlines()]
-        names = {'yahuisme/packages', 'luci-theme-aurora', 'luci-app-aurora-config'}
+        names = {'yahuisme/packages'}
         if (len(rows) != len(names) or any(len(row) != 3 for row in rows)
                 or {row[0] for row in rows if row} != names
                 or any(not row[1] or not re.fullmatch(r'[0-9a-f]{40}', row[2])
@@ -90,6 +140,11 @@ def collect(source, destination):
     except (OSError, ValueError) as exc:
         errors.append('Custom revisions invalid: ' + str(exc))
     revisions.extend(custom)
+    external = None
+    try:
+        external = validate_external(json.loads(provenance.read_text()))
+    except (OSError, ValueError) as exc:
+        errors.append('External package provenance invalid: ' + str(exc))
     write('revisions.json', json.dumps(revisions, indent=2) + '\n')
 
     targets = source / 'bin/targets'
@@ -130,7 +185,8 @@ def collect(source, destination):
         pass  # The missing/copy diagnostic was recorded above.
     record = dict(version=1, recipe=recipe, source=next((r for r in revisions if r['name'] == 'source'), None),
                   feeds=[r for r in revisions if r['name'].startswith('feed/')],
-                  custom_sources=custom, builder=builder, config=config, images=entries)
+                  custom_sources=custom, external_packages=external,
+                  builder=builder, config=config, images=entries)
     if profile:
         record.update(system=profile['system'], device=profile['device'], target=profile['target'])
     write('build.json', json.dumps(record, indent=2) + '\n')

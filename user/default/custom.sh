@@ -79,45 +79,9 @@ for alias in 'boot green' 'failsafe red' 'running white'; do
 done
 
 # -------------------------------------------------
-# Install latest Aurora LuCI theme
-# -------------------------------------------------
-
-for pkg in luci-theme-aurora luci-app-aurora-config; do
-    echo "Installing $pkg..."
-    rm -rf "package/$pkg"
-    if ! git clone --depth=1 "https://github.com/eamonxg/$pkg.git" "package/$pkg"; then
-        echo "ERROR: Failed to download $pkg!"
-        exit 1
-    fi
-    if [ ! -f "package/$pkg/Makefile" ]; then
-        echo "ERROR: $pkg was downloaded, but Makefile is missing!"
-        exit 1
-    fi
-    PKG_SHA=$(git -C "package/$pkg" rev-parse HEAD)
-    printf '%s\t%s\t%s\n' "$pkg" "$(git -C "package/$pkg" remote get-url origin)" "$PKG_SHA" >> .custom-revisions.tsv
-    echo "$pkg: $PKG_SHA"
-done
-
-# 修改 Aurora 菜单式样（默认侧边栏 + 小圆角）
-TPL_DIR="package/luci-app-aurora-config/root/usr/share/aurora"
-if [ ! -f "$TPL_DIR/default.template" ]; then
-    echo "ERROR: Aurora default template missing: $TPL_DIR/default.template" >&2
-    exit 1
-fi
-sed -i \
-    -e "s/nav_type '.*'/nav_type 'sidebar'/g" \
-    -e "s/struct_radius_base '.*'/struct_radius_base '0.125rem'/g" \
-    "$TPL_DIR"/*.template
-for template in "$TPL_DIR"/*.template; do
-    for setting in "nav_type 'sidebar'" "struct_radius_base '0[.]125rem'"; do
-        if ! grep -Eq "^[[:space:]]*option ${setting}[[:space:]]*$" "$template"; then
-            echo "ERROR: Aurora preset did not apply: $template ($setting)" >&2
-            exit 1
-        fi
-    done
-done
-echo "theme-aurora nav preset applied!"
-
+# Preinstall the author's latest signed Aurora APKs, keys and update source.
+# The helper uses this source tree; no Aurora templates are modified.
+python3 /cache-scripts/external_packages.py prepare .
 
 # The temperature & fan overview widget ships as 15_temperature.js inside
 # luci-mod-status. Core modules translate via luci-base's "base" domain, so

@@ -16,7 +16,7 @@ from record_fixture import prepare, READBACK
 
 class BuildRecordTests(unittest.TestCase):
     def test_actual_helper_success_and_missing_metadata(self):
-        for missing in ('', '.config', '.custom-revisions.tsv', 'manifest', 'feed'):
+        for missing in ('', '.config', '.custom-revisions.tsv', '.external-packages/provenance.json', 'manifest', 'feed'):
             with self.subTest(missing=missing), tempfile.TemporaryDirectory() as tmp:
                 base = Path(tmp)
                 output, _ = safety.ReleaseTests().fixture(base)
@@ -41,7 +41,7 @@ class BuildRecordTests(unittest.TestCase):
                         self.assertEqual(path.stat().st_mode & 0o444, 0o444)
                 if not missing:
                     revisions = json.loads((record / 'revisions.json').read_text())
-                    self.assertEqual({r['name'] for r in revisions}, {'source', 'feed/packages', 'custom/yahuisme/packages', 'custom/luci-theme-aurora', 'custom/luci-app-aurora-config'})
+                    self.assertEqual({r['name'] for r in revisions}, {'source', 'feed/packages', 'custom/yahuisme/packages'})
                     sha = subprocess.check_output(['git', '-C', tmp, 'rev-parse', 'HEAD'], text=True).strip()
                     self.assertEqual(revisions[0]['sha'], sha)
 
@@ -110,22 +110,17 @@ class BuildRecordTests(unittest.TestCase):
         script = (ROOT / 'user/default/custom.sh').read_text()
         start = script.index('PKG_SHA=$(git -C "$PKG_REPO" rev-parse HEAD)')
         first = script[start:script.index('cp -r "$PKG_REPO/luci-app-wifi7"', start)]
-        start = script.index('    PKG_SHA=$(git -C "package/$pkg" rev-parse HEAD)')
-        second = script[start:script.index('\ndone', start)]
+
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             safety.ReleaseTests().fixture(base)
             prepare(base)
             sha = subprocess.check_output(['git', '-C', tmp, 'rev-parse', 'HEAD'], text=True).strip()
-            for pkg in ('luci-theme-aurora', 'luci-app-aurora-config'):
-                path = base / 'package' / pkg
-                path.parent.mkdir(exist_ok=True)
-                path.symlink_to(base / 'feeds/packages', target_is_directory=True)
-            subprocess.run(['bash', '-e', '-c', first + '\nfor pkg in luci-theme-aurora luci-app-aurora-config; do\n' + second + '\ndone'],
+            subprocess.run(['bash', '-e', '-c', first],
                            cwd=base, env=dict(os.environ, PKG_REPO=tmp), check=True, capture_output=True)
             rows = [line.split('\t') for line in (base / '.custom-revisions.tsv').read_text().splitlines()]
             self.assertEqual(rows[0], ['yahuisme/packages', 'https://example.invalid/local', sha])
-            self.assertEqual(len(rows), 3)
+            self.assertEqual(len(rows), 1)
             self.assertTrue(all(len(row[2]) == 40 for row in rows))
 
     def test_artifact_contract(self):

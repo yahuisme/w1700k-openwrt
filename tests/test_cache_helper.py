@@ -123,18 +123,19 @@ class HelperTests(unittest.TestCase):
                 self.assertEqual(self.admit(size), accepted, self.log)
                 self.assertFalse(self.deletes())
 
-    def test_download_three_gb_pack_and_admission_boundaries(self):
+    def test_download_four_gb_pack_and_admission_boundaries(self):
         from unittest.mock import patch
         from test_cache_key import load, SCRIPT
         cache = load(SCRIPT)
-        self.assertEqual(cache.LIMITS['dl'], 3_200_000_000)
-        self.assertEqual(h.SLOTS[next(p for p in h.SLOTS if p.startswith('dl-'))], 3_200_000_000)
+        self.assertEqual(cache.LIMITS['dl'], 4_000_000_000)
+        self.assertEqual(h.SLOTS[next(p for p in h.SLOTS if p.startswith('dl-'))], 4_000_000_000)
         packed = self.base / 'packed'
         archive = packed / 'dl.tar.gz'
         fixture = json.loads((ROOT / 'tests/fixtures/download-cache-inventory.json').read_text())
         cases = [(size, True) for size in fixture['measured_bytes'].values()]
         cases += [(3_073_054_226, True), (3_062_846_599, True),
-                  (3_200_000_000, True), (3_200_000_001, False)]
+                  (3_748_957_315, True), (3_738_752_266, True),
+                  (4_000_000_000, True), (4_000_000_001, False)]
         for size, accepted in cases:
             with self.subTest(size=size):
                 def compress(args, **kwargs):
@@ -258,14 +259,17 @@ class HelperTests(unittest.TestCase):
                 with self.subTest(warm=bool(entries), prefix=prefix):
                     self.reset(entries)
                     self.assertTrue(self.admit(size, prefix), self.log)
-        # Full cold sequential population at all archive caps, including each
-        # wrapper allowance, fits independently (no pre-delete credit).
+        # Per-tier maxima are not a promise of simultaneous population.
+        # Admission includes every wrapper and declines before overcommitting.
         entries = []
         for prefix, size in h.SLOTS.items():
             self.reset(entries)
-            self.assertTrue(self.admit(size, prefix), self.log)
-            entries.append(entry(len(entries)+1, prefix+'new', size+h.HEADROOM))
-        self.assertLessEqual(sum(e['size_in_bytes'] for e in entries), 10_000_000_000)
+            fits = sum(e['size_in_bytes'] for e in entries) + size + h.HEADROOM <= h.BUDGET
+            self.assertEqual(self.admit(size, prefix), fits, self.log)
+            if fits:
+                entries.append(entry(len(entries)+1, prefix+'new', size+h.HEADROOM))
+            self.assertEqual(self.deletes(), [])
+        self.assertLessEqual(sum(e['size_in_bytes'] for e in entries), h.BUDGET)
 
     def test_legacy_oc_counts_against_single_budget(self):
         size = 1_000_000_000

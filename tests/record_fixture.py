@@ -45,5 +45,7 @@ READBACK = '''
     assets = [dict(id=i+1, name=p.name, size=p.stat().st_size, state='uploaded',
                    digest='sha256:'+hashlib.sha256(p.read_bytes()).hexdigest()) for i,p in enumerate(images)]
     print(json.dumps(dict(tag_name=Path('firmware/version.txt').read_text().strip(),
+                          name=Path('firmware/version.txt').read_text().strip(),
+                          target_commitish=os.environ['GITHUB_SHA'],
                           draft=False, prerelease=False, assets=assets)))
 '''

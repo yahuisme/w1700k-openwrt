@@ -115,11 +115,27 @@ def collect(source, destination):
         errors.append(f'Container package inventory failed: {exc}')
 
     revision('source', source)
-    feeds = sorted(p for p in (source / 'feeds').glob('*') if (p / '.git').exists())
+    feeds = {p.name for p in (source / 'feeds').glob('*') if (p / '.git').exists()}
+    # The configured inventory must not shrink when one checkout loses .git.
+    # feeds.conf overrides the default, just as it does for scripts/feeds.
+    feed_config = source / 'feeds.conf'
+    if not feed_config.exists():
+        feed_config = source / 'feeds.conf.default'
+    if feed_config.exists():
+        try:
+            feeds.update(re.findall(r'^\s*src-git(?:-full)?\s+([\w-]+)\s+',
+                                    feed_config.read_text(), re.M))
+        except OSError as exc:
+            errors.append(f'Feed configuration unavailable: {exc}')
     if not feeds:
         errors.append('No Git feed revisions')
-    for feed in feeds:
-        revision('feed/' + feed.name, feed)
+    for name in sorted(feeds):
+        feed = source / 'feeds' / name
+        # Without this guard Git can silently return the parent source identity.
+        if not (feed / '.git').exists():
+            errors.append('Git revision unavailable: feed/' + name)
+        else:
+            revision('feed/' + name, feed)
     copy(source / '.config', 'final.config')
     copy(source / '.custom-revisions.tsv', 'custom-revisions.tsv')
     provenance = source / '.external-packages/provenance.json'

@@ -151,6 +151,9 @@ hostapd.data.ubus.defer=(obj,method,arg,cb)=>{
  push(deferred,d); return d;
 };
 function iface_update_supplicant_macaddr(p){}
+// No competing scan/channel switch; supplicant RPC stays outside this fixture.
+function iface_pending_phy_wait(){return false;}
+function iface_supplicant_start(){}
 function iface_add(phy,config,status){
  for(let b in config.bss){callbacks.bss_create(phy,b.ifname,{}); callbacks.bss_add(phy,b.ifname,{});}
  return true;
@@ -279,7 +282,8 @@ exit(selected);
 
     def test_config_power_change_bypasses_csa_and_early_reload(self):
         code = '''let restarted=0;let csa=0;let removed=0;
-let hostapd={data:{config:{},pending_config:{}},interfaces:{'phy0.0':{}},
+let hostapd={data:{config:{},pending_config:{},link_reload:{}},
+ interfaces:{'phy0.0':{state:()=>"ENABLED"}},
  printf:(message)=>{if(index(message,'Error reloading config:')==0) die(message);}};
 function phy_open(p,r){return {name:'phy0.0'};}
 function iface_check_mld(){} function iface_update_supplicant_macaddr(){}
@@ -293,7 +297,10 @@ function iface_channel_switch(){csa++;return true;}
 // CSA on an already running interface, independently of hardware state.
 function iface_runs_channel(){return false;}
 function iface_start_failed(){return false;}
-''' + function(self.host, 'iface_reload_config') + function(self.host, 'iface_set_config') + '''
+''' + '\n'.join(function(self.host, name) for name in
+                    ('iface_reload_links', 'iface_link_reload_start')
+                    if 'function ' + name + '(' in self.host) + '\n' + \
+            function(self.host, 'iface_reload_config') + function(self.host, 'iface_set_config') + '''
 let old={phy:'phy0',radio_idx:0,txpower:'fixed 2300',bss:[{ifname:'ap0'}]};
 hostapd.data.config['phy0.0']=old;
 iface_set_config('phy0.0',{phy:'phy0',radio_idx:0,txpower:'fixed 2500',bss:[{ifname:'ap0'}]});
@@ -311,6 +318,7 @@ printf('%J',{power_change,restarted,csa});
 let hostapd={data:{apsta_freq:{},apsta_stopped:{'phy0.0':true},
  pending_config:{'phy0.0':{abort:()=>{aborted=true;}}}},remove_iface:()=>{}};
 function iface_remove(c){}
+function iface_supplicant_start(){}
 ''' + function(self.host, 'iface_config_remove') + '''
 iface_config_remove('phy0.0',{});
 printf('%J',{aborted,stopped:hostapd.data.apsta_stopped['phy0.0']!=null});

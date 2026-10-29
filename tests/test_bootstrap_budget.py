@@ -66,7 +66,7 @@ class BootstrapBudgetTests(unittest.TestCase):
 
     def test_missing_empty_wrong_ref_upload_never_prunes_old_seed(self):
         old = entry(1, TB + 'old', 1_000_000_000)
-        peer = entry(2, DL + 'old', 3_200_000_000)
+        peer = entry(2, DL + 'old', 4_000_000_000)
         for pending in ([], [entry(3, TB + 'new', 0)],
                         [entry(3, TB + 'new', 100, 'refs/heads/other')]):
             with self.subTest(pending=pending):
@@ -79,7 +79,7 @@ class BootstrapBudgetTests(unittest.TestCase):
 
     def test_bootstrap_api_failure_preserves_old_and_other_namespaces(self):
         old = entry(1, TB + 'old', 1_000_000_000)
-        peer = entry(2, DL + 'old', 3_200_000_000)
+        peer = entry(2, DL + 'old', 4_000_000_000)
         inventory = [old, peer]
         self.reset(inventory, fail_reads=[1])
         self.assertFalse(self.admit(1_000_000_000, TB), self.log)
@@ -116,7 +116,7 @@ class BootstrapBudgetTests(unittest.TestCase):
         fixture = json.loads((safety.ROOT / 'tests/fixtures/download-cache-inventory.json').read_text())
         self.assertEqual(h.PROFILE['cache_prefix'], {'tc': TC, 'cc': CC, 'dl': DL})
         self.assertEqual(h.SLOTS, {TC: 2_000_000_000, CC: 3_000_000_000,
-                                   DL: 3_200_000_000, TB: 1_000_000_000})
+                                   DL: 4_000_000_000, TB: 1_000_000_000})
         self.assertEqual(h.BUDGET, 10_000_000_000)
         self.assertEqual(h.HEADROOM, 64 * 1024 * 1024)
         self.assertIsNone(h.owner('tc-v3-ubi2-oc-retired'))
@@ -127,18 +127,18 @@ class BootstrapBudgetTests(unittest.TestCase):
                 with self.subTest(distro=distro, old_bootstrap=old_bootstrap):
                     entries = inventory + ([entry(1, TB + 'old', 1_000_000_000 + h.HEADROOM)]
                                            if old_bootstrap else [])
-                    for prefix, size in ((TB, 1_000_000_000), (DL, 3_200_000_000)):
+                    for prefix, size in ((TB, 1_000_000_000), (DL, 4_000_000_000)):
                         self.reset(entries)
                         self.assertTrue(self.admit(size, prefix), self.log)
                         self.assertEqual(self.deletes(), [])
                         self.assertEqual(self.snapshot()['entries'], entries)
             # Measured tc/cc plus a capped old download and bootstrap: the
             # next capped download no longer fits, even though its tier cap does.
-            entries = [dict(e, size_in_bytes=3_200_000_000 + h.HEADROOM)
+            entries = [dict(e, size_in_bytes=4_000_000_000 + h.HEADROOM)
                        if h.owner(e['key']) == DL else dict(e) for e in inventory]
             entries.append(entry(1, TB + 'old', 1_000_000_000 + h.HEADROOM))
             self.reset(entries)
-            self.assertFalse(self.admit(3_200_000_000, DL), self.log)
+            self.assertFalse(self.admit(4_000_000_000, DL), self.log)
             self.assertEqual(self.deletes(), [])
             self.assertEqual(self.snapshot()['entries'], entries)
 
@@ -152,7 +152,7 @@ class BootstrapBudgetTests(unittest.TestCase):
         for prefix, size, accepted in ((TB, 1_000_000_000, True),
                                        (TC, 2_000_000_000, True),
                                        (CC, 3_000_000_000, True),
-                                       (DL, 3_200_000_000, False)):
+                                       (DL, 4_000_000_000, False)):
             inventory = base + [entry(4, TB + 'old', 1_000_000_000 + h.HEADROOM)]
             with self.subTest(prefix=prefix):
                 self.reset(inventory)
@@ -160,18 +160,18 @@ class BootstrapBudgetTests(unittest.TestCase):
                 self.assertEqual(self.deletes(), [])
                 self.assertEqual(self.snapshot()['entries'], inventory)
 
-    def test_maximal_population_first_bootstrap_fits_replacements_decline(self):
-        # Full old/new 3.2 GB download rollover plus bootstrap cannot fit the
-        # repository cap. No admission is allowed to borrow pre-delete credit.
+    def test_maximal_population_bootstrap_and_replacements_decline(self):
+        # Three capped old tiers already leave too little space for bootstrap.
+        # This ordinary admission path never borrows download pre-delete credit.
         base = [entry(i, prefix + 'old', size + h.HEADROOM)
                 for i, (prefix, size) in enumerate(((TC, 2_000_000_000),
                                                    (CC, 3_000_000_000),
-                                                   (DL, 3_200_000_000)), 1)]
+                                                   (DL, 4_000_000_000)), 1)]
         self.reset(base)
-        self.assertTrue(self.admit(1_000_000_000, TB), self.log)
+        self.assertFalse(self.admit(1_000_000_000, TB), self.log)
         self.assertEqual(self.deletes(), [])
         inventory = base + [entry(4, TB + 'old', 1_000_000_000 + h.HEADROOM)]
-        self.assertLess(sum(int(e['size_in_bytes']) for e in inventory), h.BUDGET)
+        self.assertGreater(sum(int(e['size_in_bytes']) for e in inventory), h.BUDGET)
         for prefix, size in h.SLOTS.items():
             with self.subTest(prefix=prefix):
                 self.reset(inventory)

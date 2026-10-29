@@ -20,12 +20,14 @@ except ImportError:
         import cache_config
 
 EPOCH = 946684800
-# Production post-customization source locks (OpenWrt 6db25ee835eb and
-# ImmortalWrt 2f97ee0c9fad): canonical JSON path/permission/content records.
+# Reviewed post-customization source locks; provenance and producer closure:
+# tests/BOOTSTRAP_SOURCE_REVIEW.md. Canonical Git path/mode/content records.
 # Unknown inventory uses TC_KEY, never a guessed config projection.
 REVIEWED = {
     'b3f6c374eef006bf64bce517c965fc25c41ad9bbe88ea9fc418f9580d922f93e',
     '1833836d0460ca850a3bd03429a430ead837513e4899eb20725e1f6dbf6c2da6',
+    '04fe4b66fa7d80b01fab7f3a608ce169799c5e107c4c14bd9d21c92c7932acf7',
+    '1bef18e2273cc6ba0f0d2f8306a9df8b3fa0d31979ef0e9d8b059ee92ddf5ce3',
 }
 FIXED_INPUTS = ('Makefile', 'rules.mk', 'package/Makefile', 'target/Makefile',
                 'toolchain/Makefile', *('include/' + name for name in (
@@ -52,6 +54,13 @@ def serialized(value):
 
 def inventory(root):
     paths = set(root / name for name in FIXED_INPUTS)
+    # Aurora's rootfs helper includes this generated makefile at parse time.
+    # Hash it when present; legacy/MX trees without it keep their existing lock.
+    external = root / '.external-packages.mk'
+    if external.exists() or external.is_symlink():
+        if external.is_symlink() or not external.is_file():
+            raise ValueError('nonregular external make input')
+        paths.add(external)
     for name in ('tools', 'scripts'):
         base = root / name
         if base.is_symlink() or not base.is_dir():

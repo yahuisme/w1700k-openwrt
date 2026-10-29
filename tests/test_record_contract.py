@@ -171,7 +171,7 @@ class RecordContract(unittest.TestCase):
                 digest = 'sha256:' + hashlib.sha256(b'fixture image').hexdigest()
                 assets = [dict(id=i, name=p.name, size=p.stat().st_size, state='uploaded', digest=digest)
                           for i, p in enumerate(paths, 1)]
-                release = dict(tag_name='tag/a', draft=False, prerelease=False, assets=assets)
+                release = dict(tag_name='tag/a', name='tag/a', draft=False, prerelease=False, assets=assets)
                 if fault == 'missing': assets.pop()
                 if fault == 'extra': assets.append(dict(assets[0], name='extra'))
                 if fault == 'duplicate': assets.append(dict(assets[0]))
@@ -190,8 +190,9 @@ class RecordContract(unittest.TestCase):
                         return self
                     def __exit__(self, *args): self.stdout.close()
                     def wait(self): return 17 if fault == 'download-failure' else 0
-                with patch.dict(os.environ, GITHUB_REPOSITORY='fixture/repo'), \
-                     patch.object(helper.subprocess, 'check_output', return_value=json.dumps(release).encode()) as api, \
+                with patch.dict(os.environ, GITHUB_REPOSITORY='fixture/repo', GITHUB_SHA='a' * 40), \
+                     patch.object(helper.subprocess, 'check_output', side_effect=[json.dumps(release).encode(),
+                         json.dumps(dict(object=dict(type='commit', sha='a' * 40))).encode()]) as api, \
                      patch.object(helper.subprocess, 'Popen', side_effect=lambda *a, **k: Download()) as download, \
                      contextlib.redirect_stdout(io.StringIO()):
                     if fault in ('ok', 'download'):
@@ -200,6 +201,63 @@ class RecordContract(unittest.TestCase):
                         self.assertEqual(download.call_count, len(paths) if fault == 'download' else 0)
                     else:
                         with self.assertRaises(ValueError): helper.verify('tag/a', paths)
+
+    def test_title_full_workflow_sha_and_bounded_real_tag_identity(self):
+        helper = module('verify_release')
+        cases = ('lightweight', 'wrong-target-commitish', 'annotated', 'ten-tags',
+                 'title', 'missing-title', 'wrong-commit', 'missing-object',
+                 'malformed-sha', 'non-tag', 'cycle', 'eleven-tags', 'tag-api-failure',
+                 'missing-workflow-sha', 'short-workflow-sha', 'invalid-workflow-sha')
+        good = {'lightweight', 'wrong-target-commitish', 'annotated', 'ten-tags'}
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
+                _, paths = self.fixture(Path(tmp))
+                release = dict(tag_name='tag/a', name='tag/a', draft=False, prerelease=False,
+                               target_commitish='b' * 40 if case == 'wrong-target-commitish' else 'a' * 40,
+                               assets=[dict(name=p.name, size=p.stat().st_size, state='uploaded',
+                                            digest='sha256:' + hashlib.sha256(p.read_bytes()).hexdigest())
+                                       for p in paths])
+                if case == 'title': release['name'] = 'wrong'
+                if case == 'missing-title': release.pop('name')
+                workflow_sha = {'missing-workflow-sha': '', 'short-workflow-sha': 'a' * 7,
+                                'invalid-workflow-sha': 'g' * 40}.get(case, 'a' * 40)
+                tag_count = 10 if case == 'ten-tags' else 11 if case == 'eleven-tags' else 1
+                reads = []
+                def api(command):
+                    endpoint = command[-1]
+                    reads.append(endpoint)
+                    if '/releases/tags/' in endpoint:
+                        self.assertTrue(endpoint.endswith('tag%2Fa'))
+                        return json.dumps(release).encode()
+                    if '/git/ref/tags/' in endpoint:
+                        self.assertTrue(endpoint.endswith('tag%2Fa'))
+                        if case == 'tag-api-failure':
+                            raise subprocess.CalledProcessError(17, command)
+                        if case == 'missing-object': return b'{}'
+                        target = dict(type='commit', sha='a' * 40)
+                        if case == 'wrong-commit': target['sha'] = 'b' * 40
+                        if case == 'malformed-sha': target['sha'] = 'a' * 7
+                        if case == 'non-tag': target['type'] = 'tree'
+                        if case in ('annotated', 'cycle', 'ten-tags', 'eleven-tags'):
+                            target = dict(type='tag', sha=f'{1:040x}')
+                        return json.dumps(dict(object=target)).encode()
+                    self.assertIn('/git/tags/', endpoint)
+                    depth = int(endpoint.rsplit('/', 1)[1], 16)
+                    if case == 'cycle': target = dict(type='tag', sha=f'{1:040x}')
+                    elif depth < tag_count: target = dict(type='tag', sha=f'{depth + 1:040x}')
+                    else: target = dict(type='commit', sha='a' * 40)
+                    return json.dumps(dict(object=target)).encode()
+                with patch.dict(os.environ, GITHUB_REPOSITORY='fixture/repo', GITHUB_SHA=workflow_sha), \
+                     patch.object(helper.subprocess, 'check_output', side_effect=api), \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    if case in good:
+                        helper.verify('tag/a', paths)
+                    else:
+                        with self.assertRaises((ValueError, subprocess.CalledProcessError)):
+                            helper.verify('tag/a', paths)
+                if case.endswith('workflow-sha'):
+                    self.assertEqual(reads, [])
+                self.assertLessEqual(sum('/git/tags/' in endpoint for endpoint in reads), 10)
 
     def test_local_release_set_rejected_before_api(self):
         helper = module('verify_release')

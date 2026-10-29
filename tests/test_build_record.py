@@ -137,6 +137,10 @@ class BuildRecordTests(unittest.TestCase):
 
     def test_readback_failure_cannot_prune(self):
         mutations = {
+            'title': 'pass',
+            'tag-commit': 'pass',
+            'tag-ref-failure': 'pass',
+            'annotated': 'pass',
             'missing': 'assets=[]',
             'size': "assets[0]['size']+=1",
             'extra': "assets.append(dict(assets[0],name='extra.itb'))",
@@ -159,9 +163,18 @@ class BuildRecordTests(unittest.TestCase):
                 (base / 'firmware/release-notes.md').write_text('fixture')
                 (base / 'firmware' / IMAGE).write_bytes(b'local fixture image')
                 readback = READBACK.replace('    print(json.dumps', '    '+mutation+'\n    print(json.dumps')
+                if mode == 'title':
+                    readback = readback.replace("name=Path('firmware/version.txt').read_text().strip()", "name='wrong-title'")
                 if mode == 'draft':
                     readback = readback.replace('draft=False', 'draft=True')
                 stub = GH.replace(READBACK, readback)
+                stub = stub.replace("elif args[0] == 'api' and '/releases/tags/'", """elif args[0] == 'api' and '/git/ref/tags/' in args[1]:
+    if os.environ['MODE']=='tag-ref-failure': sys.exit(17)
+    print(json.dumps(dict(object=dict(type='tag' if os.environ['MODE']=='annotated' else 'commit',
+        sha='c'*40 if os.environ['MODE']=='annotated' else 'b'*40 if os.environ['MODE']=='tag-commit' else os.environ['GITHUB_SHA']))))
+elif args[0] == 'api' and '/git/tags/' in args[1]:
+    print(json.dumps(dict(object=dict(type='commit',sha=os.environ['GITHUB_SHA']))))
+elif args[0] == 'api' and '/releases/tags/'""")
                 stub = stub.replace("elif args[0] == 'api' and '/releases/tags/'", """elif args[0] == 'api' and '/releases/assets/' in args[1]:
     if os.environ['MODE']=='download-failure': sys.exit(17)
     sys.stdout.buffer.write(b'bad' if os.environ['MODE']=='download-wrong' else (Path('firmware') / os.environ['IMAGE']).read_bytes())
@@ -175,7 +188,7 @@ elif args[0] == 'api' and '/releases/tags/'""")
                 result = subprocess.run(['bash', '-eo', 'pipefail', '-c',
                     step('Publish firmware and prune releases')['run']], cwd=base, env=env,
                     capture_output=True, text=True)
-                good = mode in ('ok', 'download')
+                good = mode in ('ok', 'download', 'annotated')
                 self.assertEqual(result.returncode == 0, good, result.stderr)
                 calls = [json.loads(line) for line in (base / 'calls').read_text().splitlines()]
                 self.assertCountEqual([c[2] for c in calls if c[:2] == ['release', 'delete']],

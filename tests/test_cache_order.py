@@ -19,8 +19,8 @@ REAL = [entry(1, 'tc-v3-ubi2-a8b702', 1564072318),
 
 
 class CacheOrderTests(unittest.TestCase):
-    def run_tail(self, entries, warm=False, cc=535453831,
-                 tc=1575367741, fault='', fail_reads=(), delay=0, dl=100, tb=None):
+    def run_tail(self, entries, warm=False, cc: int | None = 535453831,
+                 tc: int | None = 1575367741, fault='', fail_reads=(), delay=0, dl=100, tb=None):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             (base / 'scripts').symlink_to(ROOT / 'scripts')
@@ -103,6 +103,33 @@ class CacheOrderTests(unittest.TestCase):
                             s['entries'].append(new)
                     state.write_text(json.dumps(s))
             return saves, json.loads(state.read_text()), '\n'.join(logs)
+
+    def test_measured_download_replacement_order_and_upload_failure(self):
+        entries = [entry(1, 'tc-v3-ubi2-new', 1_566_850_926),
+                   entry(2, 'cc-v3-ubi2.old', 1_079_492_879),
+                   entry(3, 'tb-v1-ubi2-old', 216_817_510),
+                   entry(4, 'dl-v3.old', 3_738_752_266)]
+        saves, state, log = self.run_tail(entries, warm=True, cc=1_079_492_879,
+                                          tc=None, dl=3_738_752_266)
+        self.assertEqual(saves, ['cc', 'dl'], log)
+        self.assertIn('download replacement verified', log)
+        calls = state['calls']
+        self.assertLess(calls.index(['cache', 'delete', '2']),
+                        calls.index(['cache', 'delete', '4']))
+        self.assertEqual({e['key'] for e in state['entries']},
+                         {'tc-v3-ubi2-new', 'cc-v3-ubi2.new', 'tb-v1-ubi2-old', 'dl-v3.new'})
+        # Only the download upload is pending here. A failed save may leave no
+        # old download seed, but never removes compiler/toolchain/bootstrap.
+        for fault in ('action_failure', 'warning'):
+            with self.subTest(fault=fault):
+                protected = [e for e in entries if e['id'] != 4]
+                saves, state, log = self.run_tail(entries, warm=True, cc=None,
+                                                  tc=None, dl=3_738_752_266, fault=fault)
+                self.assertEqual(saves, ['dl'], log)
+                self.assertIn('download replacement verified', log)
+                self.assertEqual(state['entries'], protected)
+                self.assertEqual([c for c in state['calls'] if c[:2] == ['cache', 'delete']],
+                                 [['cache', 'delete', '4']])
 
     def test_bootstrap_tail_saves_and_confirms_before_download(self):
         entries = [entry(1, 'tc-v3-ubi2-old', 1566625575),

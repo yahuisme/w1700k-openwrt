@@ -31,8 +31,8 @@ EPOCH = 946684800
 INPUTS = ('tools', 'toolchain', 'include', 'scripts', 'config', 'target/linux/generic', 'target/linux/' + BOARD,
           'rules.mk', 'Makefile', 'Config.in', '.config')
 # Compressed archive caps; oversized output is declined, never forced through.
-# dl covers the measured 3.073/3.063 GB archives; total admission stays separate.
-LIMITS = {'toolchain': 2_000_000_000, 'ccache': 3_000_000_000, 'dl': 3_200_000_000}
+# dl covers current ~3.75 GB archives; total admission stays separate.
+LIMITS = {'toolchain': 2_000_000_000, 'ccache': 3_000_000_000, 'dl': 4_000_000_000}
 
 
 def key_policy_source():

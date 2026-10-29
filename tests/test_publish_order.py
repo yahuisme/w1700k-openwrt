@@ -126,10 +126,13 @@ export -f sudo nproc make python3 docker_exec git
                             outcome = 'failure' if name == fault else 'success'
                             if outcome == 'success' and current['uses'] == 'actions/cache/save@v6':
                                 saved.append(current['with']['path'])
-                        successful = successful and outcome == 'success'
+                        conclusion = 'success' if outcome == 'failure' and current.get('continue-on-error') else outcome
+                        successful = successful and conclusion == 'success'
                     outcomes[name] = outcome
                     if current.get('id'):
                         values[f"steps.{current['id']}.outcome"] = outcome
+                        values[f"steps.{current['id']}.conclusion"] = (
+                            'success' if outcome == 'failure' and current.get('continue-on-error') else outcome)
                     if name == stage['name'] and fault == 'cancel_after_stage':
                         cancelled = True
                 should_publish = fault not in ('Download sources', 'Compile firmware', stage['name'],
@@ -137,14 +140,14 @@ export -f sudo nproc make python3 docker_exec git
                 self.assertEqual(publish['name'] in executed, should_publish, (fault, outcomes))
                 calls = (base / 'calls').read_text() if (base / 'calls').exists() else ''
                 self.assertEqual('release create' in calls, should_publish)
-                if not fault or fault == publish['name']:
+                if fault in ('', publish['name'], 'Collect build record', 'Upload build record'):
                     self.assertEqual(saved, ['ccarchive', 'tcarchive', 'tbarchive', 'dlarchive'])
                 if fault in [s['name'] for s in cache_tail]:
                     self.assertEqual(outcomes[fault], 'failure')
                     self.assertEqual(outcomes[publish['name']], 'success')
                     after = cache_tail.index(step(fault)) + 1
                     self.assertTrue(all(outcomes[s['name']] == 'skipped' for s in cache_tail[after:]))
-                self.assertEqual(successful, not fault or fault.startswith('cancel_'))
+                self.assertEqual(successful, fault in ('', 'Collect build record', 'Upload build record') or fault.startswith('cancel_'))
 
 
 class CachePublicationIntegrationTests(unittest.TestCase):
@@ -164,6 +167,10 @@ class CachePublicationIntegrationTests(unittest.TestCase):
             base = Path(tmp)
             release.ReleaseTests().fixture(base)
             prepare(base)
+            if fault == 'metadata-feed':
+                (base / 'feeds.conf').write_text(
+                    'src-git packages https://example.invalid/packages\n'
+                    'src-git-full luci https://example.invalid/luci\n')
             if fault == 'metadata':
                 (base / '.custom-revisions.tsv').unlink()
             if fault == 'metadata-external':
@@ -188,10 +195,17 @@ elif a[0] == 'api' and '/releases/tags/' in a[1]:
     p.write_text(json.dumps(s))
 """ + READBACK + """
     sys.exit(0)
+elif a[0] == 'api' and '/git/ref/tags/' in a[1]:
+    p.write_text(json.dumps(s))
+    print(json.dumps(dict(object=dict(type='commit',sha=os.environ['GITHUB_SHA'])))); sys.exit(0)
 elif a[:2] == ['release', 'create']:
     p.write_text(json.dumps(s)); sys.exit(19 if os.environ['FAULT']=='publish' else 0)
 elif a == ['api', '--paginate', '--slurp', 'repos/fixture/repo/releases?per_page=100']:
-    p.write_text(json.dumps(s)); print('[[]]'); sys.exit(0)
+    p.write_text(json.dumps(s))
+    current = Path('firmware/version.txt').read_text().strip()
+    old = current.rsplit('-r', 1)[0] + '-r1-old'
+    print(json.dumps([[dict(tag_name=tag, id=i, draft=False, prerelease=False, published_at=str(i))
+                       for i,tag in enumerate([old,current],1)]])); sys.exit(0)
 elif a[:2] == ['release', 'delete']:
     p.write_text(json.dumps(s)); sys.exit(0)
 elif a == ['api', '--paginate'""")
@@ -237,6 +251,7 @@ export -f make docker_exec sudo git
                       'steps.stage.outcome': 'skipped'}
             successful, cancelled = True, False
             outcomes, executed, logs = {}, [], []
+            self.conclusions = {}
             def condition(expr):
                 expression = expr.removeprefix('${{').removesuffix('}}').strip()
                 status = re.search(r'\b(success|failure|cancelled|always)\(', expression)
@@ -282,7 +297,12 @@ export -f make docker_exec sudo git
                             k, v = line.split('=', 1)
                             values[f"steps.{item['id']}.outputs.{k}"] = v
                         output.unlink()
-                successful = successful and rc == 0
+                conclusion = 'success' if outcome == 'failure' and item.get('continue-on-error') else outcome
+                self.conclusions[name] = conclusion
+                if item.get('id'):
+                    values[f"steps.{item['id']}.conclusion"] = conclusion
+                logs.append(f'{name}: outcome={outcome} conclusion={conclusion}')
+                successful = successful and conclusion == 'success'
             return outcomes, executed, json.loads(state.read_text()), '\n'.join(logs)
 
     def test_download_failure_never_compiles_stages_or_publishes(self):
@@ -297,7 +317,7 @@ export -f make docker_exec sudo git
                                      for call in inventory['calls']), log)
 
     def test_full_compile_stage_cache_publish_failure_matrix(self):
-        for fault in ('none', 'download', 'compile', 'validation', 'cancel', 'package', 'save', 'readback', 'publish', 'metadata', 'metadata-external', 'metadata-external-invalid', 'upload'):
+        for fault in ('none', 'download', 'compile', 'validation', 'cancel', 'package', 'save', 'readback', 'publish', 'metadata', 'metadata-feed', 'metadata-external', 'metadata-external-invalid', 'upload'):
             with self.subTest(fault=fault):
                 outcomes, executed, inventory, log = self.replay(fault)
                 published = fault not in ('download', 'compile', 'validation', 'cancel')
@@ -307,12 +327,20 @@ export -f make docker_exec sudo git
                     self.assertEqual(outcomes['Validate and stage firmware'], 'skipped', log)
                 creates = [call for call in inventory['calls'] if call[:2] == ['release', 'create']]
                 self.assertEqual(bool(creates), published, log)
+                deletes = [call[2] for call in inventory['calls'] if call[:2] == ['release', 'delete']]
+                current = creates[0][2] if creates else ''
+                self.assertEqual(deletes, [current.rsplit('-r', 1)[0] + '-r1-old']
+                                 if published and fault != 'publish' else [], log)
                 self.assertEqual(outcomes['Publish firmware and prune releases'],
                                  'failure' if fault == 'publish' else 'success' if published else 'skipped', log)
-                if fault in ('metadata', 'metadata-external', 'metadata-external-invalid'):
+                if fault in ('metadata', 'metadata-feed', 'metadata-external', 'metadata-external-invalid'):
                     self.assertEqual(outcomes['Collect build record'], 'failure', log)
                     self.assertEqual(outcomes['Upload build record'], 'success', log)
-                if fault in ('none', 'publish', 'metadata', 'metadata-external', 'metadata-external-invalid', 'upload'):
+                    self.assertEqual(self.conclusions['Collect build record'], 'success', log)
+                if fault == 'upload':
+                    self.assertEqual(outcomes['Upload build record'], 'failure', log)
+                    self.assertEqual(self.conclusions['Upload build record'], 'success', log)
+                if fault in ('none', 'publish', 'metadata', 'metadata-feed', 'metadata-external', 'metadata-external-invalid', 'upload'):
                     self.assertEqual({item['key'] for item in inventory['entries']},
                                      {'cc-v3-ubi2.new', 'tc-v3-ubi2-new', 'dl-v3.new'}, log)
                     self.assertLess(executed.index('Prune old download caches'),

@@ -30,6 +30,8 @@ elif args == ['api', '--paginate', '--slurp', 'repos/fixture/repo/releases?per_p
     sys.exit(19 if os.environ['FAULT'] == 'list' else 0)
 elif args[0] == 'api' and '/releases/tags/' in args[1]:
 ''' + READBACK + '''
+elif args[0] == 'api' and '/git/ref/tags/' in args[1]:
+    print(json.dumps(dict(object=dict(type='commit',sha=os.environ['GITHUB_SHA']))))
 elif args[:2] == ['release', 'create']:
     sys.exit(17 if os.environ['FAULT'] == 'create' else 0)
 elif args[:2] == ['release', 'delete']:

@@ -54,6 +54,32 @@ class BootstrapTests(unittest.TestCase):
         self.assertNotEqual(m.key(self.root, 'builder', 'tc-one'),
                             m.key(self.root, 'builder', 'tc-two'))
 
+    def test_external_make_fragment_content_mode_and_type_are_locked(self):
+        m = self.module()
+        fragment = self.root / '.external-packages.mk'
+        fragment.write_text('EXTERNAL_PACKAGES:=reviewed\n')
+        fragment.chmod(0o644)
+        setattr(m, 'REVIEWED', {m.inventory(self.root)})
+        baseline = m.key(self.root, 'builder', 'tc-one')
+        self.assertEqual(baseline, m.key(self.root, 'builder', 'tc-two'))
+        fragment.write_text('include /unreviewed/producer.mk\n')
+        self.assertNotEqual(m.key(self.root, 'builder', 'tc-one'),
+                            m.key(self.root, 'builder', 'tc-two'))
+        fragment.write_text('EXTERNAL_PACKAGES:=reviewed\n')
+        self.assertEqual(baseline, m.key(self.root, 'builder', 'tc-one'))
+        fragment.chmod(0o600)
+        self.assertNotEqual(baseline, m.key(self.root, 'builder', 'tc-one'))
+        fragment.unlink()
+        self.assertNotEqual(m.key(self.root, 'builder', 'tc-one'),
+                            m.key(self.root, 'builder', 'tc-two'))
+        fragment.mkdir()
+        with self.assertRaises(ValueError):
+            m.key(self.root, 'builder', 'tc-one')
+        fragment.rmdir()
+        fragment.symlink_to(self.root / 'tools/Makefile')
+        with self.assertRaises(ValueError):
+            m.key(self.root, 'builder', 'tc-one')
+
     def artifacts(self):
         for tool in ('ccache', 'cmake'):
             p = self.root / 'build_dir/host' / (tool + '-1.0')
@@ -425,6 +451,82 @@ class PreparedBootstrapTests(unittest.TestCase):
         self.assertIn(module.inventory(root), module.REVIEWED)
         self.assertEqual(module.key(root, 'builder', 'tc-one'),
                          module.key(root, 'builder', 'tc-two'))
+
+    def test_prepared_lock_keeps_source_config_and_environment_boundaries(self):
+        spec = importlib.util.spec_from_file_location('prepared_bootstrap_boundaries', SCRIPT)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        source = Path(os.environ['BOOTSTRAP_SOURCE'])
+        # Copy only audited inputs, never an entire build tree or its artifacts.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'source'
+            root.mkdir()
+            def ignored_generated(directory, names):
+                return [name for name in names
+                        if (Path(directory) / name).relative_to(source).as_posix().startswith('scripts/config/')
+                        and subprocess.run(['git', 'check-ignore', '-q', '--',
+                                            str((Path(directory) / name).relative_to(source))],
+                                           cwd=source, stdout=subprocess.DEVNULL,
+                                           stderr=subprocess.DEVNULL).returncode == 0]
+
+            for name in ('tools', 'scripts'):
+                shutil.copytree(source / name, root / name, symlinks=True,
+                                ignore=ignored_generated)
+            for name in (*module.FIXED_INPUTS, '.config', '.external-packages.mk'):
+                src, dst = source / name, root / name
+                if src.is_file():
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dst)
+            self.assertIn(module.inventory(root), module.REVIEWED)
+            baseline = module.key(root, 'builder', 'tc-one')
+            self.assertEqual(baseline, module.key(root, 'builder', 'tc-two'))
+            # These later world/runtime inputs do not produce the early snapshot.
+            for name in ('target/linux/bootstrap-test.patch', 'files/etc/bootstrap-test',
+                         '.external-packages/eamonxg/packages.adb'):
+                p = root / name
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text('# not an early host producer\n')
+                self.assertEqual(baseline, module.key(root, 'builder', 'tc-two'))
+            for name in ('tools/ccache/Makefile', 'scripts/download.pl', 'include/rootfs.mk',
+                         '.external-packages.mk'):
+                p = root / name
+                original = p.read_bytes() if p.exists() else None
+                with self.subTest(input=name):
+                    try:
+                        p.write_bytes((original or b'') + b'\n# unknown producer inventory\n')
+                        self.assertNotEqual(baseline, module.key(root, 'builder', 'tc-one'))
+                        self.assertNotEqual(module.key(root, 'builder', 'tc-one'),
+                                            module.key(root, 'builder', 'tc-two'))
+                    finally:
+                        if original is None:
+                            p.unlink()
+                        else:
+                            p.write_bytes(original)
+            p = root / 'tools/ccache/Makefile'
+            original_mode = p.stat().st_mode & 0o777
+            p.chmod(original_mode ^ 0o100)
+            self.assertNotEqual(module.key(root, 'builder', 'tc-one'),
+                                module.key(root, 'builder', 'tc-two'))
+            p.chmod(original_mode)
+            cfg = root / '.config'
+            original = cfg.read_bytes()
+            try:
+                cfg.write_bytes(original + b'\nCONFIG_BOOTSTRAP_BOUNDARY_TEST=y\n')
+                self.assertNotEqual(baseline, module.key(root, 'builder', 'tc-one'))
+                # Even a reviewed inventory cannot project BUILD_ALL_HOST_TOOLS.
+                cfg.write_bytes(original + b'\nCONFIG_BUILD_ALL_HOST_TOOLS=y\n')
+                self.assertNotEqual(module.key(root, 'builder', 'tc-one'),
+                                    module.key(root, 'builder', 'tc-two'))
+            finally:
+                cfg.write_bytes(original)
+            self.assertEqual(baseline, module.key(root, 'builder', 'tc-one'))
+            self.assertNotEqual(baseline, module.key(root, 'different-builder', 'tc-one'))
+            with patch.dict(os.environ, {'LANG': 'bootstrap-test-language'}):
+                self.assertNotEqual(baseline, module.key(root, 'builder', 'tc-one'))
+            with patch.dict(os.environ, {'MAKEFILES': '/unreviewed/Makefile'}):
+                with self.assertRaises(ValueError):
+                    module.key(root, 'builder', 'tc-one')
 
 
 if __name__ == '__main__':

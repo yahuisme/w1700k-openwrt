@@ -268,7 +268,7 @@ jobs:
     - name: Check download cache budget
       id: dl_budget
       if: steps.dl_changed.outputs.save == 'true'
-      run: python3 scripts/cache_helper.py admit 'dl-v3.' dlarchive/dl.tar.gz '${{ steps.dl.outputs.cache-primary-key }}'
+      run: python3 scripts/cache_helper.py admit 'dl-v3.' dlarchive/dl.tar.gz '${{ steps.dl.outputs.cache-primary-key }}' --replace-download
     - name: Save download cache
       uses: actions/cache/save@v6
       if: steps.dl_changed.outputs.save == 'true' && steps.dl_budget.outputs.save == 'true' && hashFiles('dlarchive/dl.tar.gz') != ''

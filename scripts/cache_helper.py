@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Read-only admission; delete old generations only after a verified save.
+"""Budgeted admission with verified retention and optional download replacement.
 
-The single standard writer counts every generation, ref and legacy entry,
-plus candidate and packaging headroom inside a 10 GB repository cap.
-Workflow concurrency excludes overlapping runs; inventory must be readable.
+Only an explicitly requested W1700K download replacement may remove old seeds
+before upload. Other tiers retain save/readback/prune ordering within 10 GB.
+Workflow concurrency excludes overlapping runs; inventory must be complete.
 """
 import json
 import os
@@ -22,7 +22,7 @@ except ImportError:
 
 PROFILE = load(Path(__file__).resolve().parents[1] / 'user/default')
 SLOTS = {PROFILE['cache_prefix'][kind]: limit for kind, limit in
-         [('tc', 2_000_000_000), ('cc', 3_000_000_000), ('dl', 3_200_000_000)]}
+         [('tc', 2_000_000_000), ('cc', 3_000_000_000), ('dl', 4_000_000_000)]}
 # Independent bootstrap tier; keep the build_profile tc/cc/dl contract intact.
 BOOTSTRAP_PREFIX = 'tb-v1-ubi2-'
 SLOTS[BOOTSTRAP_PREFIX] = 1_000_000_000
@@ -80,27 +80,63 @@ def validate(prefix, key):
     return ref
 
 
-def admit(prefix, archive, key):
+def replace_download(entries, prefix, key, ref, reserve):
+    """Free only this branch's old download seeds, after a complete preflight."""
+    used = sum(e['size_in_bytes'] for e in entries)
+    if any(e['key'] == key and e['ref'] == ref for e in entries):
+        raise ValueError('download candidate key already exists; no caches deleted')
+    if used + reserve <= BUDGET:
+        return entries
+    old = sorted((e for e in entries if owner(e['key']) == prefix
+                  and e['ref'] == ref and e['key'] != key and e['size_in_bytes'] > 0),
+                 key=lambda e: (-e['size_in_bytes'], e['id']))
+    if used - sum(e['size_in_bytes'] for e in old) + reserve > BUDGET:
+        raise ValueError('download replacement cannot fit; no caches deleted')
+    selected = []
+    for entry in old:
+        selected.append(entry)
+        used -= entry['size_in_bytes']
+        if used + reserve <= BUDGET:
+            break
+    removed = {e['id'] for e in selected}
+    protected = {e['id'] for e in entries} - removed
+    for entry in selected:
+        subprocess.run(['gh', 'cache', 'delete', str(entry['id'])], check=True)
+    after = inv()
+    remaining = {e['id'] for e in after}
+    if removed & remaining or not protected <= remaining:
+        raise ValueError('download replacement deletion/protected readback failed')
+    if sum(e['size_in_bytes'] for e in after) + reserve > BUDGET:
+        raise ValueError('download replacement budget changed after deletion')
+    print(f'download replacement verified: removed {len(removed)} old seeds before upload')
+    return after
+
+
+def admit(prefix, archive, key, replace=False):
     ok = False
     try:
-        validate(prefix, key)
+        ref = validate(prefix, key)
+        if replace and (PROFILE['device'] != 'W1700K' or prefix != PROFILE['cache_prefix']['dl']):
+            raise ValueError('pre-upload replacement is download-only for W1700K')
         path = Path(archive)
-        if not path.is_file():
-            raise ValueError('replacement archive missing')
+        if path.is_symlink() or not path.is_file():
+            raise ValueError('replacement archive missing or linked')
         size = path.stat().st_size
         if not 0 < size <= SLOTS[prefix]:
             raise ValueError('replacement archive empty or oversized')
         entries = inv()
-        used = sum(e['size_in_bytes'] for e in entries)
         # Include wrapper tar/compression expansion and metadata, not just the
         # inner gzip. Never subtract an old generation before it is deleted.
         reserve = size + max(HEADROOM, (size + 99) // 100)
+        if replace:
+            entries = replace_download(entries, prefix, key, ref, reserve)
+        used = sum(e['size_in_bytes'] for e in entries)
         ok = used + reserve <= BUDGET
         print(f'cache budget: inventory={used} candidate+margin={reserve} cap={BUDGET}')
         if not ok:
             warn('repository budget exceeded; retaining old caches')
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
-        warn(f'admission denied; retaining old caches: {exc}')
+        warn(f'admission denied; no further deletion: {exc}')
     with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
         f.write('save=' + str(ok).lower() + '\n')
     return ok
@@ -148,11 +184,12 @@ def cleanup(prefix, keep):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 5 and sys.argv[1] == 'admit':
-        admit(*sys.argv[2:])
+    if (len(sys.argv) in (5, 6) and sys.argv[1] == 'admit'
+            and (len(sys.argv) == 5 or sys.argv[5] == '--replace-download')):
+        admit(*sys.argv[2:5], replace=len(sys.argv) == 6)
     elif len(sys.argv) == 4 and sys.argv[1] == 'cleanup':
         # Admission denial is read-only and may continue to a smaller tier.
         # An attempted upload must be confirmed before later admissions.
         sys.exit(0 if cleanup(*sys.argv[2:]) else 1)
     else:
-        sys.exit('usage: cache_helper.py admit PREFIX ARCHIVE KEY | cleanup PREFIX KEY')
+        sys.exit('usage: cache_helper.py admit PREFIX ARCHIVE KEY [--replace-download] | cleanup PREFIX KEY')

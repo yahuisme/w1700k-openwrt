@@ -76,6 +76,6 @@ with tempfile.TemporaryDirectory() as directory:
   else: raise AssertionError('asset readback not reached')
 '''
         result = subprocess.run([sys.executable, '-c', code], cwd=ROOT,
-                                env=dict(os.environ, DK_PROFILE='/bld/user/default', GITHUB_REPOSITORY='fixture/repo'),
+                                env=dict(os.environ, DK_PROFILE='/bld/user/default', GITHUB_REPOSITORY='fixture/repo', GITHUB_SHA='a' * 40),
                                 text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)

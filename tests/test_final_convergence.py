@@ -35,6 +35,6 @@ class ConvergenceTests(unittest.TestCase):
         path = 'target/linux/airoha/dts/an7581.dtsi'
         self.assertEqual((source / path).read_bytes(), subprocess.check_output(
             ['git', 'show', 'HEAD:' + path], cwd=source))
-        dts = (source / 'target/linux/airoha/dts/an7581-w1700k-ubi.dts').read_text()
-        for state, color in (('boot', 'green'), ('failsafe', 'red'), ('running', 'white')):
-            self.assertIn(f'led-{state} = &led_status_{color};', dts)
+        path = 'target/linux/airoha/dts/an7581-w1700k-ubi.dts'
+        self.assertEqual((source / path).read_bytes(), subprocess.check_output(
+            ['git', 'show', 'HEAD:' + path], cwd=source))

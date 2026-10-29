@@ -68,16 +68,6 @@ mkdir -p feeds/luci/modules/luci-mod-status/patches
 cp -f "$PATCH_DIR/patches/998-single-wiphy.patch" \
     feeds/luci/modules/luci-mod-status/patches/998-single-wiphy.patch
 
-# Preserve the user's status LED colors, not donor platform enhancements.
-DTS=target/linux/airoha/dts/an7581-w1700k-ubi.dts
-sed -i -e 's/led-boot = &led_status_red;/led-boot = \&led_status_green;/' \
-       -e 's/led-failsafe = &led_status_blue;/led-failsafe = \&led_status_red;/' \
-       -e 's/led-running = &led_status_green;/led-running = \&led_status_white;/' "$DTS"
-for alias in 'boot green' 'failsafe red' 'running white'; do
-    read -r state color <<< "$alias"
-    grep -q "led-$state = &led_status_$color;" "$DTS" || { echo "ERROR: LED alias mismatch: $state" >&2; exit 1; }
-done
-
 # -------------------------------------------------
 # Preinstall the author's latest signed Aurora APKs, keys and update source.
 # The helper uses this source tree; no Aurora templates are modified.

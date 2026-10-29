@@ -36,5 +36,10 @@ class ConvergenceTests(unittest.TestCase):
         self.assertEqual((source / path).read_bytes(), subprocess.check_output(
             ['git', 'show', 'HEAD:' + path], cwd=source))
         path = 'target/linux/airoha/dts/an7581-w1700k-ubi.dts'
-        self.assertEqual((source / path).read_bytes(), subprocess.check_output(
-            ['git', 'show', 'HEAD:' + path], cwd=source))
+        official = subprocess.check_output(['git', 'show', 'HEAD:' + path], cwd=source)
+        expected = official.replace(b'led-upgrade = &led_status_blue;',
+                                    b'led-upgrade = &led_status_green;').replace(
+                                    b'led-running = &led_status_green;',
+                                    b'led-running = &led_status_white;')
+        self.assertNotEqual(official, expected)
+        self.assertEqual((source / path).read_bytes(), expected)

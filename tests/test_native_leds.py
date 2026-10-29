@@ -1,4 +1,4 @@
-"""Leave LED defaults and diagnostic ownership to the official firmware."""
+"""Keep native diagnostic ownership with only upgrade/running color changes."""
 from pathlib import Path
 import unittest
 
@@ -13,15 +13,37 @@ class NativeLEDTests(unittest.TestCase):
             if path.is_file():
                 self.assertNotIn('led_wan_status', path.read_text(), str(path))
 
-    def test_no_status_alias_override(self):
+    def test_native_led_ownership(self):
         profile = ROOT / 'user/default'
-        for path in profile.rglob('*'):
-            if path.is_file():
-                text = path.read_text()
-                self.assertNotIn('led_status_', text, str(path))
-                self.assertNotIn('led_wan_status', text, str(path))
         for relative in ('files/etc/board.d/01_leds', 'files/etc/config/system'):
             self.assertFalse((profile / relative).exists(), relative)
+
+    def test_status_colors_and_idempotence(self):
+        import os
+        import subprocess
+        import tempfile
+        script = (ROOT / 'user/default/custom.sh').read_text()
+        self.assertIn('# Status LED colors:', script)
+        start = script.index('# Status LED colors:')
+        end = script.index('# End status LED colors', start)
+        fragment = script[start:end]
+        source = Path(os.environ['LED_DTS_SOURCE']).read_text() if os.environ.get('LED_DTS_SOURCE') else (
+            'led-boot = &led_status_red;\nled-failsafe = &led_status_blue;\n'
+            'led-upgrade = &led_status_blue;\nled-running = &led_status_green;\n')
+        expected = source.replace('led-upgrade = &led_status_blue;',
+                                  'led-upgrade = &led_status_green;').replace(
+                                  'led-running = &led_status_green;',
+                                  'led-running = &led_status_white;')
+        self.assertNotEqual(source, expected)
+        with tempfile.TemporaryDirectory() as directory:
+            dts = Path(directory) / 'target/linux/airoha/dts/an7581-w1700k-ubi.dts'
+            dts.parent.mkdir(parents=True)
+            dts.write_text(source)
+            for _ in range(2):
+                result = subprocess.run(['bash', '-ec', fragment], cwd=directory,
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(dts.read_text(), expected)
 
 
 if __name__ == '__main__':

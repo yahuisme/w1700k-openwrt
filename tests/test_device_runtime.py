@@ -129,13 +129,16 @@ assert.equal(text(widget.render(null).children.at(-1)), 'Fan|--');
 """, widget)
 
 
-class SysctlCleanup(unittest.TestCase):
-    def test_remove_filter_toggles_only(self):
+class SysctlDefaults(unittest.TestCase):
+    def test_acceleration_defaults_and_retention(self):
         files = ROOT / 'user/default/files'
         keep = (files / 'lib/upgrade/keep.d/w1700k-offload').read_text().splitlines()
-        self.assertEqual(keep, ['/etc/sysctl.d/12-apmode-offload.conf'])
-        for name in ('14-vlan-offload.conf', '15-pppoe-offload.conf'):
-            self.assertFalse((files / 'etc/sysctl.d' / name).exists())
+        self.assertEqual(keep, ['/etc/sysctl.d/12-apmode-offload.conf',
+                                '/etc/sysctl.d/14-vlan-offload.conf',
+                                '/etc/sysctl.d/15-pppoe-offload.conf'])
+        for name, key in (('14-vlan-offload.conf', 'vlan'), ('15-pppoe-offload.conf', 'pppoe')):
+            self.assertEqual((files / 'etc/sysctl.d' / name).read_text(),
+                             f'net.bridge.bridge-nf-filter-{key}-tagged=1\n')
         self.assertEqual((files / 'etc/sysctl.d/12-apmode-offload.conf').read_text().splitlines(), [
             'net.bridge.bridge-nf-call-iptables=0',
             'net.bridge.bridge-nf-call-ip6tables=0',
@@ -150,7 +153,7 @@ class SysctlCleanup(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get('DEVICE_ROOTFS'), 'set DEVICE_ROOTFS to verified release rootfs')
 class NativeDefaults(unittest.TestCase):
-    def test_native_sysctl_preserves_removed_filter_values(self):
+    def test_native_sysctl_enables_vlan_and_pppoe(self):
         import shutil
         release = Path(os.environ['DEVICE_ROOTFS'])
         for initial in ('0', '1'):
@@ -171,7 +174,7 @@ class NativeDefaults(unittest.TestCase):
                     subprocess.run(['chroot', str(root), '/bin/busybox', 'sysctl', '-p', '/' + config.name],
                                    check=True, capture_output=True, text=True)
                 for key in filters:
-                    self.assertEqual((bridge / key).read_text().strip(), initial)
+                    self.assertEqual((bridge / key).read_text().strip(), '1')
                 for key in calls:
                     self.assertEqual((bridge / key).read_text().strip(), '0')
                 self.assertEqual((bridge / 'bridge-nf-pass-vlan-input-dev').read_text().strip(), '1')

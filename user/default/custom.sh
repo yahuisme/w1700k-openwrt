@@ -93,9 +93,28 @@ python3 /cache-scripts/external_packages.py prepare .
 # luci-mod-status. Core modules translate via luci-base's "base" domain, so
 # append its strings to the upstream base.po for the Chinese UI.
 BASE_PO="feeds/luci/modules/luci-base/po/zh_Hans/base.po"
-if [ -f "$BASE_PO" ] && [ -f "$DK_PROFILE/po/zh_Hans/base-custom.po" ]; then
-    cat "$DK_PROFILE/po/zh_Hans/base-custom.po" >> "$BASE_PO"
+CUSTOM_PO="$DK_PROFILE/po/zh_Hans/base-custom.po"
+for PO in "$BASE_PO" "$CUSTOM_PO"; do
+    [ -f "$PO" ] || { echo "ERROR: Required Chinese dictionary missing: $PO" >&2; exit 1; }
+done
+# gettext is already a builder dependency. Parse both inputs, prefer project
+# translations on duplicate msgids, then replace only a validated merged PO.
+PO_WORK=$(mktemp -d)
+MERGED_PO="$PO_WORK/merged.po"
+# Reuse the exact upstream header metadata for the headerless project fragment.
+msggrep --force-po --msgid -e '^$' "$BASE_PO" -o "$PO_WORK/custom.po"
+printf '\n' >> "$PO_WORK/custom.po"
+cat "$CUSTOM_PO" >> "$PO_WORK/custom.po"
+if ! { msgfmt -o /dev/null "$BASE_PO" && msgfmt -o /dev/null "$PO_WORK/custom.po" &&
+       msgcat --use-first --no-wrap "$PO_WORK/custom.po" "$BASE_PO" -o "$MERGED_PO" &&
+       msgfmt -o /dev/null "$MERGED_PO"; }; then
+    rm -rf "$PO_WORK"
+    echo "ERROR: Chinese dictionary validation/merge failed" >&2
+    exit 1
 fi
+chmod --reference="$BASE_PO" "$MERGED_PO"
+mv "$MERGED_PO" "$BASE_PO"
+rm -rf "$PO_WORK"
 
 echo "Airoha LuCI configuration completed."
 

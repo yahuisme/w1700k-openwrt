@@ -54,6 +54,16 @@ class BootstrapTests(unittest.TestCase):
         self.assertNotEqual(m.key(self.root, 'builder', 'tc-one'),
                             m.key(self.root, 'builder', 'tc-two'))
 
+    def test_rust_host_tool_selection_keeps_full_toolchain_binding(self):
+        m = self.module()
+        setattr(m, 'REVIEWED', {m.inventory(self.root)})
+        for symbol in ('USE_RUST_TOOLCHAIN', 'BUILD_BINDGEN', 'USE_CBINDGEN',
+                       'USE_CORROSION', 'RUST_SCCACHE'):
+            with self.subTest(symbol=symbol):
+                (self.root / '.config').write_text('CONFIG_CCACHE=y\nCONFIG_' + symbol + '=y\n')
+                self.assertNotEqual(m.key(self.root, 'builder', 'tc-one'),
+                                    m.key(self.root, 'builder', 'tc-two'))
+
     def test_external_make_fragment_content_mode_and_type_are_locked(self):
         m = self.module()
         fragment = self.root / '.external-packages.mk'

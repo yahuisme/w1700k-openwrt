@@ -19,13 +19,53 @@ if [ -f /sysupgrade.tgz ] || [ -f /tmp/sysupgrade.tar ]; then
 fi
 
 
+# Read the complete radio inventory before changing any configuration.
+# Stable section IDs avoid anonymous wifi-iface index shifts during deletion.
+WIRELESS="$(uci -q -X show wireless)" || exit 1
+RADIO_2G=""
+RADIO_5G=""
+RADIO_6G=""
+for DEV in $(printf '%s\n' "$WIRELESS" | \
+    sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
+    BAND="$(uci -q get wireless.${DEV}.band)" || exit 1
+    case "$BAND" in
+        2g) RADIO_2G="$DEV" ;;
+        5g) RADIO_5G="$DEV" ;;
+        6g) RADIO_6G="$DEV" ;;
+        *) exit 1 ;;
+    esac
+done
+[ -n "$RADIO_2G" ] && [ -n "$RADIO_5G" ] && [ -n "$RADIO_6G" ] || exit 1
+
+# Boot commits even when a defaults script fails. Keep our deltas private until
+# every required operation succeeds; -P still reads earlier defaults' deltas.
+WORK="$(mktemp -d /tmp/w1700k-defaults.XXXXXX)" || exit 1
+PUBLISHED=0
+cleanup() {
+    trap '' HUP INT TERM
+    # A rename may have completed even if mv failed or was interrupted.
+    # Never delete earlier defaults while publication is unconfirmed.
+    if [ "$PUBLISHED" = 0 ] && [ -d "$WORK/previous" ]; then
+        if [ -e /tmp/.uci ] || ! mv "$WORK/previous" /tmp/.uci; then
+            echo "W1700K defaults: restore failed; previous deltas kept at $WORK/previous" >&2
+            return
+        fi
+    fi
+    rm -rf "$WORK"
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+STAGE="$WORK/delta"
+mkdir "$STAGE" || exit 1
+wuci() { uci -P "$STAGE" "$@" || exit 1; }
+
 # ------------------------------------------------------------
 # System timezone
 # ------------------------------------------------------------
 
-uci -q set system.@system[0].zonename='Asia/Hong_Kong'
-uci -q set system.@system[0].timezone='HKT-8'
-uci -q set system.@system[0].hostname='W1700K'
+wuci -q set system.@system[0].zonename='Asia/Hong_Kong'
+wuci -q set system.@system[0].timezone='HKT-8'
+wuci -q set system.@system[0].hostname='W1700K'
 
 
 # ------------------------------------------------------------
@@ -33,51 +73,31 @@ uci -q set system.@system[0].hostname='W1700K'
 # ------------------------------------------------------------
 
 # Default management address: 192.168.8.1/24.
-uci -q delete network.lan.ipaddr
-uci -q add_list network.lan.ipaddr='192.168.8.1/24'
+# Replace the address option first so deleting it has no "not found" exception.
+wuci -q set network.lan.ipaddr='192.168.8.1/24'
+wuci -q delete network.lan.ipaddr
+wuci -q add_list network.lan.ipaddr='192.168.8.1/24'
 
 # IPv6: RA server mode, DHCPv6 disabled.
-uci -q set dhcp.lan.dhcpv6='disabled'
-uci -q set dhcp.lan.ra='server'
+wuci -q set dhcp.lan.dhcpv6='disabled'
+wuci -q set dhcp.lan.ra='server'
 
 
 # ------------------------------------------------------------
 # LuCI language / theme
 # ------------------------------------------------------------
 
-uci -q set luci.main.lang='zh-cn'
-uci -q set luci.main.mediaurlbase='/luci-static/aurora'
+wuci -q set luci.main.lang='zh-cn'
+wuci -q set luci.main.mediaurlbase='/luci-static/aurora'
 
 # Enable software and hardware flow offloading by default for the PPPoE router.
-uci -q set firewall.@defaults[0].flow_offloading='1'
-uci -q set firewall.@defaults[0].flow_offloading_hw='1'
+wuci -q set firewall.@defaults[0].flow_offloading='1'
+wuci -q set firewall.@defaults[0].flow_offloading_hw='1'
 
 
 # ------------------------------------------------------------
 # Find Wi-Fi radios and create first-boot defaults
 # ------------------------------------------------------------
-
-RADIO_2G=""
-RADIO_5G=""
-RADIO_6G=""
-
-for DEV in $(uci show wireless | \
-    sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p')
-do
-    BAND="$(uci -q get wireless.${DEV}.band || true)"
-
-    case "$BAND" in
-        2g)
-            RADIO_2G="$DEV"
-            ;;
-        5g)
-            RADIO_5G="$DEV"
-            ;;
-        6g)
-            RADIO_6G="$DEV"
-            ;;
-    esac
-done
 
 
 # ------------------------------------------------------------
@@ -85,11 +105,11 @@ done
 # ------------------------------------------------------------
 
 if [ -n "$RADIO_2G" ]; then
-    uci -q set wireless.${RADIO_2G}.disabled='0'
-    uci -q set wireless.${RADIO_2G}.country='US'
-    uci -q set wireless.${RADIO_2G}.channel='1'
-    uci -q set wireless.${RADIO_2G}.htmode='EHT20'
-    uci -q set wireless.${RADIO_2G}.txpower='23'
+    wuci -q set wireless.${RADIO_2G}.disabled='0'
+    wuci -q set wireless.${RADIO_2G}.country='US'
+    wuci -q set wireless.${RADIO_2G}.channel='1'
+    wuci -q set wireless.${RADIO_2G}.htmode='EHT20'
+    wuci -q set wireless.${RADIO_2G}.txpower='23'
 fi
 
 
@@ -98,11 +118,11 @@ fi
 # ------------------------------------------------------------
 
 if [ -n "$RADIO_5G" ]; then
-    uci -q set wireless.${RADIO_5G}.disabled='0'
-    uci -q set wireless.${RADIO_5G}.country='US'
-    uci -q set wireless.${RADIO_5G}.channel='36'
-    uci -q set wireless.${RADIO_5G}.htmode='EHT160'
-    uci -q set wireless.${RADIO_5G}.txpower='25'
+    wuci -q set wireless.${RADIO_5G}.disabled='0'
+    wuci -q set wireless.${RADIO_5G}.country='US'
+    wuci -q set wireless.${RADIO_5G}.channel='36'
+    wuci -q set wireless.${RADIO_5G}.htmode='EHT160'
+    wuci -q set wireless.${RADIO_5G}.txpower='25'
 fi
 
 
@@ -113,11 +133,11 @@ fi
 if [ -n "$RADIO_6G" ]; then
     # 6 GHz is configured but disabled by default.
     # Enable it manually from LuCI when needed.
-    uci -q set wireless.${RADIO_6G}.disabled='1'
-    uci -q set wireless.${RADIO_6G}.country='US'
-    uci -q set wireless.${RADIO_6G}.channel='37'
-    uci -q set wireless.${RADIO_6G}.htmode='EHT320'
-    uci -q set wireless.${RADIO_6G}.txpower='25'
+    wuci -q set wireless.${RADIO_6G}.disabled='1'
+    wuci -q set wireless.${RADIO_6G}.country='US'
+    wuci -q set wireless.${RADIO_6G}.channel='37'
+    wuci -q set wireless.${RADIO_6G}.htmode='EHT320'
+    wuci -q set wireless.${RADIO_6G}.txpower='25'
 fi
 
 
@@ -125,10 +145,10 @@ fi
 # Remove existing Wi-Fi interface defaults
 # ------------------------------------------------------------
 
-for IFACE in $(uci show wireless | \
+for IFACE in $(printf '%s\n' "$WIRELESS" | \
     sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p')
 do
-    uci -q delete wireless.${IFACE}
+    wuci -q delete wireless.${IFACE}
 done
 
 
@@ -139,14 +159,14 @@ done
 if [ -n "$RADIO_2G" ]; then
 
     IFACE_2G="wifinet2g"
-    uci set wireless.${IFACE_2G}=wifi-iface
+    wuci set wireless.${IFACE_2G}=wifi-iface
 
-    uci set wireless.${IFACE_2G}.device="${RADIO_2G}"
-    uci set wireless.${IFACE_2G}.mode='ap'
-    uci set wireless.${IFACE_2G}.network='lan'
-    uci set wireless.${IFACE_2G}.ssid='W1700K'
-    uci set wireless.${IFACE_2G}.encryption='psk2+ccmp'
-    uci set wireless.${IFACE_2G}.key='12345678'
+    wuci set wireless.${IFACE_2G}.device="${RADIO_2G}"
+    wuci set wireless.${IFACE_2G}.mode='ap'
+    wuci set wireless.${IFACE_2G}.network='lan'
+    wuci set wireless.${IFACE_2G}.ssid='W1700K'
+    wuci set wireless.${IFACE_2G}.encryption='psk2+ccmp'
+    wuci set wireless.${IFACE_2G}.key='12345678'
 
 fi
 
@@ -158,14 +178,14 @@ fi
 if [ -n "$RADIO_5G" ]; then
 
     IFACE_5G="wifinet5g"
-    uci set wireless.${IFACE_5G}=wifi-iface
+    wuci set wireless.${IFACE_5G}=wifi-iface
 
-    uci set wireless.${IFACE_5G}.device="${RADIO_5G}"
-    uci set wireless.${IFACE_5G}.mode='ap'
-    uci set wireless.${IFACE_5G}.network='lan'
-    uci set wireless.${IFACE_5G}.ssid='W1700K'
-    uci set wireless.${IFACE_5G}.encryption='psk2+ccmp'
-    uci set wireless.${IFACE_5G}.key='12345678'
+    wuci set wireless.${IFACE_5G}.device="${RADIO_5G}"
+    wuci set wireless.${IFACE_5G}.mode='ap'
+    wuci set wireless.${IFACE_5G}.network='lan'
+    wuci set wireless.${IFACE_5G}.ssid='W1700K'
+    wuci set wireless.${IFACE_5G}.encryption='psk2+ccmp'
+    wuci set wireless.${IFACE_5G}.key='12345678'
 
 fi
 
@@ -177,18 +197,29 @@ fi
 if [ -n "$RADIO_6G" ]; then
 
     IFACE_6G="wifinet6g"
-    uci set wireless.${IFACE_6G}=wifi-iface
+    wuci set wireless.${IFACE_6G}=wifi-iface
 
-    uci set wireless.${IFACE_6G}.device="${RADIO_6G}"
-    uci set wireless.${IFACE_6G}.mode='ap'
-    uci set wireless.${IFACE_6G}.network='lan'
-    uci set wireless.${IFACE_6G}.ssid='W1700K-6G'
-    uci set wireless.${IFACE_6G}.encryption='sae+ccmp'
-    uci set wireless.${IFACE_6G}.key='12345678'
+    wuci set wireless.${IFACE_6G}.device="${RADIO_6G}"
+    wuci set wireless.${IFACE_6G}.mode='ap'
+    wuci set wireless.${IFACE_6G}.network='lan'
+    wuci set wireless.${IFACE_6G}.ssid='W1700K-6G'
+    wuci set wireless.${IFACE_6G}.encryption='sae+ccmp'
+    wuci set wireless.${IFACE_6G}.key='12345678'
 
 fi
 
 
+# Prepare a complete replacement of boot's delta directory, including earlier
+# defaults. Publish it with renames only after all fallible writes/copies pass.
+# Boot runs these scripts sequentially; no long-lived service is needed.
+NEXT="$WORK/next"
+cp -a /tmp/.uci "$NEXT" || exit 1
+for FILE in "$STAGE"/*; do
+    [ -f "$FILE" ] || continue
+    cat "$FILE" >> "$NEXT/${FILE##*/}" || exit 1
+done
+mv /tmp/.uci "$WORK/previous" || exit 1
+mv "$NEXT" /tmp/.uci || exit 1
+PUBLISHED=1
 # /etc/init.d/boot commits all UCI defaults together.
-
 exit 0

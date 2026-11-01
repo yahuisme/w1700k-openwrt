@@ -66,6 +66,50 @@ lock: ImmortalWrt `4fc16f2985a358bd43bb522e43f05395fcbd6ed5` with its production
 scripts/projectsmirrors.json filtering reproduces that hash. Its 16 early
 producers also match; its helper and cache namespaces remain separate.
 
+## Current rolling-source re-review
+
+The previous reviewed inventories above were reconstructed from immutable
+archives with Git modes and matched their recorded hashes before comparison.
+The complete production custom script was then executed against both current
+source/feed trees with the actual local packages checkout; only `/cache-scripts`
+was relocated to the canonical helper. No compiler or defconfig ran. The copied
+final configs are the successful runs' artifacts, not locally generated output.
+
+| Source | Post-customization inventory SHA256 |
+| --- | --- |
+| OpenWrt `382a2109c849a45873aa908b4912fab667f603a0` | `1feb9eb4d0f1e047b36869dcf13343b31c5d58bc8a6aa6698b626316b571db5d` |
+| ImmortalWrt `89f1ef18c888f841633f19f92655ee4b7f7716a4` | `d1626e1990166f86d6b16ba56574ea845f9c576a6b01f99d147fac03fcb6b2b6` |
+
+Both post-custom trees differ from pristine inventoried source only in the
+reviewed Aurora `include/rootfs.mk`, `package/Makefile` and generated external
+fragment. Full path/mode/content comparisons find 18 changed OpenWrt inputs and
+three ImmortalWrt inputs relative to the preceding locks:
+
+- Both gain the host-autotools post-install hook removing `.la` files from
+  host staging. This is a real host producer change, retained in the new lock;
+  old host snapshots are not made compatible or reused across this change.
+- OpenWrt adds Rust tools, Cargo vendoring/download methods, wrapper scripts,
+  CMake/Meson Rust variables and Meson template fields. Native query-only make
+  evaluation of the actual old/new tools rules under the captured final config
+  yields the same 16-producer early closure listed above. Rust tools are not
+  selected, but all their inventoried bytes remain locked. None of those early
+  recipes includes Rust values; the conditional Rust additions are inactive.
+  Selecting Rust host tools or BUILD_ALL_HOST_TOOLS forces full TC binding,
+  since include/rust-*.mk is outside this early closure. Meson installs its
+  changed native/cross templates during this closure, so
+  those bytes are a genuine new artifact input, not excluded noise.
+- ImmortalWrt additionally changes target-only dtbs checks in subdir.mk and the
+  QSDK image-description helper. Neither adds an early producer.
+
+The complete recursive host-build/download/unpack/depends/quilt/autotools/
+CMake/Meson paths, install hooks, tools headers and site inputs remain covered.
+The native make probe expands dependency variables without executing recipes,
+recursive make, include remaking or parse-time shell commands. Unknown complete
+inventories still fall back to TC_KEY. The source lock update changes the
+bootstrap helper self-hash and starts a cold bootstrap generation, but leaves
+TC/CC/DL policies and namespaces unchanged. No claim of measured speed or actual
+compiled stamp reuse follows from this source/archive acceptance.
+
 ## Acceptance and limits
 
 Run `BOOTSTRAP_SOURCE=/absolute/private/prepared/tree python3 -m unittest

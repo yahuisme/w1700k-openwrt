@@ -52,9 +52,10 @@ class ProfileContract(unittest.TestCase):
 
     def test_defaults_policy(self):
         text = (PROFILE / 'files/etc/uci-defaults/99-w1700k-defaults').read_text()
-        self.assertIn("uci -q set dhcp.lan.dhcpv6='disabled'", text)
-        self.assertIn("uci -q set dhcp.lan.ra='server'", text)
-        self.assertNotIn('uci -q delete wireless.${IFACE_', text)
+        self.assertIn("wuci -q set dhcp.lan.dhcpv6='disabled'", text)
+        self.assertIn("wuci -q set dhcp.lan.ra='server'", text)
+        self.assertIn('wuci() { uci -P "$STAGE" "$@" || exit 1; }', text)
+        self.assertNotIn('wuci -q delete wireless.${IFACE_', text)
 
     def test_union_migration_cleanup(self):
         text = (PROFILE / 'files/etc/uci-defaults/90-bridge-hw-offload').read_text()

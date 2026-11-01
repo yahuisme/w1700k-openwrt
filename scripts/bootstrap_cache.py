@@ -28,6 +28,8 @@ REVIEWED = {
     '1833836d0460ca850a3bd03429a430ead837513e4899eb20725e1f6dbf6c2da6',
     '04fe4b66fa7d80b01fab7f3a608ce169799c5e107c4c14bd9d21c92c7932acf7',
     '1bef18e2273cc6ba0f0d2f8306a9df8b3fa0d31979ef0e9d8b059ee92ddf5ce3',
+    '1feb9eb4d0f1e047b36869dcf13343b31c5d58bc8a6aa6698b626316b571db5d',
+    'd1626e1990166f86d6b16ba56574ea845f9c576a6b01f99d147fac03fcb6b2b6',
 }
 FIXED_INPUTS = ('Makefile', 'rules.mk', 'package/Makefile', 'target/Makefile',
                 'toolchain/Makefile', *('include/' + name for name in (
@@ -129,7 +131,11 @@ def key(root, builder, tc_key):
         raise ValueError('unreviewed make/source escape')
     raw, values = configuration(root)
     source = inventory(root)
-    independent = source in REVIEWED and values.get('CONFIG_BUILD_ALL_HOST_TOOLS') != 'y'
+    # Rust host tools load additional include/rust-*.mk inputs outside this
+    # reviewed early C/C++ closure. Keep those configurations fully TC-bound.
+    independent = source in REVIEWED and not any(values.get('CONFIG_' + name) == 'y'
+        for name in ('BUILD_ALL_HOST_TOOLS', 'USE_RUST_TOOLCHAIN', 'BUILD_BINDGEN',
+                     'USE_CBINDGEN', 'USE_CORROSION', 'RUST_SCCACHE'))
     environment = {name: os.environ.get(name) for name in ENVIRONMENT}
     host = os.uname()
     data = ['bootstrap-v3', builder, [host.sysname, host.release, host.version, host.machine], str(root), EPOCH,

@@ -197,7 +197,7 @@ class NativeDefaults(unittest.TestCase):
                 for name, text in {
                     'system': "config system 'main'\n option hostname 'operator'\n",
                     'network': "config interface 'lan'\n option ipaddr '192.168.99.1'\n",
-                    'wireless': "config wifi-device 'radio0'\n option band '2g'\nconfig wifi-iface 'operator'\n option ssid 'private'\n",
+                    'wireless': "config wifi-device 'radio0'\n option band '2g'\nconfig wifi-device 'radio1'\n option band '5g'\nconfig wifi-device 'radio2'\n option band '6g'\nconfig wifi-iface 'operator'\n option ssid 'private'\n",
                     'dhcp': "config dhcp 'lan'\n", 'luci': "config core 'main'\n",
                     'firewall': "config defaults\n option flow_offloading_hw '0'\n",
                 }.items():
@@ -208,7 +208,7 @@ class NativeDefaults(unittest.TestCase):
                 def sh(command):
                     return subprocess.check_output(['chroot', str(root), '/bin/sh', '-c', command], text=True)
                 before = sh('uci export')
-                sh('/bin/sh /defaults; uci commit')
+                sh('/bin/sh /defaults && uci commit')
                 if marker:
                     self.assertEqual(sh('uci export'), before)
                 else:

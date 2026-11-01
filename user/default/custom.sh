@@ -56,9 +56,9 @@ for file in \
 done
 # Preserve buildroot ownership when copying the patch overlay.
 cp -a --no-preserve=ownership "$PATCH_DIR/tree/." .
-patch -p1 --fuzz=0 < "$PATCH_DIR/patches/002-w1700k-cpufreq-resources.patch"
+patch -p1 --fuzz=0 --no-backup-if-mismatch < "$PATCH_DIR/patches/002-w1700k-cpufreq-resources.patch"
 # wifi-scripts installs directly from source; its Build/Prepare is empty.
-patch -p1 --fuzz=0 < "$PATCH_DIR/patches/920-wifi-non-mlo-ap-txpower.patch"
+patch -p1 --fuzz=0 --no-backup-if-mismatch < "$PATCH_DIR/patches/920-wifi-non-mlo-ap-txpower.patch"
 
 # -------------------------------------------------
 # Existing W1700K custom files

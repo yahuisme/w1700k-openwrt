@@ -87,6 +87,7 @@ export -f git python3
                 self.assertEqual((base / 'calls').read_text(),
                                  'packages\naurora-prepare\n' if reached_aurora else 'packages\n')
                 if missing is None:
+                    self.assertEqual(list(work.rglob('*.orig')), [], 'patch backups must not enter package payloads')
                     self.assertEqual(official_templates, {p: (work / p).read_bytes()
                                                         for p in official_templates})
                     node(FLASH_RUN, destination, '192.168.8.1')

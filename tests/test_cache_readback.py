@@ -16,12 +16,13 @@ def pages(entries, total=None):
 
 
 class ReadbackTests(unittest.TestCase):
-    def replay(self, replies, expected, delays):
+    def replay(self, replies, expected, delays, before=None):
         new, old = entry(1, TC + 'new'), entry(2, TC + 'old')
         peer = entry(3, 'unrelated')
         with patch.dict(os.environ, GITHUB_REF=REF), \
                 patch.object(h.subprocess, 'check_output',
-                             side_effect=[pages([new, old, peer]), *replies]) as api, \
+                             side_effect=[pages([new, old, peer] if before is None else before),
+                                          *replies]) as api, \
                 patch.object(h.subprocess, 'run') as delete, \
                 patch.object(h.time, 'sleep') as sleep, \
                 contextlib.redirect_stdout(io.StringIO()) as log:
@@ -90,6 +91,57 @@ class ReadbackTests(unittest.TestCase):
                 delete.assert_called_once_with(['gh', 'cache', 'delete', '2'], check=True)
                 self.assertEqual(api.call_count, 3)
                 self.assertEqual([c.args[0] for c in sleep.call_args_list], [2, 4])
+
+    def test_download_retry_still_rejects_unsafe_or_invalid_readback(self):
+        from test_cache_helper import DL
+        before = [entry(1, TC + 'seed', 3_000_000_000),
+                  entry(2, DL + 'old', 4_000_000_000)]
+        protected = before[:1]
+        cases = {
+            'protected_missing': pages([]),
+            'old_remains': pages(before),
+            'budget_growth': pages(protected + [entry(3, 'unknown', 4_000_000_000)]),
+            'malformed': pages([dict(before[0], size_in_bytes='100')]),
+            'duplicate': pages(protected * 2),
+            'cli_error': h.subprocess.CalledProcessError(13, ['gh', 'api']),
+        }
+        for label, final in cases.items():
+            with self.subTest(case=label), \
+                    patch.object(h.subprocess, 'check_output',
+                                 side_effect=[pages([], total=1), final]) as api, \
+                    patch.object(h.subprocess, 'run') as delete, \
+                    patch.object(h.time, 'sleep') as sleep:
+                with self.assertRaises((ValueError, h.subprocess.SubprocessError)):
+                    h.replace_download(before, DL, DL + 'new', REF, 4_100_000_000)
+                delete.assert_called_once_with(['gh', 'cache', 'delete', '2'], check=True)
+                self.assertEqual(api.call_count, 2)
+                self.assertEqual([c.args[0] for c in sleep.call_args_list], [2])
+
+    def test_retry_preserves_protected_ids_and_other_branch(self):
+        new = entry(1, TC + 'new')
+        protected = entry(4, TC + 'new')
+        other = entry(5, TC + 'other', ref='refs/heads/other')
+        before = [new, entry(2, TC + 'old'), protected, other]
+        for missing in (None, 4, 5):
+            after = [e for e in (new, protected, other) if e['id'] != missing]
+            with self.subTest(missing=missing):
+                log = self.replay([pages([], total=1), pages(after)], missing is None,
+                                  [2], before=before)
+                if missing is not None:
+                    self.assertIn('retention readback failed', log)
+
+    def test_hard_failure_after_inconsistent_read_stops_immediately(self):
+        new = entry(1, TC + 'new')
+        faults = {
+            'malformed_entry': pages([dict(new, size_in_bytes='100')]),
+            'missing_field': pages([{'id': 1}]),
+            'duplicate_id': pages([new, new]),
+            'invalid_json': '{',
+            'cli_error': h.subprocess.CalledProcessError(13, ['gh', 'api']),
+        }
+        for label, fault in faults.items():
+            with self.subTest(fault=label):
+                self.replay([pages([], total=1), fault], False, [2])
 
     def test_incomplete_preflight_never_retries_or_deletes(self):
         with patch.dict(os.environ, GITHUB_REF=REF), \

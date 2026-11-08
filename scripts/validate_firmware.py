@@ -4,6 +4,7 @@
 Field contract: official OpenWrt/ImmortalWrt scripts/json_add_image_info.py,
 include/image.mk and target/linux/airoha/image/an7581.mk.
 """
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -57,9 +58,20 @@ def validate(config, targets, distro):
         raise ValueError('wrong/duplicate sysupgrade metadata')
     if upgrades[0].get('size') != image.stat().st_size:
         raise ValueError('image size differs from profiles.json')
+    digest = upgrades[0].get('sha256')
+    if not isinstance(digest, str) or not re.fullmatch(r'[0-9a-fA-F]{64}', digest):
+        raise ValueError('missing/invalid native image sha256')
+    with image.open('rb') as stream:
+        actual = hashlib.file_digest(stream, 'sha256').hexdigest()
+    if actual.lower() != digest.lower():
+        raise ValueError('image digest differs from profiles.json')
     if not re.fullmatch(r'r[0-9]+-[0-9a-f]+', data['version_code']):
         raise ValueError('invalid version_code')
+    return dict(version=1, images=[dict(name=image_name, size=image.stat().st_size,
+                                       digest='sha256:' + actual)])
 
 
 if __name__ == '__main__':
-    validate(Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3])
+    accepted = validate(Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3])
+    if len(sys.argv) == 5:
+        Path(sys.argv[4]).write_text(json.dumps(accepted, indent=2) + '\n')

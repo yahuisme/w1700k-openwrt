@@ -1,8 +1,10 @@
 """Execute complete stage/publish shell blocks, real files and local gh stub only."""
+import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -36,14 +38,15 @@ class ReleaseTests(unittest.TestCase):
         data = {'target': 'airoha/an7581', 'version_code': 'r123-abcdef', 'profiles': {
             'gemtek_w1700k-ubi': {'supported_devices': ['gemtek,w1700k-ubi'],
                 'titles': [{'vendor': 'Gemtek', 'model': 'W1700K', 'variant': 'UBI'}],
-                'images': [{'name': IMAGE, 'type': 'sysupgrade', 'filesystem': 'squashfs', 'size': 20}, {'name': 'chainload-uboot.itb', 'type': 'chainload-uboot'}]}}}
+                'images': [{'name': IMAGE, 'type': 'sysupgrade', 'filesystem': 'squashfs', 'size': 20,
+                            'sha256': hashlib.sha256(b'fixture-not-firmware').hexdigest()}, {'name': 'chainload-uboot.itb', 'type': 'chainload-uboot'}]}}}
         (output / 'profiles.json').write_text(json.dumps(data))
         return output, data
 
     def stage(self, base):
         block = 'sudo() { "$@"; }; docker_exec() { shift; "$@"; };\n' + render(step('Validate and stage firmware')['run'], {})
         return subprocess.run(['bash', '-eo', 'pipefail', '-c', block], cwd=base,
-                              env=dict(os.environ, DK_OPENWRT=str(base)), text=True, capture_output=True)
+                              env=dict(os.environ, DK_OPENWRT=str(base), GITHUB_OUTPUT=str(base / 'output')), text=True, capture_output=True)
 
     def test_usteer_selection_contract(self):
         packages = ('usteer', 'luci-app-usteer', 'luci-i18n-usteer-zh-cn')
@@ -134,6 +137,40 @@ class ReleaseTests(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0, case)
                     self.assertFalse((base / 'firmware').exists())
 
+    def test_native_digest_required_and_equal_size_corruption_rejected(self):
+        for case in ('missing', 'malformed', 'corrupt'):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                output, data = self.fixture(base)
+                row = data['profiles']['gemtek_w1700k-ubi']['images'][0]
+                image = output / IMAGE
+                if case == 'missing':
+                    del row['sha256']
+                elif case == 'malformed':
+                    row['sha256'] = '0' * 63
+                else:
+                    image.write_bytes(b'fixture-not-firmwarE')
+                (output / 'profiles.json').write_text(json.dumps(data))
+                result = self.stage(base)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse((base / 'firmware').exists())
+
+    def test_staged_digest_gate_precedes_release_create(self):
+        for corrupt in (False, True):
+            with self.subTest(corrupt=corrupt), tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                self.fixture(base)
+                self.assertEqual(self.stage(base).returncode, 0)
+                if corrupt:
+                    image = base / 'firmware' / IMAGE
+                    image.write_bytes(b'fixture-not-firmwarE')
+                result = subprocess.run([sys.executable, str(ROOT / 'scripts/verify_staged.py'),
+                                         'firmware', 'firmware/accepted-images.json',
+                                         hashlib.sha256((base / 'firmware/accepted-images.json').read_bytes()).hexdigest()], cwd=base,
+                                        env=dict(os.environ, DK_PROFILE='/bld/user/default'),
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode == 0, not corrupt, result.stderr)
+
     def test_publish_freshness_and_retired_oc_release_retention(self):
         for case in ('fresh', 'stale', 'error', 'empty', 'malformed', 'advance', 'recheck-error', 'create-error'):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
@@ -173,7 +210,8 @@ elif args[:2]!=['release','delete']: sys.exit(99)
                 (base / 'releases.json').write_text(json.dumps([entries]))
                 env = dict(os.environ, PATH=tmp + ':' + os.environ['PATH'], STUB_ROOT=tmp, CASE=case,
                            GITHUB_SHA='a'*40, GITHUB_REPOSITORY='fixture/repo')
-                result = subprocess.run(['bash', '-eo', 'pipefail', '-c', render(step('Publish firmware and prune releases')['run'], {})], cwd=base, env=env, text=True, capture_output=True)
+                result = subprocess.run(['bash', '-eo', 'pipefail', '-c', render(step('Publish firmware and prune releases')['run'], {
+                    'steps.stage.outputs.acceptance': hashlib.sha256((base / 'firmware/accepted-images.json').read_bytes()).hexdigest()})], cwd=base, env=env, text=True, capture_output=True)
                 calls = [json.loads(line) for line in (base / 'calls').read_text().splitlines()]
                 creates = [c for c in calls if c[:2] == ['release', 'create']]
                 deletes = [c[2] for c in calls if c[:2] == ['release', 'delete']]
@@ -184,7 +222,7 @@ elif args[:2]!=['release','delete']: sys.exit(99)
                 self.assertEqual(calls[0], ['api', 'repos/fixture/repo/git/ref/heads/main', '--jq', '.object.sha'])
                 if case == 'stale':
                     # A successful skipped publication leaves ordinary cache steps runnable.
-                    block = 'docker_exec() { printf "%s\\n" "$*"; }; sudo() { :; };\n' + render(step('Prepare build caches')['run'], {'steps.tc.outputs.cache-hit': 'true'})
+                    block = 'docker_exec() { printf "%s\\n" "$*"; }; sudo() { :; };\n' + render(step('Prepare build caches')['run'], {'steps.tc_restore.outputs.hit': 'true'})
                     block = block.split('python3 scripts/cache_helper.py admit', 1)[0]
                     packed = subprocess.run(['bash', '-e', '-c', block], cwd=base, env=env, capture_output=True, text=True)
                     self.assertEqual(packed.returncode, 0)

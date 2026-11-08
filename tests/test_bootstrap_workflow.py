@@ -23,14 +23,14 @@ class BootstrapWorkflowTests(unittest.TestCase):
         self.assertIn('tb', by_id)
         self.assertNotIn('restore-keys', by_id['tb']['with'])
         self.assertEqual(by_id['tb']['with']['path'], 'tbarchive')
-        self.assertEqual(by_id['tb']['if'], "steps.tc.outputs.cache-hit != 'true'")
+        self.assertEqual(by_id['tb']['if'], "steps.tc_restore.outputs.hit != 'true'")
         extract = next(s for s in all_steps if s['name'] == 'Extract compiler bootstrap')
         compile_step = next(s for s in all_steps if s['name'] == 'Compile firmware')
         self.assertLess(all_steps.index(by_id['tc']), all_steps.index(by_id['tb_inputs']))
         self.assertLess(all_steps.index(by_id['tb']), all_steps.index(extract))
         self.assertLess(all_steps.index(extract), all_steps.index(compile_step))
-        self.assertIn('steps.tb.outputs.cache-hit', compile_step['env']['BOOTSTRAP_SAVE'])
-        self.assertIn('steps.tc.outputs.cache-hit', compile_step['env']['BOOTSTRAP_RECHECK'])
+        self.assertIn('steps.tb_restore.outputs.hit', compile_step['env']['BOOTSTRAP_SAVE'])
+        self.assertIn('steps.tc_restore.outputs.hit', compile_step['env']['BOOTSTRAP_RECHECK'])
         self.assertNotIn('bootstrap_cache.py pack', next(s['run'] for s in all_steps if s['name'] == 'Prepare build caches'))
 
     def test_production_compile_packs_before_world_and_rechecks_restored_stamps(self):
@@ -46,8 +46,10 @@ class BootstrapWorkflowTests(unittest.TestCase):
                 cc.parent.mkdir(parents=True)
                 cc.write_text('#!/bin/bash\nprintf "ccache %s\\n" "$*" >> "$LOG"\n')
                 cc.chmod(0o755)
-                values = {'steps.tc.outputs.cache-hit': 'false' if recheck == 'true' else 'true',
-                          'steps.tb.outputs.cache-hit': 'false' if save == 'true' else 'true',
+                values = {'steps.tc_restore.outputs.hit': 'false' if recheck == 'true' else 'true',
+                          'steps.tb_restore.outputs.hit': 'false' if save == 'true' else 'true',
+                          'steps.tc_restore.outputs.poisoned': 'false',
+                          'steps.tb_restore.outputs.poisoned': 'false',
                           'steps.tb_inputs.outputs.key': 'tb-v1-ubi2-test'}
                 env = dict(os.environ, **render_env(item, values), DK_OPENWRT=tmp,
                            LOG=str(root / 'calls'), PACK_STATUS=str(pack_status), MAIN_STATUS=str(main_status))

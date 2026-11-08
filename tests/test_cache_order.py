@@ -42,13 +42,15 @@ class CacheOrderTests(unittest.TestCase):
                 if size is not None:
                     with p.open('wb') as f:
                         f.truncate(size)
-            values = {'steps.tc.outputs.cache-hit': 'true' if warm else 'false',
+            values = {'steps.tc_restore.outputs.hit': 'true' if warm else 'false',
                       'steps.inputs.outputs.key': 'tc-v3-ubi2-new',
                       'steps.gh.outputs.cache-primary-key': 'cc-v3-ubi2.new',
                       'steps.dl.outputs.cache-primary-key': 'dl-v3.new',
                       'steps.dl_changed.outputs.save': 'true',
-                      'steps.tb.outputs.cache-hit': 'false',
-                      'steps.tb_inputs.outputs.key': 'tb-v1-ubi2-new'}
+                      'steps.tb_restore.outputs.hit': 'false',
+                      'steps.tc_restore.outputs.poisoned': 'false',
+                          'steps.tb_restore.outputs.poisoned': 'false',
+                          'steps.tb_inputs.outputs.key': 'tb-v1-ubi2-new'}
             env = dict(os.environ, PATH=tmp + os.pathsep + os.environ['PATH'],
                        MOCK_STATE=str(state), GITHUB_REF='refs/heads/main', GITHUB_OUTPUT=str(base / 'output'))
             def resolve(expr):

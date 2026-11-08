@@ -15,12 +15,12 @@ umask 077
 docker_exec() {
     shift
     if [ "$1" = python3 ]; then
-        case "$2:$3" in
-            */cache.py:restore)
+        case "$2:$3:$4" in
+            */cache_recovery.py:restore:toolchain)
                 printf 'restore-tc\n' >> "$LOG"
                 rm -rf "$DK_OPENWRT/build_dir" "$DK_OPENWRT/staging_dir"
                 if [ "$TC" = true ]; then install_cc; fi;;
-            */bootstrap_cache.py:restore)
+            */cache_recovery.py:restore:bootstrap)
                 printf 'restore-tb\n' >> "$LOG"
                 rm -rf "$DK_OPENWRT/build_dir/host" "$DK_OPENWRT/staging_dir/host"
                 if [ "$TB" = true ]; then install_cc; fi;;
@@ -80,14 +80,16 @@ class DownloadWorkflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / '.config').write_text('CONFIG_CCACHE=y\n')
-            values = {'steps.tc.outputs.cache-hit': tc, 'steps.tb.outputs.cache-hit': tb,
-                      'steps.inputs.outputs.key': 'tc-fixture', 'steps.tb_inputs.outputs.key': 'tb-fixture'}
+            values = {'steps.tc_restore.outputs.hit': tc, 'steps.tb_restore.outputs.hit': tb,
+                      'steps.inputs.outputs.key': 'tc-fixture', 'steps.tc_restore.outputs.poisoned': 'false',
+                          'steps.tb_restore.outputs.poisoned': 'false',
+                          'steps.tb_inputs.outputs.key': 'tb-fixture'}
             env = dict(os.environ, DK_OPENWRT=tmp, TC=tc, TB=tb, LOG=str(root / 'calls'),
-                       FAIL_DOWNLOAD=str(failure).lower(), EXPECTED_UMASK='0022')
+                       FAIL_DOWNLOAD=str(failure).lower(), EXPECTED_UMASK='0022', GITHUB_OUTPUT=str(root / 'outputs'))
             executed = []
             status = 0
             for item in STEPS[STEPS.index(step('Extract toolchain cache')):STEPS.index(step('Compile firmware')) + 1]:
-                if 'run' not in item or item['name'] == 'Prepare bootstrap cache key':
+                if 'run' not in item or item['name'] == 'Prepare bootstrap cache key' or item['name'].startswith('Invalidate rejected'):
                     continue
                 if item.get('if') and tc == 'true':
                     continue

@@ -33,8 +33,8 @@ class BuildTimingTests(unittest.TestCase):
                            FALLBACK=str(fallback), STATS=str(stats), STUB=str(stub),
                            **render_env(next(s for s in workflow['jobs']['build']['steps']
                                              if s.get('name') == 'Compile firmware'), {
-                               'steps.tc.outputs.cache-hit': 'true' if hot else 'false',
-                               'steps.tb.outputs.cache-hit': 'true',
+                               'steps.tc_restore.outputs.hit': 'true' if hot else 'false',
+                               'steps.tb_restore.outputs.hit': 'true',
                                'steps.tb_inputs.outputs.key': 'tb-fixture'}))
                 prefix = '''
                 docker_exec() { shift; "$@"; }

@@ -28,7 +28,7 @@ def render_env(item, values):
         if expression in values:
             return values[expression]
         expression = re.sub(r'steps\.[\w.-]+', lambda m: repr(values.get(m[0], '')), expression)
-        result = eval(expression.replace('&&', ' and '), {'__builtins__': {}})
+        result = eval(expression.replace('&&', ' and ').replace('||', ' or '), {'__builtins__': {}})
         if not isinstance(result, bool):
             raise ValueError('unsupported workflow environment expression')
         return str(result).lower()
@@ -61,8 +61,8 @@ class WorkflowTests(unittest.TestCase):
                            PRE=str(pre), MAIN=str(main), FALLBACK=str(fallback),
                            STATS=str(stats), STUB=str(stub),
                            **render_env(step('Compile firmware'), {
-                               'steps.tc.outputs.cache-hit': 'true' if hot else 'false',
-                               'steps.tb.outputs.cache-hit': 'true',
+                               'steps.tc_restore.outputs.hit': 'true' if hot else 'false',
+                               'steps.tb_restore.outputs.hit': 'true',
                                'steps.tb_inputs.outputs.key': 'tb-fixture'}))
                 prefix = '''
                 docker_exec() { shift; "$@"; }
@@ -125,7 +125,7 @@ class WorkflowTests(unittest.TestCase):
                         # no event input, network data, or builtins are evaluated.
                         self.assertEqual(eval(condition.replace('&&', ' and '), {'__builtins__': {}}), expected)
             values = {'steps.dl_changed.outputs.save': changed,
-                      'steps.tc.outputs.cache-hit': 'true'}
+                      'steps.tc_restore.outputs.hit': 'true'}
             block = render(step('Prepare build caches')['run'], values)
             # This check isolates packing; complete merged execution is tested separately.
             block = block.split('python3 scripts/cache_helper.py admit', 1)[0]
@@ -146,7 +146,7 @@ class WorkflowTests(unittest.TestCase):
             output = base / 'output'
             env = dict(os.environ, RUNNER_TEMP=tmp, GITHUB_OUTPUT=str(output))
             def run(name):
-                block = render(step(name)['run'], {'steps.dl.outputs.cache-matched-key': 'dl-v3.old'})
+                block = render(step(name)['run'], {'steps.dl_restore.outputs.matched-key': 'dl-v3.old'})
                 if name == 'Prepare build environment':
                     block = block.split('[ -f "user/default/config.diff" ]', 1)[0]
                 result = subprocess.run(['bash', '-e', '-c', 'sudo() { "$@"; };\n' + block],
@@ -154,12 +154,12 @@ class WorkflowTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
             run('Prepare build environment')
             run('Check download cache changes')
-            self.assertEqual(output.read_text(), 'save=false\n')
+            self.assertEqual(output.read_text().splitlines()[-1], 'save=false')
             module = dl / 'go-mod-cache/module.zip'
             module.parent.mkdir()
             module.write_bytes(b'added during compile')
             run('Check download cache changes')
-            self.assertEqual(output.read_text(), 'save=false\nsave=true\n')
+            self.assertEqual(output.read_text().splitlines()[-1], 'save=true')
 
     def test_cache_restore_contract(self):
         tc = step('tc')
@@ -259,7 +259,7 @@ class WorkflowTests(unittest.TestCase):
             previous = STEPS.index(cleanup)
             self.assertIn('cache_helper.py admit', admission['run'])
             self.assertIn('cache_helper.py cleanup', cleanup['run'])
-            self.assertEqual(cleanup['if'], f"steps.{kind}_budget.outputs.save == 'true'")
+            self.assertTrue(cleanup['if'].startswith(f"steps.{kind}_budget.outputs.save == 'true'"))
             for s in (admission, save, cleanup):
                 # Without a status function GitHub supplies success(): failed
                 # upload skips cleanup and all subsequent saves. Warning-only

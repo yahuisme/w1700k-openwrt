@@ -67,6 +67,7 @@ nproc() { printf '1\\n'; }
 make() { if [ "$1" = download ]; then [ "$FAULT" != 'Download sources' ]; else [ "$FAULT" != 'Compile firmware' ]; fi; }
 git() { [ "$*" = 'config --global tar.umask 0022' ]; }
 python3() {
+  if [ "$1" = scripts/validate_firmware.py ] || [ "$1" = scripts/verify_staged.py ]; then command python3 "$@"; return; fi
   [ "$STEP_NAME" != "$FAULT" ] || return 23
   if [ "$2" = admit ]; then printf 'save=true\\n' >> "$GITHUB_OUTPUT"; else printf 'save=true\\n'; fi
 }
@@ -84,8 +85,10 @@ export -f sudo nproc make python3 docker_exec git
                            BOOTSTRAP_KEY='tb-v1-ubi2-new',
                            PATH=str(base / 'bin') + ':' + os.environ['PATH'], FAULT=fault)
                 values = {'secrets.RELEASE_TOKEN': 'fixture-token',
-                          'steps.tc.outputs.cache-hit': 'false',
-                          'steps.tb.outputs.cache-hit': 'false',
+                          'steps.tc_restore.outputs.hit': 'false',
+                          'steps.tb_restore.outputs.hit': 'false',
+                          'steps.tc_restore.outputs.poisoned': 'false',
+                          'steps.tb_restore.outputs.poisoned': 'false',
                           'steps.tb_inputs.outputs.key': 'tb-v1-ubi2-new'}
                 successful = True
                 cancelled = fault == 'cancel_before_compile'
@@ -179,6 +182,10 @@ class CachePublicationIntegrationTests(unittest.TestCase):
                 (base / '.external-packages/provenance.json').write_text('{')
             if fault == 'validation':
                 (base / '.config').write_text('CONFIG_TARGET_wrong=y\n')
+            if fault == 'pre-stage-corruption':
+                image = next((base / 'openwrt_bin').rglob('*sysupgrade.itb'))
+                raw = image.read_bytes()
+                image.write_bytes(bytes([raw[0] ^ 1]) + raw[1:])
             cc = base / 'staging_dir/host/bin/ccache'
             cc.parent.mkdir(parents=True)
             cc.write_text('#!/bin/sh\nexit 0\n')
@@ -199,6 +206,10 @@ elif a[0] == 'api' and '/git/ref/tags/' in a[1]:
     p.write_text(json.dumps(s))
     print(json.dumps(dict(object=dict(type='commit',sha=os.environ['GITHUB_SHA'])))); sys.exit(0)
 elif a[:2] == ['release', 'create']:
+    if os.environ['FAULT'] == 'post-create-corruption':
+        image = next(Path('firmware').glob('*sysupgrade.itb'))
+        raw = image.read_bytes()
+        image.write_bytes(bytes([raw[0] ^ 1]) + raw[1:])
     p.write_text(json.dumps(s)); sys.exit(19 if os.environ['FAULT']=='publish' else 0)
 elif a == ['api', '--paginate', '--slurp', 'repos/fixture/repo/releases?per_page=100']:
     p.write_text(json.dumps(s))
@@ -240,10 +251,14 @@ export -f make docker_exec sudo git
                             str(base/'dlcache'), str(base/'dlcache-before.json')], check=True,
                            capture_output=True)
             (base/'dlcache/new-download').write_bytes(b'fixture download')
+            if fault == 'fingerprint':
+                (base / 'dlcache/broken').symlink_to('missing')
             values = {'secrets.RELEASE_TOKEN': 'fixture-token',
-                      'steps.tc.outputs.cache-hit': tc_hit,
-                      'steps.tb.outputs.cache-hit': tb_hit,
-                      'steps.tb_inputs.outputs.key': 'tb-v1-ubi2-new',
+                      'steps.tc_restore.outputs.hit': tc_hit,
+                      'steps.tb_restore.outputs.hit': tb_hit,
+                      'steps.tc_restore.outputs.poisoned': 'false',
+                          'steps.tb_restore.outputs.poisoned': 'false',
+                          'steps.tb_inputs.outputs.key': 'tb-v1-ubi2-new',
                       'steps.inputs.outputs.key': 'tc-v3-ubi2-new',
                       'steps.gh.outputs.cache-primary-key': 'cc-v3-ubi2.new',
                       'steps.dl.outputs.cache-primary-key': 'dl-v3.new',
@@ -288,6 +303,16 @@ export -f make docker_exec sudo git
                         inventory['entries'].append(entry(100+len(executed), render(item['with']['key'], values)))
                         state.write_text(json.dumps(inventory))
                 outcome = 'success' if rc == 0 else 'failure'
+                if name == 'Validate and stage firmware' and rc == 0 and fault in ('post-stage-corruption', 'record-and-image-corruption'):
+                    image = next((base / 'firmware').glob('*sysupgrade.itb'))
+                    raw = image.read_bytes()
+                    image.write_bytes(bytes([raw[0] ^ 1]) + raw[1:])
+                    if fault == 'record-and-image-corruption':
+                        import hashlib
+                        path = base / 'firmware/accepted-images.json'
+                        record = json.loads(path.read_text())
+                        record['images'][0]['digest'] = 'sha256:' + hashlib.sha256(image.read_bytes()).hexdigest()
+                        path.write_text(json.dumps(record))
                 outcomes[name] = outcome
                 if item.get('id'):
                     values[f"steps.{item['id']}.outcome"] = outcome
@@ -349,3 +374,30 @@ export -f make docker_exec sudo git
                     self.assertTrue({1, 2, 3} <= {item['id'] for item in inventory['entries']}, log)
                 if fault in ('save', 'readback'):
                     self.assertEqual(outcomes['Check toolchain cache budget'], 'skipped', log)
+
+    def test_native_and_staged_corruption_never_mutate_releases(self):
+        for fault in ('pre-stage-corruption', 'post-stage-corruption', 'record-and-image-corruption'):
+            with self.subTest(fault=fault):
+                outcomes, _, inventory, log = self.replay(fault)
+                self.assertFalse(any(call[:2] in (['release', 'create'], ['release', 'delete'])
+                                     for call in inventory['calls']), log)
+                if fault == 'pre-stage-corruption':
+                    self.assertEqual(outcomes['Validate and stage firmware'], 'failure', log)
+                else:
+                    self.assertEqual(outcomes['Validate and stage firmware'], 'success', log)
+                    self.assertEqual(outcomes['Publish firmware and prune releases'], 'failure', log)
+
+    def test_post_create_mutation_blocks_retention_even_if_readback_matches(self):
+        outcomes, _, inventory, log = self.replay('post-create-corruption')
+        self.assertTrue(any(call[:2] == ['release', 'create'] for call in inventory['calls']), log)
+        self.assertFalse(any(call[:2] == ['release', 'delete'] for call in inventory['calls']), log)
+        self.assertEqual(outcomes['Publish firmware and prune releases'], 'failure', log)
+        self.assertIn('staged image differs from native acceptance', log)
+
+    def test_real_fingerprint_failure_preserves_good_release_and_denies_download_save(self):
+        outcomes, _, inventory, log = self.replay('fingerprint')
+        self.assertEqual(outcomes['Validate and stage firmware'], 'success', log)
+        self.assertEqual(outcomes['Check download cache changes'], 'failure', log)
+        self.assertEqual(outcomes['Save download cache'], 'skipped', log)
+        self.assertEqual(outcomes['Publish firmware and prune releases'], 'success', log)
+        self.assertTrue(any(call[:2] == ['release', 'create'] for call in inventory['calls']), log)

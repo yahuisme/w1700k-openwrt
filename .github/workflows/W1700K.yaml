@@ -29,17 +29,24 @@ jobs:
     # Rolling caches contain no staging or build stamps.
     - name: Restore compiler cache
       id: gh
+      continue-on-error: true
       uses: actions/cache/restore@v6
       with: {path: ccarchive, key: 'cc-v3-ubi2.${{ github.run_id }}.${{ github.run_attempt }}', restore-keys: 'cc-v3-ubi2.'}
     - name: Restore download cache
       id: dl
+      continue-on-error: true
       uses: actions/cache/restore@v6
       with: {path: dlarchive, key: 'dl-v3.${{ github.run_id }}.${{ github.run_attempt }}', restore-keys: 'dl-v3.'}
+    - name: Extract compiler cache
+      id: cc_restore
+      run: mkdir -p ghcache && python3 scripts/cache_recovery.py restore ccache ghcache ccarchive unused --restored '${{ steps.gh.outputs.cache-matched-key }}' --outcome '${{ steps.gh.outcome }}' >> "$GITHUB_OUTPUT"
+    - name: Extract download cache
+      id: dl_restore
+      run: mkdir -p dlcache && python3 scripts/cache_recovery.py restore dl dlcache dlarchive unused --restored '${{ steps.dl.outputs.cache-matched-key }}' --outcome '${{ steps.dl.outcome }}' >> "$GITHUB_OUTPUT"
     - name: Prepare build environment
       run: |
         mkdir -p build-record openwrt_bin ghcache dlcache tcarchive ccarchive dlarchive tbarchive
-        if [ -f ccarchive/ccache.tar.gz ]; then tar --gzip -xf ccarchive/ccache.tar.gz -C ghcache; fi
-        if [ -f dlarchive/dl.tar.gz ]; then tar --gzip -xf dlarchive/dl.tar.gz -C dlcache; fi
+
         sudo python3 scripts/dlcache.py snapshot dlcache "$RUNNER_TEMP/dlcache-before.json"
         [ -f "user/default/config.diff" ] || { echo "::error::config.diff not found"; exit 1; }
         sudo tee /etc/docker/daemon.json <<< '{"max-concurrent-downloads":50,"max-concurrent-uploads":50,"experimental":true}'
@@ -106,17 +113,20 @@ jobs:
         echo "key=tc-v3-ubi2-$KEY" >> "$GITHUB_OUTPUT"
     - name: Restore toolchain cache
       id: tc
+      continue-on-error: true
       uses: actions/cache/restore@v6
       with:
         path: tcarchive
         key: ${{ steps.inputs.outputs.key }}
         # No restore-keys: toolchain artifacts must be an exact match.
     - name: Extract toolchain cache
-      run: docker_exec DK python3 /cache-scripts/cache.py restore "$DK_OPENWRT" /tcarchive '${{ steps.inputs.outputs.key }}'
+      id: tc_restore
+      run: mkdir -p tcarchive && docker_exec DK python3 /cache-scripts/cache_recovery.py restore toolchain "$DK_OPENWRT" /tcarchive '${{ steps.inputs.outputs.key }}' --restored '${{ steps.tc.outputs.cache-matched-key }}' --outcome '${{ steps.tc.outcome }}' >> "$GITHUB_OUTPUT"
+
 
     - name: Prepare bootstrap cache key
       id: tb_inputs
-      if: steps.tc.outputs.cache-hit != 'true'
+      if: steps.tc_restore.outputs.hit != 'true'
       env:
         TOOLCHAIN_KEY: ${{ steps.inputs.outputs.key }}
       run: |
@@ -125,17 +135,20 @@ jobs:
         echo "key=tb-v1-ubi2-$KEY" >> "$GITHUB_OUTPUT"
     - name: Restore compiler bootstrap
       id: tb
-      if: steps.tc.outputs.cache-hit != 'true'
+      continue-on-error: true
+      if: steps.tc_restore.outputs.hit != 'true'
       uses: actions/cache/restore@v6
       with:
         path: tbarchive
         key: ${{ steps.tb_inputs.outputs.key }}
         # Bootstrap is exact too; never restore an arbitrary older tools tree.
     - name: Extract compiler bootstrap
-      if: steps.tc.outputs.cache-hit != 'true'
+      id: tb_restore
+      if: steps.tc_restore.outputs.hit != 'true'
       env:
         BOOTSTRAP_KEY: ${{ steps.tb_inputs.outputs.key }}
-      run: docker_exec DK python3 /cache-scripts/bootstrap_cache.py restore "$DK_OPENWRT" /tbarchive "$BOOTSTRAP_KEY"
+      run: mkdir -p tbarchive && docker_exec DK python3 /cache-scripts/cache_recovery.py restore bootstrap "$DK_OPENWRT" /tbarchive "$BOOTSTRAP_KEY" --restored '${{ steps.tb.outputs.cache-matched-key }}' --outcome '${{ steps.tb.outcome }}' >> "$GITHUB_OUTPUT"
+
 
     - name: Download sources
       run: |
@@ -151,8 +164,8 @@ jobs:
     - name: Compile firmware
       env:
         BOOTSTRAP_KEY: ${{ steps.tb_inputs.outputs.key }}
-        BOOTSTRAP_RECHECK: ${{ steps.tc.outputs.cache-hit != 'true' }}
-        BOOTSTRAP_SAVE: ${{ steps.tc.outputs.cache-hit != 'true' && steps.tb.outputs.cache-hit != 'true' }}
+        BOOTSTRAP_RECHECK: ${{ steps.tc_restore.outputs.hit != 'true' }}
+        BOOTSTRAP_SAVE: ${{ steps.tb_restore.outputs.poisoned != 'true' && steps.tc_restore.outputs.hit != 'true' && steps.tb_restore.outputs.hit != 'true' }}
       run: |
         # Variables expand inside the container, not on the runner.
         # shellcheck disable=SC2016
@@ -183,23 +196,17 @@ jobs:
           exit "$status"
         '
 
-    # Go can add dl/go-mod-cache entries during compilation, after make download.
-    - name: Check download cache changes
-      id: dl_changed
-      run: |
-        # Runner owns GITHUB_OUTPUT; sudo only reads container-owned downloads.
-        # shellcheck disable=SC2024
-        sudo python3 scripts/dlcache.py check dlcache "$RUNNER_TEMP/dlcache-before.json" --restored '${{ steps.dl.outputs.cache-matched-key }}' >> "$GITHUB_OUTPUT"
-
     - name: Validate and stage firmware
       id: stage
       run: |
         sudo chown -R "$(id -u):$(id -g)" openwrt_bin
         # Validate the final container config, not the input fragment.
         docker_exec DK cat "$DK_OPENWRT/.config" > final.config
-        python3 scripts/validate_firmware.py final.config openwrt_bin/targets openwrt
+        python3 scripts/validate_firmware.py final.config openwrt_bin/targets openwrt accepted-images.json
         mkdir firmware
         install -t firmware openwrt_bin/targets/airoha/an7581/openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb openwrt_bin/targets/airoha/an7581/profiles.json
+        install -m 0644 accepted-images.json firmware/accepted-images.json
+        echo "acceptance=$(sha256sum firmware/accepted-images.json | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
         VERSION="W1700K-OpenWrt-r$(jq -r '.version_code' firmware/profiles.json | sed 's/^r//; s/-.*//')-$(TZ=Asia/Hong_Kong date +'%y.%m.%d_%H.%M.%S')"
         echo "$VERSION" > firmware/version.txt
         RELEASE_NOTES="firmware/release-notes.md"
@@ -214,6 +221,16 @@ jobs:
         [默认设置与使用说明](https://github.com/yahuisme/w1700k-openwrt#默认访问)
         EOF
 
+    # Go may add downloads during world; cache-only faults must not block staging.
+    - name: Check download cache changes
+      id: dl_changed
+      continue-on-error: true
+      run: |
+        echo 'save=false' >> "$GITHUB_OUTPUT"
+        # shellcheck disable=SC2024
+        sudo python3 scripts/dlcache.py check dlcache "$RUNNER_TEMP/dlcache-before.json" --restored '${{ steps.dl_restore.outputs.matched-key }}' > "$RUNNER_TEMP/dlcache-check"
+        cat "$RUNNER_TEMP/dlcache-check" >> "$GITHUB_OUTPUT"
+
     # One standard writer: total 10 GB including legacy entries and margin.
     # Count all own generations and unknown/legacy entries on each admission.
     # Save/readback/cleanup precedes the next admission in each writer.
@@ -221,7 +238,7 @@ jobs:
       id: cc_budget
       run: |
         docker_exec DK python3 /cache-scripts/cache.py ccache /ghcache /ccarchive unused
-        if [ '${{ steps.tc.outputs.cache-hit }}' != true ]; then
+        if [ '${{ steps.tc_restore.outputs.hit }}' != true ] && [ '${{ steps.tc_restore.outputs.poisoned }}' != true ]; then
           docker_exec DK python3 /cache-scripts/cache.py toolchain "$DK_OPENWRT" /tcarchive '${{ steps.inputs.outputs.key }}'
         fi
         if [ '${{ steps.dl_changed.outputs.save }}' = true ]; then
@@ -239,18 +256,18 @@ jobs:
       run: python3 scripts/cache_helper.py cleanup 'cc-v3-ubi2.' '${{ steps.gh.outputs.cache-primary-key }}'
     - name: Check toolchain cache budget
       id: tc_budget
-      if: steps.tc.outputs.cache-hit != 'true'
+      if: steps.tc_restore.outputs.hit != 'true' && steps.tc_restore.outputs.poisoned != 'true'
       run: python3 scripts/cache_helper.py admit 'tc-v3-ubi2-' tcarchive/toolchain.tar.gz '${{ steps.inputs.outputs.key }}'
     - name: Save toolchain cache
       uses: actions/cache/save@v6
-      if: steps.tc_budget.outputs.save == 'true' && hashFiles('tcarchive/toolchain.tar.gz') != ''
+      if: steps.tc_budget.outputs.save == 'true' && steps.tc_restore.outputs.poisoned != 'true' && hashFiles('tcarchive/toolchain.tar.gz') != ''
       with: {path: tcarchive, key: '${{ steps.inputs.outputs.key }}'}
     - name: Prune old toolchain caches
-      if: steps.tc_budget.outputs.save == 'true'
+      if: steps.tc_budget.outputs.save == 'true' && steps.tc_restore.outputs.poisoned != 'true'
       run: python3 scripts/cache_helper.py cleanup 'tc-v3-ubi2-' '${{ steps.inputs.outputs.key }}'
     - name: Check bootstrap cache budget
       id: tb_budget
-      if: steps.tc.outputs.cache-hit != 'true' && steps.tb.outputs.cache-hit != 'true' && hashFiles('tbarchive/bootstrap.tar.gz') != ''
+      if: steps.tc_restore.outputs.hit != 'true' && steps.tb_restore.outputs.hit != 'true' && steps.tb_restore.outputs.poisoned != 'true' && hashFiles('tbarchive/bootstrap.tar.gz') != ''
       env:
         BOOTSTRAP_KEY: ${{ steps.tb_inputs.outputs.key }}
       run: |
@@ -317,10 +334,13 @@ jobs:
           fi
         }
         current_main
+        # Independent native acceptance remains mandatory even if record upload failed.
+        python3 scripts/verify_staged.py firmware firmware/accepted-images.json '${{ steps.stage.outputs.acceptance }}'
         VERSION="$(cat firmware/version.txt)"
         RELEASE_TITLE="$VERSION"
         gh release create "$VERSION" firmware/*sysupgrade.itb --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file firmware/release-notes.md
         python3 scripts/verify_release.py "$VERSION" firmware/*sysupgrade.itb
+        python3 scripts/verify_staged.py firmware firmware/accepted-images.json '${{ steps.stage.outputs.acceptance }}'
         # Recheck before pruning, before removing older standard releases.
         current_main
         PREFIX="W1700K-OpenWrt-"

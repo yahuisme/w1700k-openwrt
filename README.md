@@ -2,9 +2,13 @@
 
 基于 [OpenWrt 官方 snapshot](https://github.com/openwrt/openwrt)。
 
-适用于已完成 UBI2 安装的 Quantum Fiber / Gemtek W1700K。升级镜像见 [Releases](https://github.com/yahuisme/w1700k-openwrt/releases)。
+适用于已完成 UBI2 安装的 Quantum Fiber / Gemtek W1700K。
 
-首次安装或重建 UBI2 布局，请参阅 [安装教程](https://github.com/yahuisme/w1700k-ubi2-installer)。
+## 固件下载
+
+前往 [Releases](https://github.com/yahuisme/w1700k-openwrt/releases) 下载 `sysupgrade.itb`，仅用于已有 UBI2 系统的升级。
+
+**首次安装或重建 UBI2 布局：[W1700K 刷机教程](https://github.com/yahuisme/w1700k-ubi2-installer/blob/main/w1700k-first-flash.md)。**
 
 ## 特性
 
@@ -26,15 +30,16 @@
 
 ## Aurora 更新
 
-每次构建从 Aurora 官方 APK 软件源获取最新主题、配置应用及中文包，并预置签名公钥和更新源。后续可在「系统 → 软件包」刷新列表并更新。首次安装保留侧边栏和小圆角默认设置，保留配置升级不覆盖已有设置。
+Aurora 主题、配置应用及中文包通过官方签名 APK 软件源预装，可在 **系统 → 软件包** 刷新列表并更新。默认使用侧边栏和小圆角，保留配置升级不覆盖已有设置。
 
-## 默认访问
+## 默认设置
+
+以下设置在首次启动或不保留配置升级时生效。
 
 - 管理地址：`192.168.8.1`
+- 用户名：`root`
 - 管理密码：无
 - Wi-Fi 密码：`12345678`
-
-## 默认无线
 
 区域为 US，2.4/5 GHz 使用 WPA2-PSK，6 GHz 使用 WPA3-SAE。
 
@@ -46,10 +51,16 @@
 | 模式 | EHT20 | EHT160 | EHT320 |
 | 配置功率 | 23 dBm | 25 dBm | 25 dBm |
 
-## 构建
+## 日常升级
 
-每日自动构建，也可手动运行 Actions。仅发布 `sysupgrade.itb`。
-构建记录位于对应 Actions 运行的 `build-record-*` artifact，保留 30 天；统一 `build.json` 记录实际源码、feed、定制组件、构建器及镜像摘要。
-`user/default/build.json` 定义本仓库的目标、镜像和缓存命名空间；公共 helper 保持三仓一致。
+1. 进入 **系统 → 备份 / 升级**。
+2. 上传本仓库的 `sysupgrade.itb`，取消勾选“保留配置”。
+3. 校验通过后升级，等待重启，期间不要断电。
+
+无需重新运行 UBI2 Installer。
+
+## 构建与发布
+
+每日自动构建，计划时间为香港时间 12:00；也可手动运行 [Actions](https://github.com/yahuisme/w1700k-openwrt/actions/workflows/W1700K.yaml)。每次构建拉取官方最新源码，版本显示沿用官方，仅发布 `sysupgrade.itb`，保留最新一版。
 
 [补丁说明与来源](https://github.com/yahuisme/packages/tree/main/w1700k-patches/SOURCES.md)

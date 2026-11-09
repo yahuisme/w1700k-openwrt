@@ -110,6 +110,74 @@ bootstrap helper self-hash and starts a cold bootstrap generation, but leaves
 TC/CC/DL policies and namespaces unchanged. No claim of measured speed or actual
 compiled stamp reuse follows from this source/archive acceptance.
 
+## Current published-source lock refresh
+
+| Source | Post-customization inventory SHA256 |
+| --- | --- |
+| OpenWrt `7edc67adadb1e2d21ca53b0377086f80224a6cba` | `2e582bd48d919973449f163be0cf428af13c3258480a7cf0d4019706d52a1a58` |
+| ImmortalWrt `4765b657625ec5bbda74b44400465fe043802b30` | `8a2797e8f5f18c8445724784e756eb756825c9d1681a2634acfb3de347663a57` |
+
+Reproduced the preceding `1feb9e…` / `d1626e…` locks before comparing every
+path/mode/content record. Independently materialized both current immutable
+source archives with Git modes and ran the complete production `custom.sh`,
+using local `yahuisme/packages` `859695cd3ac52af28b507e9b11840b9d1d2a05bf`
+at its clone boundary and real immutable LuCI flash/dictionary inputs. Only the
+container `/cache-scripts` path was relocated; real `external_packages.prepare()`
+ran, not a stub. Both resulting inventories exactly match the locks above.
+Artifact-backed successful final configs were copied, not regenerated locally.
+
+Complete locked-record differences are four OpenWrt and 18 ImmortalWrt paths;
+no existing locked mode changes were found:
+
+- OpenWrt updates ccache 4.13.3 to 4.14.2 and its source SHA256, with only an
+  upstream line-offset refresh in `100-honour-copts.patch`; the actual COPTS
+  behavior is retained. Both distributions update GNU patch 2.8 to 2.8.1 and
+  its source SHA256. These are genuine early producer changes, not hash noise.
+- OpenWrt adds `tools/fakeroot/patches/400-stat64-fix.patch` (NetBSD stat symbol
+  detection/wrapping). Fakeroot is outside this early closure; its bytes are
+  nevertheless locked.
+- ImmortalWrt adds Rust/bindgen/cbindgen/corrosion/sccache tools and their
+  dependency/stamp selectors, Cargo vendor-download methods and three wrapper/
+  vendor scripts. CMake/Meson Rust values are conditional on rust-values being
+  included; none of the 16 early producer recipes includes it. The toplevel
+  environment unexports and distclean change do not add early producers.
+  `include/scan.mk` adds Rust metadata dependencies during package scanning,
+  not an early host recipe include; it is outside the locked producer set.
+- ImmortalWrt's two Meson native/cross templates gain Rust placeholders.
+  `tools/meson` installs these templates during this closure: these are real
+  output changes and remain covered, along with `include/meson.mk` consumers.
+- Both distributions' `config/Config-build.in` SECCOMP architecture expansion
+  affects configuration generation, not this post-defconfig host recipe set.
+  Full effective config binding is unchanged; no config generator was run.
+
+Native query-only GNU make on each complete current `tools/Makefile` and its
+successful final config again yields exactly the same 16 producers listed
+above, including implicit core/patch dependencies. The tools file has no
+parse-time shell or make includes; variable edges are fully expanded, recipes,
+recursive make and include remaking are not executed, and both queries exit 0.
+The existing recursive framework audit remains applicable to unchanged files;
+the changed CMake/Meson/download/toplevel paths were re-reviewed, including
+post-install hooks, tools headers/site inputs and generated external includes.
+No new external input enters the enabled C/C++ closure. Existing Rust/all-host
+selector fallback remains mandatory; this review does not approve Rust inputs.
+
+Acceptance exercises the actual CLI and unmodified allowlist on both complete
+post-custom trees. TC_KEY-only changes retain the bootstrap key; producer,
+patch/template, framework, generated-include content/mode/presence and full
+config changes invalidate. Unknown inventories bind TC_KEY; linked/nonregular
+external includes reject. All Rust/all-host selectors remain TC-bound. Existing
+native archive-link, nanosecond/stamp, quota and production YAML ordering tests
+are reused/executed rather than duplicated; no restore prefix or budget changes.
+
+Appending locks changes the helper self-hash, deliberately creating a cold
+bootstrap generation. It does not change TC compatibility, namespaces or CC/DL
+policy, admit old archives, or bypass the original `make tools/ccache/compile`
+stamp checks. The observed previous bootstrap windows were 577 s / 619 s,
+not promised savings. First-generation archive population, real warm stamp
+reuse, compressed size and net restore/pack/job savings remain unmeasured and
+require separately authorized CI; source queries and simulated native tar
+artifacts are not firmware compilation or hardware acceptance.
+
 ## Acceptance and limits
 
 Run `BOOTSTRAP_SOURCE=/absolute/private/prepared/tree python3 -m unittest

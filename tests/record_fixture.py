@@ -20,6 +20,17 @@ def external_provenance(base):
     return record
 
 
+def acceptance(base):
+    """Freeze private staged fixture bytes for the production publish gate."""
+    images = sorted((base / 'firmware').glob('*sysupgrade.itb'))
+    raw = (json.dumps(dict(version=1, images=[
+        dict(name=p.name, size=p.stat().st_size,
+             digest='sha256:' + hashlib.sha256(p.read_bytes()).hexdigest())
+        for p in images]), sort_keys=True) + '\n').encode()
+    (base / 'firmware/accepted-images.json').write_bytes(raw)
+    return hashlib.sha256(raw).hexdigest()
+
+
 def prepare(base):
     """Use real local Git objects; no clone/fetch or remote call."""
     for path in (base, base / 'feeds/packages'):

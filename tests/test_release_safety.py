@@ -82,6 +82,17 @@ class ReleaseTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(package, result.stderr)
 
+    def test_release_notes_link_to_current_default_settings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            self.fixture(base)
+            result = self.stage(base)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            notes = (base / 'firmware/release-notes.md').read_text()
+            self.assertIn('## 默认设置\n', (ROOT / 'README.md').read_text())
+            self.assertIn('/w1700k-openwrt#默认设置', notes)
+            self.assertNotIn('#默认访问', notes)
+
     def test_stage_contract(self):
         for case in ('valid', 'wrong-config', 'two-devices', 'missing-config', 'missing-target',
                      'wrong-json', 'two-profiles', 'wrong-supported', 'wrong-title', 'wrong-name',

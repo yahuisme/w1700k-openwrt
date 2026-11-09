@@ -47,6 +47,10 @@ cp -r "$PKG_REPO/luci-app-wifi7" "$PKG_REPO/luci-app-airoha-npu" \
 # Required patches share the applications' exact packages checkout.
 PATCH_DIR="$PKG_REPO/w1700k-patches"
 for file in \
+    patches/002-w1700k-cpufreq-resources.patch \
+    patches/920-wifi-non-mlo-ap-txpower.patch \
+    patches/610-w1700k-power-30.patch \
+    patches/998-single-wiphy.patch \
     tree/target/linux/airoha/patches-6.18/745-net-pcs-airoha-extend-manual-rx-calib-to-E2-silicon.patch \
     tree/target/linux/airoha/patches-6.18/746-net-dsa-mt7530-pre-deassert-phy-reset-gpios-before-mdio-scan.patch \
     tree/target/linux/airoha/patches-6.18/940-pmdomain-airoha-cpu-pll-fallback.patch \
@@ -54,7 +58,7 @@ for file in \
     tree/package/kernel/mt76/patches/912-mt76-mt7996-use-mcu-station-statistics.patch \
     tree/package/kernel/mt76/patches/913-mt76-mt7996-clean-up-truncated-txfree.patch \
     tree/package/network/utils/iwinfo/patches/999-fix-txpower-list.patch; do
-    [ -s "$PATCH_DIR/$file" ] || { echo "ERROR: Required patch missing: $file" >&2; exit 1; }
+    [ -s "$PATCH_DIR/$file" ] || { echo "ERROR: Required patch missing or empty: $file" >&2; exit 1; }
 done
 # Preserve buildroot ownership when copying the patch overlay.
 cp -a --no-preserve=ownership "$PATCH_DIR/tree/." .

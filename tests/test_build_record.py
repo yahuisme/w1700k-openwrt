@@ -11,7 +11,7 @@ from test_cache_workflow import ROOT, step
 import test_release_safety as safety
 from test_release_safety import IMAGE
 from test_release_retention import GH, CURRENT, PREFIX, release
-from record_fixture import prepare, READBACK
+from record_fixture import acceptance, prepare, READBACK
 
 
 class BuildRecordTests(unittest.TestCase):
@@ -185,11 +185,15 @@ elif args[0] == 'api' and '/releases/tags/'""")
                     release(PREFIX+'r2-previous', 2), release(PREFIX+'r1-old', 1)]]))
                 env = dict(os.environ, PATH=tmp+':'+os.environ['PATH'], GITHUB_SHA='a'*40,
                            GITHUB_REPOSITORY='fixture/repo', FAULT='', MODE=mode, IMAGE=IMAGE)
-                result = subprocess.run(['bash', '-eo', 'pipefail', '-c',
-                    step('Publish firmware and prune releases')['run']], cwd=base, env=env,
+                block = step('Publish firmware and prune releases')['run']
+                self.assertIn('${{ steps.stage.outputs.acceptance }}', block)
+                block = block.replace('${{ steps.stage.outputs.acceptance }}', acceptance(base))
+                result = subprocess.run(['bash', '-eo', 'pipefail', '-c', block], cwd=base, env=env,
                     capture_output=True, text=True)
                 good = mode in ('ok', 'download', 'annotated')
                 self.assertEqual(result.returncode == 0, good, result.stderr)
                 calls = [json.loads(line) for line in (base / 'calls').read_text().splitlines()]
+                self.assertEqual(sum(c[:2] == ['release', 'create'] for c in calls), 1)
+                self.assertTrue(any(c[0] == 'api' and '/releases/tags/' in c[1] for c in calls))
                 self.assertCountEqual([c[2] for c in calls if c[:2] == ['release', 'delete']],
                                       [PREFIX+'r2-previous', PREFIX+'r1-old'] if good else [])

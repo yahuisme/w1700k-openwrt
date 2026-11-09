@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 from test_cache_workflow import step, ROOT
-from record_fixture import READBACK
+from record_fixture import acceptance, READBACK
 from test_release_safety import IMAGE
 
 BLOCK = step('Publish firmware and prune releases')['run']
@@ -61,7 +61,9 @@ class RetentionTests(unittest.TestCase):
             (base / 'pages.json').write_text(pages if isinstance(pages, str) else json.dumps(pages))
             env = dict(os.environ, PATH=tmp + os.pathsep + os.environ['PATH'],
                        GITHUB_SHA='a' * 40, GITHUB_REPOSITORY='fixture/repo', FAULT=fault)
-            result = subprocess.run(['bash', '-eo', 'pipefail', '-c', BLOCK],
+            self.assertIn('${{ steps.stage.outputs.acceptance }}', BLOCK)
+            block = BLOCK.replace('${{ steps.stage.outputs.acceptance }}', acceptance(base))
+            result = subprocess.run(['bash', '-eo', 'pipefail', '-c', block],
                                     cwd=base, env=env, capture_output=True, text=True)
             calls = [json.loads(line) for line in (base / 'calls').read_text().splitlines()]
             self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)

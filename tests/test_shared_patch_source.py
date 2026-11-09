@@ -17,17 +17,23 @@ TEMPLATES = tuple('package/base-files/files/' + name for name in (
 
 @unittest.skipUnless(os.environ.get('TXPOWER_SOURCE'), 'set TXPOWER_SOURCE to exact unpatched official source')
 class SharedPatchSource(unittest.TestCase):
-    def test_complete_customization_and_missing_payloads(self):
+    def test_complete_customization_and_invalid_payloads(self):
         source = Path(os.environ['TXPOWER_SOURCE'])
-        payloads = [p.relative_to(PATCHES) for p in PATCHES.rglob('*.patch')]
-        used = payloads
-        for missing in (None, *used):
-            with self.subTest(missing=missing), tempfile.TemporaryDirectory() as temporary:
+        payloads = sorted(p.relative_to(PATCHES) for p in PATCHES.rglob('*.patch'))
+        self.assertEqual(len(payloads), 11, 'update the full production payload matrix')
+        cases = [(None, None)] + [(kind, name) for name in payloads
+                                  for kind in ('missing', 'empty')]
+        for kind, broken in cases:
+            with self.subTest(kind=kind, patch=broken), tempfile.TemporaryDirectory() as temporary:
                 base = Path(temporary)
                 donor = base / 'donor'
                 shutil.copytree(PATCHES, donor / 'w1700k-patches')
-                if missing:
-                    (donor / 'w1700k-patches' / missing).unlink()
+                if kind == 'missing':
+                    assert broken is not None
+                    (donor / 'w1700k-patches' / broken).unlink()
+                elif kind == 'empty':
+                    assert broken is not None
+                    (donor / 'w1700k-patches' / broken).write_bytes(b'')
                 for app in APPS:
                     shutil.copytree(PATCHES.parent / app, donor / app)
                 work = base / 'source'
@@ -78,16 +84,27 @@ python3() {
 }
 export -f git python3
 '''
+                # A rejected donor may not install overlays or mutate direct inputs.
+                # Flash reconnect defaults, app copies and revision recording precede
+                # patch preflight and are the only permitted earlier writes.
+                def protected_files():
+                    return {str(p.relative_to(work)): (p.read_bytes(), p.stat().st_mode & 0o777)
+                            for p in work.rglob('*') if p.is_file()
+                            and p.relative_to(work).parts[:2] not in
+                                [('package', app) for app in APPS]
+                            and p != destination and p.name != '.custom-revisions.tsv'}
+                before = protected_files()
                 result = subprocess.run(['bash', '-ec', stub + 'bash "$CUSTOM"'], cwd=work,
                     env=dict(os.environ, DONOR=str(donor), CALLS=str(base / 'calls'),
                              CUSTOM=str(ROOT / 'user/default/custom.sh'), DK_PROFILE=str(ROOT / 'user/default')),
                     text=True, capture_output=True)
-                self.assertEqual(result.returncode == 0, missing is None, result.stdout + result.stderr)
-                reached_aurora = missing in (None, Path('patches/610-w1700k-power-30.patch'))
+                self.assertEqual(result.returncode == 0, broken is None, result.stdout + result.stderr)
+                self.assertEqual(list(work.rglob('*.orig')), [], 'patch backups must not enter package payloads')
+                reached_aurora = broken is None
                 self.assertEqual((base / 'calls').read_text(),
                                  'packages\naurora-prepare\n' if reached_aurora else 'packages\n')
-                if missing is None:
-                    self.assertEqual(list(work.rglob('*.orig')), [], 'patch backups must not enter package payloads')
+                if broken is None:
+                    self.assertIn('Custom commands completed', result.stdout)
                     self.assertEqual(official_templates, {p: (work / p).read_bytes()
                                                         for p in official_templates})
                     node(FLASH_RUN, destination, '192.168.8.1')
@@ -100,6 +117,8 @@ export -f git python3
                     self.assertIn('per_interface_txpower', (work / 'package/network/config/wifi-scripts/files-ucode/lib/netifd/wireless/mac80211.sh').read_text())
                     self.assertIn('123'.zfill(40), (work / '.custom-revisions.tsv').read_text())
                 else:
+                    self.assertIn('ERROR: Required patch missing or empty: ' + str(broken), result.stderr)
+                    self.assertEqual(protected_files(), before)
                     self.assertNotIn('Custom commands completed', result.stdout)
 
 

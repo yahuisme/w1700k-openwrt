@@ -218,7 +218,7 @@ jobs:
         - 镜像：sysupgrade.itb，仅适用于已完成 UBI2 安装的设备；刷写前请备份配置。
         - 保留必要硬件兼容与功率定制。
 
-        [默认设置与使用说明](https://github.com/yahuisme/w1700k-openwrt#默认访问)
+        [默认设置与使用说明](https://github.com/yahuisme/w1700k-openwrt#默认设置)
         EOF
 
     # Go may add downloads during world; cache-only faults must not block staging.

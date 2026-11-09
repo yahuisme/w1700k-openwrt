@@ -19,8 +19,9 @@ class Mt76PayloadTests(unittest.TestCase):
         start = custom.index('# Required patches')
         end = custom.index('cp -a --no-preserve=ownership', start)
         block = custom[start:end]
-        names = re.findall(r'    (tree/[^ ]+\.patch)', block)
-        self.assertTrue(names)
+        names = re.findall(r'    ((?:tree|patches)/[^ ]+\.patch)', block)
+        self.assertEqual(set(names), {str(p.relative_to(PATCHES))
+                                     for p in PATCHES.rglob('*.patch')})
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             donor = root / 'donor/w1700k-patches'
@@ -29,8 +30,8 @@ class Mt76PayloadTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text('isolated payload\n')
             if broken:
-                candidate = donor / 'tree/package/kernel/mt76/patches' / broken
-                self.assertTrue(candidate.is_file(), 'new payload absent from required preflight')
+                candidate = donor / broken
+                self.assertTrue(candidate.is_file(), 'payload absent from required preflight')
                 if empty:
                     candidate.write_text('')
                 else:
@@ -39,13 +40,13 @@ class Mt76PayloadTests(unittest.TestCase):
                                   cwd=root, env=dict(os.environ, PKG_REPO=str(root / 'donor')),
                                   text=True, capture_output=True)
 
-    def test_missing_or_empty_new_patch_blocks_before_copy(self):
-        for name in NEW:
+    def test_missing_or_empty_payload_blocks_before_copy(self):
+        for name in sorted(p.relative_to(PATCHES) for p in PATCHES.rglob('*.patch')):
             for empty in (False, True):
                 with self.subTest(patch=name, empty=empty):
                     result = self.preflight(name, empty)
                     self.assertNotEqual(result.returncode, 0)
-                    self.assertIn(name, result.stderr)
+                    self.assertIn(str(name), result.stderr)
 
     def test_complete_payload_passes(self):
         result = self.preflight()

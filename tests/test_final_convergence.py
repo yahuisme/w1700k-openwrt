@@ -2,7 +2,9 @@
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 import unittest
+from patch_source import PATCHES
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -37,9 +39,25 @@ class ConvergenceTests(unittest.TestCase):
             ['git', 'show', 'HEAD:' + path], cwd=source))
         path = 'target/linux/airoha/dts/an7581-w1700k-ubi.dts'
         official = subprocess.check_output(['git', 'show', 'HEAD:' + path], cwd=source)
-        expected = official.replace(b'led-upgrade = &led_status_blue;',
+        # Compare the entire DTS, allowing only the actual required CPUFreq
+        # payload and two LED aliases, not an inferred/duplicated resource block.
+        payload = PATCHES / 'patches/002-w1700k-cpufreq-resources.patch'
+        self.assertTrue(payload.is_file() and payload.stat().st_size > 0)
+        with tempfile.TemporaryDirectory() as temporary:
+            work = Path(temporary)
+            target = work / path
+            target.parent.mkdir(parents=True)
+            target.write_bytes(official)
+            result = subprocess.run(['patch', '-p1', '--fuzz=0', '--batch',
+                                     '--no-backup-if-mismatch', '-i', str(payload.resolve())],
+                                    cwd=work, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            patched = target.read_bytes()
+            self.assertNotEqual(official, patched)
+            self.assertEqual(list(work.rglob('*.orig')), [])
+        expected = patched.replace(b'led-upgrade = &led_status_blue;',
                                     b'led-upgrade = &led_status_green;').replace(
                                     b'led-running = &led_status_green;',
                                     b'led-running = &led_status_white;')
-        self.assertNotEqual(official, expected)
+        self.assertNotEqual(patched, expected)
         self.assertEqual((source / path).read_bytes(), expected)

@@ -461,6 +461,14 @@ class PreparedBootstrapTests(unittest.TestCase):
         self.assertIn(module.inventory(root), module.REVIEWED)
         self.assertEqual(module.key(root, 'builder', 'tc-one'),
                          module.key(root, 'builder', 'tc-two'))
+        # Exercise the production CLI and its unmodified reviewed allowlist too.
+        for tc_key in ('tc-one', 'tc-two'):
+            result = subprocess.run([sys.executable, str(SCRIPT), 'key', str(root),
+                                     str(root / 'unused-cache'), 'builder', tc_key],
+                                    text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('bootstrap contract=reviewed-independent', result.stderr)
+            self.assertEqual(result.stdout.strip(), module.key(root, 'builder', tc_key))
 
     def test_prepared_lock_keeps_source_config_and_environment_boundaries(self):
         spec = importlib.util.spec_from_file_location('prepared_bootstrap_boundaries', SCRIPT)
@@ -498,7 +506,10 @@ class PreparedBootstrapTests(unittest.TestCase):
                 p.parent.mkdir(parents=True, exist_ok=True)
                 p.write_text('# not an early host producer\n')
                 self.assertEqual(baseline, module.key(root, 'builder', 'tc-two'))
-            for name in ('tools/ccache/Makefile', 'scripts/download.pl', 'include/rootfs.mk',
+            for name in ('tools/ccache/Makefile', 'tools/patch/Makefile',
+                         'tools/ccache/patches/100-honour-copts.patch',
+                         'tools/meson/files/openwrt-native.txt.in',
+                         'scripts/download.pl', 'include/rootfs.mk', 'include/host-build.mk',
                          '.external-packages.mk'):
                 p = root / name
                 original = p.read_bytes() if p.exists() else None
@@ -513,21 +524,50 @@ class PreparedBootstrapTests(unittest.TestCase):
                             p.unlink()
                         else:
                             p.write_bytes(original)
-            p = root / 'tools/ccache/Makefile'
-            original_mode = p.stat().st_mode & 0o777
-            p.chmod(original_mode ^ 0o100)
-            self.assertNotEqual(module.key(root, 'builder', 'tc-one'),
-                                module.key(root, 'builder', 'tc-two'))
-            p.chmod(original_mode)
+            for name in ('tools/ccache/Makefile', '.external-packages.mk'):
+                p = root / name
+                original_mode = p.stat().st_mode & 0o777
+                with self.subTest(mode_input=name):
+                    try:
+                        p.chmod(original_mode ^ 0o100)
+                        self.assertNotEqual(baseline, module.key(root, 'builder', 'tc-one'))
+                        self.assertNotEqual(module.key(root, 'builder', 'tc-one'),
+                                            module.key(root, 'builder', 'tc-two'))
+                    finally:
+                        p.chmod(original_mode)
+            fragment = root / '.external-packages.mk'
+            saved = fragment.read_bytes()
+            try:
+                fragment.unlink()
+                self.assertNotEqual(module.key(root, 'builder', 'tc-one'),
+                                    module.key(root, 'builder', 'tc-two'))
+                fragment.symlink_to(root / 'tools/Makefile')
+                with self.assertRaisesRegex(ValueError, 'nonregular external make input'):
+                    module.key(root, 'builder', 'tc-one')
+                fragment.unlink()
+                fragment.mkdir()
+                with self.assertRaisesRegex(ValueError, 'nonregular external make input'):
+                    module.key(root, 'builder', 'tc-one')
+            finally:
+                if fragment.is_dir() and not fragment.is_symlink():
+                    fragment.rmdir()
+                else:
+                    fragment.unlink(missing_ok=True)
+                fragment.write_bytes(saved)
+                fragment.chmod(0o644)
             cfg = root / '.config'
             original = cfg.read_bytes()
             try:
                 cfg.write_bytes(original + b'\nCONFIG_BOOTSTRAP_BOUNDARY_TEST=y\n')
                 self.assertNotEqual(baseline, module.key(root, 'builder', 'tc-one'))
-                # Even a reviewed inventory cannot project BUILD_ALL_HOST_TOOLS.
-                cfg.write_bytes(original + b'\nCONFIG_BUILD_ALL_HOST_TOOLS=y\n')
-                self.assertNotEqual(module.key(root, 'builder', 'tc-one'),
-                                    module.key(root, 'builder', 'tc-two'))
+                # Real reviewed inputs must not enable unreviewed Rust includes.
+                for symbol in ('BUILD_ALL_HOST_TOOLS', 'USE_RUST_TOOLCHAIN',
+                               'BUILD_BINDGEN', 'USE_CBINDGEN', 'USE_CORROSION',
+                               'RUST_SCCACHE'):
+                    with self.subTest(selector=symbol):
+                        cfg.write_bytes(original + ('\nCONFIG_' + symbol + '=y\n').encode())
+                        self.assertNotEqual(module.key(root, 'builder', 'tc-one'),
+                                            module.key(root, 'builder', 'tc-two'))
             finally:
                 cfg.write_bytes(original)
             self.assertEqual(baseline, module.key(root, 'builder', 'tc-one'))

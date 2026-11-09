@@ -226,6 +226,8 @@ class KeyTests(unittest.TestCase):
                      'build_dir/toolchain-test/.built', 'staging_dir/toolchain-test/lib/test'):
             p = self.put(name, 'layout fixture, not GCC')
             os.utime(p, ns=(1700000000123456789, 1700000000123456789))
+        ccache = self.put('staging_dir/host/bin/ccache', '#!/bin/sh\nexit 0\n')
+        ccache.chmod(0o755)
         archive = Path(self.tmp.name) / 'archive'
         expected = self.key()
         with patch.object(self.cache.shutil, 'which', return_value=None):

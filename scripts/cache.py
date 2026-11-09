@@ -140,6 +140,18 @@ def artifacts(root):
             for p in sorted(root.glob(pattern))]
 
 
+def validate_artifacts(root):
+    if (not (root / 'build_dir/host').is_dir()
+            or not (root / 'staging_dir/host').is_dir()
+            or not list(root.glob('build_dir/toolchain-*'))
+            or not list(root.glob('staging_dir/toolchain-*'))):
+        raise ValueError('incomplete toolchain artifact set')
+    binary = root / 'staging_dir/host/bin/ccache'
+    if (binary.is_symlink() or not binary.is_file() or not binary.stat().st_size
+            or not os.access(binary, os.X_OK)):
+        raise ValueError('missing, empty or nonexecutable host ccache')
+
+
 def restore(root, cache, expected):
     # Never merge an image's staging or target objects with another generation.
     for name in ('build_dir', 'staging_dir'):
@@ -164,8 +176,7 @@ def pack(root, cache, kind, expected):
     archive.unlink(missing_ok=True)
     paths = artifacts(root) if kind == 'toolchain' else [root]
     if kind == 'toolchain':
-        if not (root / 'build_dir/host').is_dir() or not (root / 'staging_dir/host').is_dir() or not list(root.glob('build_dir/toolchain-*')) or not list(root.glob('staging_dir/toolchain-*')):
-            raise ValueError('incomplete toolchain artifact set')
+        validate_artifacts(root)
         names = [str(p.relative_to(root)) for p in paths]
         base = root
     else:

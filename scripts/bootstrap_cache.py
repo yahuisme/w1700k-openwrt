@@ -294,7 +294,8 @@ def validate_pair(root):
         if p.is_symlink() or not p.is_dir() or not any(p.iterdir()):
             raise ValueError('incomplete/empty host artifact pair')
     binary = root / 'staging_dir/host/bin/ccache'
-    if binary.is_symlink() or not binary.is_file() or not os.access(binary, os.X_OK):
+    if (binary.is_symlink() or not binary.is_file() or not binary.stat().st_size
+            or not os.access(binary, os.X_OK)):
         raise ValueError('missing executable host ccache')
     for tool in ('ccache', 'cmake'):
         built = list(root.glob('build_dir/host/' + tool + '-*/.built'))

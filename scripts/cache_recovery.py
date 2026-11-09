@@ -52,11 +52,7 @@ def restore(kind, root, archive, expected, restored, outcome):
                 with redirect_stdout(sys.stderr):
                     if kind == 'toolchain':
                         toolchain.restore(root, archive, expected)
-                        if (not (root / 'build_dir/host').is_dir()
-                                or not (root / 'staging_dir/host').is_dir()
-                                or not list(root.glob('build_dir/toolchain-*'))
-                                or not list(root.glob('staging_dir/toolchain-*'))):
-                            raise ValueError('incomplete toolchain artifact set')
+                        toolchain.validate_artifacts(root)
                     else:
                         bootstrap.restore(root, archive, expected)
             else:

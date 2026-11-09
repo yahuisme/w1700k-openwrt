@@ -196,3 +196,41 @@ and MX4200 parsing use retained final configs. All checks are source/make-parse,
 key and native archive fixture evidence. No compiler, configuration generator,
 real bootstrap stamp reuse, firmware build, hardware or speed acceptance is
 claimed. Rolling unknown inventories continue to bind to TC_KEY until reviewed.
+
+## Inherited native environment and selector closure
+
+The OpenWrt successful-run source `dd72c4c198330e208c2357625693a03996cae741`,
+with its actual final config and complete production customization, reproduces
+existing inventory `2e582bd48d919973449f163be0cf428af13c3258480a7cf0d4019706d52a1a58`.
+This repair adds no source lock or fixed input and imports no MX stable lock.
+
+Native `?=`, appended options, conditional hooks and graph variables can read
+inherited environment outside the fingerprinted environment list. Reject
+nonempty `CONFIG_`, `HOST_`, `PKG_`, `CMAKE_`, `MESON_`, hook/recipe/graph and
+configure-cache namespaces plus explicit orchestration controls. Empty values
+remain allowed. Snapshot `HOST_CONFIG_SITE` is assigned by host-build, not an
+independent demonstrated override hole. On Linux `HOST_CONFIG_SITE_BASE` is
+empty, so it does not replace inherited `CONFIG_SITE_BASE`; locked
+`include/site/cache` then sources that mutable external file. Guarding the
+locked script's bytes alone cannot bind that file's contents.
+
+Rust/all-host selectors require conservative full TC binding for every explicit
+nonempty assignment, including `m` and `n`, not only `y`. Rust build/prebuilt/host
+choices and a nonempty `RUST_TOOLCHAIN_HOST_PATH` are also outside the reviewed
+C/C++ closure; absent or quoted-empty host path retains the default contract.
+Full config bytes are still fingerprinted and existing external-input guards,
+unknown-inventory fallback, archive boundaries and native stamps are unchanged.
+The helper self-hash makes this repair cold for bootstrap only.
+
+Run the affected suites with `env -u LD_LIBRARY_PATH PYTHONPATH=tests
+PYTHONDONTWRITEBYTECODE=1 BOOTSTRAP_SOURCE=/absolute/private/prepared/tree
+python3 -m unittest test_bootstrap_cache test_bootstrap_environment
+test_bootstrap_native_environment test_bootstrap_budget test_bootstrap_workflow -v`.
+Named real-CLI negatives require failed exit and no stdout key, with empty
+controls; prepared-source mutations use the unmodified production allowlist.
+Native mechanism tests first pin exact consumer hashes, then query actual
+host-build/CMake/tools rules with an unconditional parse-stop before any recipe
+or include-remaking, and source site/cache with a harmless temporary site file.
+Nested make includes are inert boundaries, not a full framework execution.
+These tests prove consumer mechanisms and fail-closed keys, not downloaded
+configure-program environment hermeticity, compilation, CI savings or hardware.

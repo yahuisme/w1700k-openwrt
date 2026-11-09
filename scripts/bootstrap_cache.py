@@ -49,7 +49,29 @@ OVERRIDES = ('MAKEFLAGS', 'MFLAGS', 'MAKEOVERRIDES', 'MAKEFILES', 'CC', 'CXX', '
              'CPATH', 'LIBRARY_PATH', 'C_INCLUDE_PATH', 'CPLUS_INCLUDE_PATH',
              'TOPDIR', 'INCLUDE_DIR', 'BUILD_DIR_HOST', 'STAGING_DIR_HOST',
              'STAGING_DIR', 'BUILD_DIR', 'HOSTCC', 'HOSTCXX', 'HOST_CFLAGS',
-             'HOST_CXXFLAGS', 'HOST_LDFLAGS', 'CONFIG_SITE', 'BASH_ENV', 'ENV')
+             'HOST_CXXFLAGS', 'HOST_LDFLAGS', 'CONFIG_SITE', 'CONFIG_SITE_BASE',
+             'CONFIGURE_CACHE_DIR', 'CONFIGURE_PATH', 'BASH_ENV', 'ENV',
+             'PATCH_DIR', 'UNPACK_CMD', 'DECOMPRESS_CMD', 'PKG_CAT', 'DL_SUBDIR',
+             'QUILT', 'YEAR_2038', 'CPU_TYPE', 'CPU_SUBTYPE', 'DUMP', 'DUMP_TARGET_DB',
+             'CHECK', 'FIXUP', 'CHECK_ALL', 'NO_DEPS', 'NO_RECONFIGURE',
+             'FORCE_HOST_INSTALL', 'FORCE', 'SDK', 'IB', 'STAMP_PREPARED',
+             'STAMP_BUILT', 'BUILD_TOOLCHAIN', 'BUILD_ISL', 'BUILD_B43_TOOLS',
+             'BUILD_BZIP2_TOOLS', 'BUILD_LZ4_TOOLS', 'BUILD_LZO_TOOLS',
+             'NO_TRACE_MAKE', 'ORIG_PATH', 'MAKE', 'SUBMAKE', 'OPENWRT_BUILD',
+             'OPENWRT_VERBOSE', 'DEBUG', 'DEBUG_SCOPE_DIR', 'SUBDIR_MAKE_DEBUG',
+             'IGNORE_ERRORS', 'QUILT_PATCHES', 'QUILT_PATCH_OPTS',
+             'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_GLOBAL',
+             'GIT_CONFIG_SYSTEM', 'GIT_CONFIG_NOSYSTEM', 'GIT_EXEC_PATH',
+             'GIT_TEMPLATE_DIR', 'GIT_WORK_TREE', 'GIT_DIR', 'GIT_INDEX_FILE')
+# Native ?=, append and conditional hook/graph consumers are not hashed environment.
+# Snapshot HOST_CONFIG_SITE is overwritten, but Linux leaves inherited
+# CONFIG_SITE_BASE intact and include/site/cache sources its external file.
+OVERRIDE_PREFIXES = ('CONFIG_', 'HOST_', 'PKG_', 'CMAKE_', 'MESON_', 'ac_cv_',
+                     'gl_cv_', 'am_cv_', 'Hooks/', 'Host/', 'Build/', 'Download/',
+                     'DownloadMethod/', 'tools/', 'tools-', 'buildtypes-', '__')
+BOUND_SELECTORS = ('BUILD_ALL_HOST_TOOLS', 'USE_RUST_TOOLCHAIN', 'USE_RUST_BUILD',
+                   'USE_RUST_PREBUILT', 'USE_RUST_HOST', 'BUILD_BINDGEN',
+                   'USE_CBINDGEN', 'USE_CORROSION', 'RUST_SCCACHE')
 
 
 def serialized(value):
@@ -127,7 +149,8 @@ def configuration(root):
 def key(root, builder, tc_key):
     if not builder or not tc_key:
         raise ValueError('builder and full toolchain key required')
-    if any(os.environ.get(name) for name in OVERRIDES):
+    if any(value and (name in OVERRIDES or name.startswith(OVERRIDE_PREFIXES))
+           for name, value in os.environ.items()):
         raise ValueError('environment overrides are outside the bootstrap input lock')
     if any((root / name).exists() or (root / name).is_symlink() for name in ESCAPES):
         raise ValueError('unreviewed make/source escape')
@@ -135,9 +158,10 @@ def key(root, builder, tc_key):
     source = inventory(root)
     # Rust host tools load additional include/rust-*.mk inputs outside this
     # reviewed early C/C++ closure. Keep those configurations fully TC-bound.
-    independent = source in REVIEWED and not any(values.get('CONFIG_' + name) == 'y'
-        for name in ('BUILD_ALL_HOST_TOOLS', 'USE_RUST_TOOLCHAIN', 'BUILD_BINDGEN',
-                     'USE_CBINDGEN', 'USE_CORROSION', 'RUST_SCCACHE'))
+    # Native make tests nonempty, not == y (explicit n/m also enable branches).
+    independent = (source in REVIEWED
+                   and not any(values.get('CONFIG_' + name) for name in BOUND_SELECTORS)
+                   and values.get('CONFIG_RUST_TOOLCHAIN_HOST_PATH', '""') == '""')
     environment = {name: os.environ.get(name) for name in ENVIRONMENT}
     host = os.uname()
     data = ['bootstrap-v3', builder, [host.sysname, host.release, host.version, host.machine], str(root), EPOCH,

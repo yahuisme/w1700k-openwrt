@@ -61,6 +61,6 @@ Aurora 主题、配置应用及中文包通过官方签名 APK 软件源预装�
 
 ## 构建与发布
 
-每日自动构建，计划时间为香港时间 12:00；也可手动运行 [Actions](https://github.com/yahuisme/w1700k-openwrt/actions/workflows/W1700K.yaml)。每次构建拉取官方最新源码，版本显示沿用官方，仅发布 `sysupgrade.itb`，保留最新一版。
+每隔3天自动构建；也可手动运行 [Actions](https://github.com/yahuisme/w1700k-openwrt/actions/workflows/W1700K.yaml)。每次构建拉取官方最新源码，版本显示沿用官方，仅发布 `sysupgrade.itb`，保留最新一版。
 
 [补丁说明与来源](https://github.com/yahuisme/packages/tree/main/w1700k-patches/SOURCES.md)

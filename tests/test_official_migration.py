@@ -14,7 +14,7 @@ class OfficialMigrationTests(unittest.TestCase):
         workflow = (ROOT / '.github/workflows/W1700K.yaml').read_text()
         self.assertIn('REPO_URL="https://github.com/openwrt/openwrt"', workflow)
         self.assertIn('REPO_BRANCH="main"', workflow)
-        self.assertIn("cron: '0 4 * * *'", workflow)
+        self.assertIn("cron: '0 0 1-31/3 * *'", workflow)
         for removed in ('matrix.target', 'ubi2-oc', 'w1700k.github.io', 'vermagic.txt'):
             self.assertNotIn(removed, workflow)
         self.assertLess(workflow.index('git clean -ffdx'), workflow.index('./scripts/feeds update'))

@@ -51,6 +51,8 @@ for file in \
     tree/target/linux/airoha/patches-6.18/746-net-dsa-mt7530-pre-deassert-phy-reset-gpios-before-mdio-scan.patch \
     tree/target/linux/airoha/patches-6.18/940-pmdomain-airoha-cpu-pll-fallback.patch \
     tree/package/kernel/mt76/patches/911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch \
+    tree/package/kernel/mt76/patches/912-mt76-mt7996-use-mcu-station-statistics.patch \
+    tree/package/kernel/mt76/patches/913-mt76-mt7996-clean-up-truncated-txfree.patch \
     tree/package/network/utils/iwinfo/patches/999-fix-txpower-list.patch; do
     [ -s "$PATCH_DIR/$file" ] || { echo "ERROR: Required patch missing: $file" >&2; exit 1; }
 done

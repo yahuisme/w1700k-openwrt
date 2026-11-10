@@ -2,6 +2,8 @@
 """Shared structural and integrity checks for the W1700K payload."""
 import hashlib
 import json
+import lzma
+import stat
 import sys
 from pathlib import Path
 import struct
@@ -93,6 +95,79 @@ def verify_fit(path, *, kind='sysupgrade'):
                     raise ValueError('FIT component hash mismatch')
     except (libfdt.FdtException, struct.error) as error:
         raise ValueError(f'Invalid FIT: {error}') from error
+
+
+def verify_embedded(path, expected):
+    """Hash frozen inputs from the native embedded-initramfs FIT itself."""
+    tree = libfdt.Fdt(Path(path).read_bytes())
+    config = tree.path_offset('/configurations')
+    selected = _strings(tree, config, 'default', single=True)[0]
+    kernel = _strings(tree, tree.path_offset('/configurations/' + selected), 'kernel', single=True)[0]
+    compressed = bytes(tree.getprop(tree.path_offset('/images/' + kernel), 'data'))
+    try:
+        # Bound unexpected compression expansion; normal current images are <80 MiB.
+        decoder = lzma.LZMADecompressor(format=lzma.FORMAT_ALONE)
+        data = decoder.decompress(compressed, max_length=256 * 1024 * 1024)
+    except lzma.LZMAError as error:
+        raise ValueError('Invalid installer kernel compression') from error
+    if len(data) == 256 * 1024 * 1024:
+        raise ValueError('Installer expanded kernel exceeds verification limit')
+    if not decoder.eof:
+        raise ValueError('Truncated installer kernel compression')
+    def header_at(position):
+        header = data[position + 6:position + 110]
+        if (position % 4 or data[position:position + 6] != b'070701'
+                or len(header) != 104 or any(c not in b'0123456789abcdefABCDEF' for c in header)):
+            raise ValueError('Invalid newc header')
+        fields = [int(header[i:i + 8], 16) for i in range(0, 104, 8)]
+        namesize = fields[11]
+        if not 0 < namesize <= 4096 or position + 110 + namesize > len(data):
+            raise ValueError('Invalid newc filename range')
+        name = data[position + 110:position + 110 + namesize]
+        if name[-1:] != b'\0' or b'\0' in name[:-1]:
+            raise ValueError('Invalid newc filename terminator')
+        name = name[:-1].decode('utf-8').removeprefix('./')
+        body = (position + 110 + namesize + 3) & ~3
+        if body + fields[6] > len(data):
+            raise ValueError('Invalid newc data range')
+        return fields, name, body
+
+    # Skip kernel string literals, then commit to the first valid native newc
+    # header. Never search inside member data after recognizing an archive.
+    start = data.find(b'070701')
+    while start >= 0:
+        try:
+            header_at(start)
+            break
+        except (ValueError, UnicodeError):
+            start = data.find(b'070701', start + 1)
+    if start < 0:
+        raise ValueError('Missing embedded installer archive')
+    entries, position = {}, start
+    while True:
+        fields, name, position = header_at(position)
+        mode, size = fields[1], fields[6]
+        if name == 'TRAILER!!!':
+            break
+        if name in expected:
+            if name in entries or not stat.S_ISREG(mode):
+                raise ValueError('Duplicate/nonregular embedded input: ' + name)
+            if not name.endswith('.itb') and not mode & 0o111:
+                raise ValueError('Nonexecutable embedded installer: ' + name)
+            entries[name] = 'sha256:' + hashlib.sha256(memoryview(data)[position:position + size]).hexdigest()
+        position = (position + size + 3) & ~3
+    if entries != expected:
+        raise ValueError('Embedded installer input differs from frozen bytes')
+    # The native producer uses one archive. Reject any additional valid archive
+    # after its trailer rather than accepting later path replacements.
+    later = data.find(b'070701', position)
+    while later >= 0:
+        try:
+            header_at(later)
+        except (ValueError, UnicodeError):
+            later = data.find(b'070701', later + 1)
+            continue
+        raise ValueError('Unexpected additional initramfs archive')
 
 
 def verify_metadata(metadata):

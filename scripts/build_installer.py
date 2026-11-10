@@ -8,9 +8,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 from build_profile import load
-from installer_payload import verify_fit, verify_metadata
+from installer_payload import verify_fit, verify_metadata, verify_embedded
 
 
 def entry(path):
@@ -32,6 +33,54 @@ def native(directory, name):
     return actual
 
 
+def installed_packages(root):
+    return {line[2:] for line in (Path(root) / 'lib/apk/db/installed').read_text().splitlines()
+            if line.startswith('P:')}
+
+
+def lean_packages(root):
+    """Let native APK resolve dependencies; retain the existing driver set."""
+    installed = installed_packages(root)
+    seeds = set('busybox dropbear fstools fwtool jsonfilter logd mtd netifd procd '
+                'procd-seccomp uboot-envtools ubox ubus ubusd uci ubi-utils ucode '
+                'ucode-mod-digest ucode-mod-fs urandom-seed urngd usign fitblk'.split())
+    dns = installed & {'dnsmasq', 'dnsmasq-full'}
+    if len(dns) != 1 or not seeds <= installed:
+        raise ValueError('Missing/ambiguous native recovery packages')
+    seeds |= dns | {name for name in installed if name.startswith('kmod-') or name.endswith('-firmware')}
+    return sorted(seeds)
+
+
+def validate_lean(root, seeds):
+    installed = installed_packages(root)
+    if not set(seeds) <= installed:
+        raise ValueError('Missing native recovery packages')
+    if any(name.startswith(('luci', 'rpcd', 'uhttpd')) or name in
+           {'ttyd', 'nano', 'curl', 'jq', 'etherwake', 'relayd'} for name in installed):
+        raise ValueError('Unexpected application in lean recovery')
+
+
+def rebuild(source, packages, phase):
+    """Use native package resolution/image generation, never another world."""
+    environment = dict(os.environ, FORCE_UNSAFE_CONFIGURE='1', CCACHE_MAXSIZE='3G',
+                       CCACHE_NOHASHDIR='true', CCACHE_COMPILERCHECK='content')
+    overrides = ['PACKAGE_INSTALL_FILES=' + str(packages),
+                 'EXTERNAL_PACKAGES=', 'EXTERNAL_REPOSITORIES=']
+    started, status = time.monotonic(), 'not-started'
+    try:
+        for targets in (['-j1', 'package/install'],
+                        ['-j' + str(os.cpu_count() or 1), 'target/install'],
+                        ['-j1', 'json_overview_image_info', 'checksum']):
+            subprocess.run(['make', *targets, *overrides], cwd=source,
+                           env=environment, check=True)
+        status = 0
+    except subprocess.CalledProcessError as error:
+        status = error.returncode
+        raise
+    finally:
+        print(f'Build timing: {phase}={time.monotonic() - started:.1f}s status={status}', flush=True)
+
+
 def build(source, installer, profile):
     source, installer = Path(source).resolve(), Path(installer).resolve()
     directory = source / 'bin/targets' / profile['target']
@@ -41,7 +90,15 @@ def build(source, installer, profile):
     output = prefix + 'initramfs-installer.itb'
     if (directory / output).exists() or (directory / 'installer.json').exists():
         raise ValueError('Installer output already exists')
-    payload, inner, bootloader = [native(directory, name) for name in (upgrade, recovery, chain)]
+    roots = list(source.glob('build_dir/target-*/root-airoha'))
+    if len(roots) != 1:
+        raise ValueError('Missing/ambiguous native installer rootfs')
+    runtime = roots[0]
+    seeds = lean_packages(runtime)
+    config_lines = (source / '.config').read_text().splitlines()
+    if any(line in config_lines for line in ('CONFIG_TARGET_MULTI_PROFILE=y', 'CONFIG_TARGET_PER_DEVICE_ROOTFS=y')):
+        raise ValueError('Lean installer requires the single native rootfs')
+    payload, formal_recovery, bootloader = [native(directory, name) for name in (upgrade, recovery, chain)]
     if bootloader['size'] > 0x100000:
         raise ValueError('Chainloader exceeds its flash partition')
     verify_fit(directory / upgrade)
@@ -68,46 +125,68 @@ def build(source, installer, profile):
         if original_make.count(refresh) != 1:
             raise ValueError('Unexpected Aurora snapshot build hook')
         entry(source / '.external-packages/provenance.json')
+        rootfs_make = source / 'include/rootfs.mk'
+        original_rootfs = rootfs_make.read_text()
+        check_root = '\tpython3 /cache-scripts/external_packages.py verify-root $(1) $(TOPDIR)/.external-packages/provenance.json\n'
+        if original_rootfs.count(check_root) != 1:
+            raise ValueError('Unexpected Aurora rootfs verification hook')
+        packages = work / 'recovery-packages.list'
+        packages.write_text('\n'.join(seeds) + '\n')
         had_files = (source / 'files').exists()
         if had_files:
             (source / 'files').rename(work / 'formal-files')
         restored = False
         try:
-            shutil.copytree(installer / 'files', source / 'files')
-            # The same signed packages remain installed in the temporary system;
-            # retain only their runtime feed/key overlay, not formal defaults.
-            shutil.copytree(work / 'formal-files/etc/apk', source / 'files/etc/apk')
+            (source / 'files').mkdir()
             package_make.write_text(original_make.replace(refresh, '\t@:\n'))
+            rootfs_make.write_text(original_rootfs.replace(check_root, '\t@:\n'))
+            # First create a clean, lean recovery without the auto-install hook.
+            rebuild(source, packages, 'recovery')
+            if (source / '.config').read_bytes() != original_config:
+                raise ValueError('Installer configuration changed during native rebuild')
+            validate_lean(runtime, seeds)
+            if (runtime / 'installer').exists() or (runtime / 'lib/preinit/00_installer').exists():
+                raise ValueError('Lean recovery contains installer entrypoint')
+            inner = native(directory, recovery)
+            if inner['digest'] == formal_recovery['digest']:
+                raise ValueError('Lean recovery was not regenerated')
+            verify_fit(directory / recovery, kind='recovery')
+            shutil.copy2(directory / recovery, work / recovery)
+            shutil.copytree(installer / 'files', source / 'files', dirs_exist_ok=True)
             embedded = source / 'files/installer'
-            for name in (upgrade, recovery):
-                shutil.copy2(work / 'formal-target' / name, embedded / name)
+            shutil.copy2(work / 'formal-target' / upgrade, embedded / upgrade)
+            shutil.copy2(work / recovery, embedded / recovery)
             for path in ('installer/install.sh', 'lib/preinit/00_installer'):
                 (source / 'files' / path).chmod(0o755)
-            # No second clone, defconfig, toolchain or package selection. Native
-            # package/install rebuilds rootfs from the unchanged package set;
-            # target/install regenerates initramfs with this separate overlay.
-            environment = dict(os.environ, FORCE_UNSAFE_CONFIGURE='1', CCACHE_MAXSIZE='3G',
-                               CCACHE_NOHASHDIR='true', CCACHE_COMPILERCHECK='content')
-            subprocess.run(['make', '-j' + str(os.cpu_count() or 1)], cwd=source,
-                           env=environment, check=True)
+            frozen = {relative: entry(source / 'files' / relative)['digest'] for relative in (
+                'installer/install.sh', 'lib/preinit/00_installer',
+                'installer/' + upgrade, 'installer/' + recovery)}
+            if frozen['installer/' + upgrade] != payload['digest'] or frozen['installer/' + recovery] != inner['digest']:
+                raise ValueError('Installer payload differs from frozen input')
+            rebuild(source, packages, 'installer')
+            if (source / '.config').read_bytes() != original_config:
+                raise ValueError('Installer configuration changed during native rebuild')
+            validate_lean(runtime, seeds)
             roots = list(source.glob('build_dir/target-*/root-airoha'))
             if len(roots) != 1:
                 raise ValueError('Missing/ambiguous native installer rootfs')
-            for relative in ('installer/install.sh', 'lib/preinit/00_installer',
-                             'installer/' + upgrade, 'installer/' + recovery):
-                if entry(roots[0] / relative)['digest'] != entry(source / 'files' / relative)['digest']:
+            for relative, digest in frozen.items():
+                if (entry(source / 'files' / relative)['digest'] != digest
+                        or entry(roots[0] / relative)['digest'] != digest):
                     raise ValueError('Native installer rootfs differs from frozen input: ' + relative)
             outer = native(directory, recovery)
             if outer['digest'] == inner['digest']:
                 raise ValueError('Native recovery was not regenerated with installer payload')
             verify_fit(directory / recovery, kind='recovery')
+            verify_embedded(directory / recovery, frozen)
             shutil.copy2(directory / recovery, work / output)
             proof = dict(version=1, images=[dict(outer, name=output)],
-                         payload=payload, recovery=inner,
+                         payload=payload, recovery=inner, recovery_packages=seeds,
                          source=subprocess.check_output(['git', '-C', str(source), 'rev-parse',
                                                          '--verify', 'HEAD'], text=True).strip())
         finally:
             package_make.write_text(original_make)
+            rootfs_make.write_text(original_rootfs)
             if (source / 'files').exists():
                 shutil.rmtree(source / 'files')
             if had_files:

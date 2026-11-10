@@ -3,13 +3,13 @@ from pathlib import Path
 import subprocess
 
 
-def make_fit(directory, *, external=True, position=None):
+def make_fit(directory, *, external=True, position=None, kernel=None):
     """Return a hashed kernel/FDT/rootfs FIT; directory must already exist.
 
     External data uses data-offset by default; position selects data-position.
     """
     directory = Path(directory)
-    (directory / 'kernel.bin').write_bytes(b'fixture kernel payload\n' * 3)
+    (directory / 'kernel.bin').write_bytes(kernel if kernel is not None else b'fixture kernel payload\n' * 3)
     (directory / 'rootfs.bin').write_bytes(b'fixture rootfs payload\n' * 4)
     (directory / 'board.dts').write_text('/dts-v1/; / { compatible = "gemtek,w1700k-ubi"; };\n')
     subprocess.run(['dtc', '-I', 'dts', '-O', 'dtb', '-o', 'board.dtb', 'board.dts'],

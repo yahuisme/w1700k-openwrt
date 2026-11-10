@@ -2,7 +2,9 @@
 
 本目录独立维护 W1700K UBI2 安装脚本，运行 overlay 与正式固件分离。安装逻辑源自 Kenneth Kasilag / hurrian 的 W1700K UBI Installer，按 [GPL-3.0](LICENSE) 保留；本项目维护分区预检、原厂数据校验、写入回读与失败停止机制。
 
-构建复用本次官方源码与正式配置：先生成并校验 sysupgrade、Recovery、Chainloader，封存正式产物后，仅替换 overlay 增量生成 Installer。Installer 内嵌同次 sysupgrade 和 Recovery，不联网选择其他 Release。正式固件与内部 Recovery 不含自动安装入口。
+先构建并封存完整 sysupgrade 与 Chainloader，再复用同次源码、工具链和包，通过原生打包流程生成精简 Recovery 与 Installer。临时环境保留驱动、有线网络、SSH、UBI 与刷写工具，不安装 LuCI、Aurora 或项目应用，也不带日常设置。它沿用本仓硬件兼容修复，不冒充未修改的官方镜像。
+
+Installer 自动写入同次完整 sysupgrade，安装完成重启后就是完整系统，无需后台再升级。内部 Recovery 不含自动安装入口，仅用于手动恢复；默认管理地址沿用原生 `192.168.1.1`。
 
 `installer.json` 记录本次内嵌镜像与 Installer 的大小和 SHA-256，随构建记录保存，不作为 Release 附件。下载区仅发布三个 ITB。
 

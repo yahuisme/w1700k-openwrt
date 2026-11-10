@@ -6,9 +6,10 @@ from pathlib import Path
 def collect(targets, profile):
     directory = Path(targets) / profile["target"]
     names = tuple(profile["images"])
-    suffix = ".bin" if profile["device"] == "MX4200" else "sysupgrade.itb"
-    candidates = sorted(p for p in directory.glob("*" + suffix)
-                        if (profile["device"] != "MX4200" or "factory" in p.name or "sysupgrade" in p.name))
+    patterns = ('*.bin',) if profile["device"] == "MX4200" else (
+        '*sysupgrade.itb', '*installer.itb', '*chainload-uboot.itb')
+    candidates = sorted({p for pattern in patterns for p in directory.glob(pattern)
+                         if (profile["device"] != "MX4200" or "factory" in p.name or "sysupgrade" in p.name)})
     if len(candidates) != len(names) or {p.name for p in candidates} != set(names):
         raise ValueError("unexpected release image names/count")
     result = []

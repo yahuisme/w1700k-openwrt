@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 from test_cache_workflow import step, ROOT
-from record_fixture import acceptance, READBACK
+from record_fixture import staged_images, acceptance, READBACK
 from test_release_safety import IMAGE
 
 BLOCK = step('Publish firmware and prune releases')['run']
@@ -56,6 +56,7 @@ class RetentionTests(unittest.TestCase):
             (base / 'firmware/version.txt').write_text(CURRENT + '\n')
             (base / 'firmware/release-notes.md').write_text('fixture')
             (base / 'firmware' / IMAGE).write_text('not firmware')
+            staged_images(base)
             (base / 'gh').write_text(GH)
             (base / 'gh').chmod(0o755)
             (base / 'pages.json').write_text(pages if isinstance(pages, str) else json.dumps(pages))
@@ -71,6 +72,8 @@ class RetentionTests(unittest.TestCase):
             self.assertEqual(API in calls, fault != 'create')
             create = next(c for c in calls if c[:2] == ['release', 'create'])
             self.assertEqual(create[2], CURRENT)
+            expected_images = json.loads((ROOT / 'user/default/build.json').read_text())['images']
+            self.assertEqual({Path(arg).name for arg in create if arg.endswith('.itb')}, set(expected_images))
             self.assertEqual(create[create.index('--target') + 1], 'a' * 40)
             self.assertEqual(create[create.index('--title') + 1], CURRENT)
             if API in calls:

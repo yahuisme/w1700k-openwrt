@@ -170,7 +170,10 @@ def collect(source, destination):
         manifests = sorted(directory.glob('*.manifest'))
         if not manifests:
             errors.append('No package manifest')
-        for path in manifests + [directory / 'profiles.json']:
+        metadata = [directory / 'profiles.json']
+        if (directory / 'installer.json').exists():
+            metadata.append(directory / 'installer.json')
+        for path in manifests + metadata:
             copy(path, str(Path('targets') / path.relative_to(targets)))
         try:
             entries = collect_images(targets, profile)

@@ -2,13 +2,21 @@
 
 基于 [OpenWrt 官方 snapshot](https://github.com/openwrt/openwrt)。
 
-适用于已完成 UBI2 安装的 Quantum Fiber / Gemtek W1700K。
+适用于 Quantum Fiber / Gemtek W1700K，提供首次安装与日常升级固件。
 
 ## 固件下载
 
-前往 [Releases](https://github.com/yahuisme/w1700k-openwrt/releases) 下载 `sysupgrade.itb`，仅用于已有 UBI2 系统的升级。
+前往 [Releases](https://github.com/yahuisme/w1700k-openwrt/releases) 下载。同一次发布包含：
 
-**首次安装或重建 UBI2 布局：[W1700K 刷机教程](https://github.com/yahuisme/w1700k-ubi2-installer/blob/main/w1700k-first-flash.md)。**
+| 文件 | 用途 |
+| --- | --- |
+| `openwrt-airoha-an7581-gemtek_w1700k-ubi-chainload-uboot.itb` | 原厂 U-Boot 首次写入 Chainloader |
+| `openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb` | 初始化或重建 UBI2，并安装完整系统 |
+| `openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb` | 已有兼容 UBI2 系统的日常升级 |
+
+Installer 使用本次 OpenWrt 源码构建临时系统，内嵌同次发布的 sysupgrade；安装完成已包含中文 LuCI，无需再刷一次。首次安装的两个文件须来自同一次发布，不要混用发行版或版本。
+
+**首次安装或重建 UBI2 布局：[W1700K 刷机教程](w1700k-first-flash.md)。**
 
 ## 特性
 
@@ -61,6 +69,6 @@ Aurora 主题、配置应用及中文包通过官方签名 APK 软件源预装�
 
 ## 构建与发布
 
-每隔3天自动构建；也可手动运行 [Actions](https://github.com/yahuisme/w1700k-openwrt/actions/workflows/W1700K.yaml)。每次构建拉取官方最新源码，版本显示沿用官方，仅发布 `sysupgrade.itb`，保留最新一版。
+每隔3天自动构建；也可手动运行 [Actions](https://github.com/yahuisme/w1700k-openwrt/actions/workflows/W1700K.yaml)。每次构建拉取官方最新源码，版本显示沿用官方，同次发布 Chainloader、Installer 与 sysupgrade 三个文件，保留最新一版。
 
 [补丁说明与来源](https://github.com/yahuisme/packages/tree/main/w1700k-patches/SOURCES.md)

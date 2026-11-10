@@ -31,17 +31,19 @@ class PublishOrderTests(unittest.TestCase):
                            STEPS.index(step('Prune old download caches')) + 1]
         self.assertEqual(stage.get('id'), 'stage')
         self.assertEqual(publish.get('if'), "${{ !cancelled() && steps.stage.outcome == 'success' }}")
-        self.assertLess(STEPS.index(stage), STEPS.index(cache_tail[0]))
+        self.assertLess(STEPS.index(step('Validate formal firmware')), STEPS.index(cache_tail[0]))
+        self.assertLess(STEPS.index(cache_tail[-1]), STEPS.index(step('Build installer')))
+        self.assertLess(STEPS.index(step('Build installer')), STEPS.index(stage))
         self.assertLess(STEPS.index(cache_tail[-1]), STEPS.index(publish))
         self.assertEqual(publish['env'], {'GH_TOKEN': '${{ secrets.RELEASE_TOKEN }}'})
-        cases = ['', 'Download sources', 'Compile firmware', stage['name'], publish['name'], 'cancel_before_compile',
+        cases = ['', 'Validate formal firmware', 'Build installer', 'Download sources', 'Compile firmware', stage['name'], publish['name'], 'cancel_before_compile',
                  'cancel_after_stage', 'Collect build record', 'Upload build record'] + [s['name'] for s in cache_tail]
         for fault in cases:
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as tmp:
                 base = Path(tmp)
                 target, data = self.fixture(base)
                 (target / 'profiles.json').write_text(json.dumps(data))
-                if fault == stage['name']:
+                if fault in (stage['name'], 'Validate formal firmware'):
                     (base / '.config').write_text('invalid target\n')
                 (base / 'bin').mkdir()
                 gh = base / 'bin/gh'
@@ -67,8 +69,11 @@ nproc() { printf '1\\n'; }
 make() { if [ "$1" = download ]; then [ "$FAULT" != 'Download sources' ]; else [ "$FAULT" != 'Compile firmware' ]; fi; }
 git() { [ "$*" = 'config --global tar.umask 0022' ]; }
 python3() {
+  # Installer build is an external build boundary; fixture already contains all three members.
+  if [ "$1" = /cache-scripts/build_installer.py ]; then [ "$FAULT" != 'Build installer' ]; return; fi
+  [ "$STEP_NAME" != "$FAULT" ] || [ "$STEP_NAME" = 'Publish firmware and prune releases' ] || return 23
   if [ "$1" = scripts/validate_firmware.py ] || [ "$1" = scripts/verify_staged.py ]; then command python3 "$@"; return; fi
-  [ "$STEP_NAME" != "$FAULT" ] || return 23
+  [ "$STEP_NAME" != "$FAULT" ] || [ "$STEP_NAME" = 'Publish firmware and prune releases' ] || return 23
   if [ "$2" = admit ]; then printf 'save=true\\n' >> "$GITHUB_OUTPUT"; else printf 'save=true\\n'; fi
 }
 docker_exec() {
@@ -138,7 +143,7 @@ export -f sudo nproc make python3 docker_exec git
                             'success' if outcome == 'failure' and current.get('continue-on-error') else outcome)
                     if name == stage['name'] and fault == 'cancel_after_stage':
                         cancelled = True
-                should_publish = fault not in ('Download sources', 'Compile firmware', stage['name'],
+                should_publish = fault not in ('Validate formal firmware', 'Build installer', 'Download sources', 'Compile firmware', stage['name'],
                                                'cancel_before_compile', 'cancel_after_stage')
                 self.assertEqual(publish['name'] in executed, should_publish, (fault, outcomes))
                 calls = (base / 'calls').read_text() if (base / 'calls').exists() else ''
@@ -236,6 +241,9 @@ docker_exec() {
     shift
     if [ "$1" = python3 ] && [ "$2" = /cache-scripts/build_record.py ]; then
         python3 scripts/build_record.py "$DK_OPENWRT" build-record
+    elif [ "$1" = python3 ] && [ "$2" = /cache-scripts/build_installer.py ]; then
+        # No make/firmware build: complete fixture bytes and evidence preexist.
+        [ "$FAULT" != installer ]
     elif [ "$1" = python3 ] && [ "$2" = /cache-scripts/cache.py ]; then
         [ "$FAULT" != package ] || return 17
         mkdir -p "${5#/}"
@@ -382,7 +390,8 @@ export -f make docker_exec sudo git
                 self.assertFalse(any(call[:2] in (['release', 'create'], ['release', 'delete'])
                                      for call in inventory['calls']), log)
                 if fault == 'pre-stage-corruption':
-                    self.assertEqual(outcomes['Validate and stage firmware'], 'failure', log)
+                    self.assertEqual(outcomes['Validate formal firmware'], 'failure', log)
+                    self.assertEqual(outcomes['Validate and stage firmware'], 'skipped', log)
                 else:
                     self.assertEqual(outcomes['Validate and stage firmware'], 'success', log)
                     self.assertEqual(outcomes['Publish firmware and prune releases'], 'failure', log)

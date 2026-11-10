@@ -5,7 +5,7 @@ RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         bison build-essential bzip2 ca-certificates cpio curl file flex gawk \
         gettext git libelf-dev libncurses-dev libssl-dev patch perl pigz pkgconf \
-        python3 python3-dev python3-setuptools rsync swig time unzip util-linux \
+        python3 python3-dev python3-libfdt python3-setuptools rsync swig time unzip util-linux \
         wget xz-utils zlib1g-dev zstd \
     && rm -rf /var/lib/apt/lists/*
 

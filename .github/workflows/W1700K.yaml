@@ -27,6 +27,13 @@ jobs:
     - name: Check out repository
       uses: actions/checkout@v7
 
+    - name: Test installer
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-libfdt python3-yaml busybox device-tree-compiler u-boot-tools
+        sudo env PYTHONDONTWRITEBYTECODE=1 TMPDIR="$RUNNER_TEMP" python3 -m unittest discover -s tests/installer -v
+        PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_installer_*.py' -v
+
     # Rolling caches contain no staging or build stamps.
     - name: Restore compiler cache
       id: gh
@@ -57,7 +64,7 @@ jobs:
         IMAGE_ID=$(docker image inspect --format "{{.Id}}" "$IMAGE")
         [[ "$IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]]
         echo "IMAGE_ID=$IMAGE_ID" >> "$GITHUB_ENV"
-        docker run -d --name DK -v "$PWD/build-record:/build-record" -v "$PWD/user:$DK_USER" -v "$PWD/openwrt_bin:$DK_BIN" -v "$PWD/ghcache:/ghcache" -v "$PWD/scripts:/cache-scripts:ro" -v "$PWD/docker:/builder-context:ro" -v "$PWD/tcarchive:/tcarchive" -v "$PWD/tbarchive:/tbarchive" -v "$PWD/ccarchive:/ccarchive" -v "$PWD/dlarchive:/dlarchive" -v "$PWD/dlcache:/dlcache" "$IMAGE_ID" sleep infinity
+        docker run -d --name DK -v "$PWD/build-record:/build-record" -v "$PWD/user:$DK_USER" -v "$PWD/openwrt_bin:$DK_BIN" -v "$PWD/ghcache:/ghcache" -v "$PWD/scripts:/cache-scripts:ro" -v "$PWD/installer:/installer:ro" -v "$PWD/docker:/builder-context:ro" -v "$PWD/tcarchive:/tcarchive" -v "$PWD/tbarchive:/tbarchive" -v "$PWD/ccarchive:/ccarchive" -v "$PWD/dlarchive:/dlarchive" -v "$PWD/dlcache:/dlcache" "$IMAGE_ID" sleep infinity
         BUILDER_FINGERPRINT=$(docker exec -u 0 DK python3 /cache-scripts/builder_fingerprint.py /builder-context)
         [[ "$BUILDER_FINGERPRINT" =~ ^[0-9a-f]{64}$ ]]
         echo "BUILDER_FINGERPRINT=$BUILDER_FINGERPRINT" >> "$GITHUB_ENV"
@@ -197,30 +204,11 @@ jobs:
           exit "$status"
         '
 
-    - name: Validate and stage firmware
-      id: stage
+    - name: Validate formal firmware
+      id: formal
       run: |
-        sudo chown -R "$(id -u):$(id -g)" openwrt_bin
-        # Validate the final container config, not the input fragment.
         docker_exec DK cat "$DK_OPENWRT/.config" > final.config
-        python3 scripts/validate_firmware.py final.config openwrt_bin/targets openwrt accepted-images.json
-        mkdir firmware
-        install -t firmware openwrt_bin/targets/airoha/an7581/openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb openwrt_bin/targets/airoha/an7581/profiles.json
-        install -m 0644 accepted-images.json firmware/accepted-images.json
-        echo "acceptance=$(sha256sum firmware/accepted-images.json | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
-        VERSION="W1700K-OpenWrt-r$(jq -r '.version_code' firmware/profiles.json | sed 's/^r//; s/-.*//')-$(TZ=Asia/Hong_Kong date +'%y.%m.%d_%H.%M.%S')"
-        echo "$VERSION" > firmware/version.txt
-        RELEASE_NOTES="firmware/release-notes.md"
-        cat > "$RELEASE_NOTES" <<EOF
-        ## Quantum Fiber / Gemtek W1700K OpenWrt
-
-        - 源码：[OpenWrt main](https://github.com/openwrt/openwrt)
-        - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
-        - 镜像：sysupgrade.itb，仅适用于已完成 UBI2 安装的设备；刷写前请备份配置。
-        - 保留必要硬件兼容与功率定制。
-
-        [默认设置与使用说明](https://github.com/yahuisme/w1700k-openwrt#默认设置)
-        EOF
+        python3 scripts/validate_firmware.py final.config openwrt_bin/targets openwrt
 
     # Go may add downloads during world; cache-only faults must not block staging.
     - name: Check download cache changes
@@ -295,6 +283,41 @@ jobs:
       if: steps.dl_budget.outputs.save == 'true'
       run: python3 scripts/cache_helper.py cleanup 'dl-v3.' '${{ steps.dl.outputs.cache-primary-key }}'
 
+    - name: Build installer
+      id: installer
+      if: ${{ !cancelled() && steps.formal.outcome == 'success' }}
+      run: docker_exec DK python3 /cache-scripts/build_installer.py "$DK_OPENWRT" /installer
+
+    - name: Validate and stage firmware
+      id: stage
+      if: ${{ !cancelled() && steps.installer.outcome == 'success' }}
+      run: |
+        sudo chown -R "$(id -u):$(id -g)" openwrt_bin
+        # Validate the final container config, not the input fragment.
+        docker_exec DK cat "$DK_OPENWRT/.config" > final.config
+        python3 scripts/validate_firmware.py final.config openwrt_bin/targets openwrt --installer accepted-images.json
+        mkdir firmware
+        install -t firmware openwrt_bin/targets/airoha/an7581/openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb openwrt_bin/targets/airoha/an7581/openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb openwrt_bin/targets/airoha/an7581/openwrt-airoha-an7581-gemtek_w1700k-ubi-chainload-uboot.itb openwrt_bin/targets/airoha/an7581/profiles.json
+        install -m 0644 accepted-images.json firmware/accepted-images.json
+        echo "acceptance=$(sha256sum firmware/accepted-images.json | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+        VERSION="W1700K-OpenWrt-r$(jq -r '.version_code' firmware/profiles.json | sed 's/^r//; s/-.*//')-$(TZ=Asia/Hong_Kong date +'%y.%m.%d_%H.%M.%S')"
+        echo "$VERSION" > firmware/version.txt
+        RELEASE_NOTES="firmware/release-notes.md"
+        cat > "$RELEASE_NOTES" <<EOF
+        ## Quantum Fiber / Gemtek W1700K OpenWrt
+
+        - 源码：[OpenWrt main](https://github.com/openwrt/openwrt)
+        - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
+        - 首次安装：同次发布的 chainload-uboot.itb 与 initramfs-installer.itb。
+        - 日常升级：sysupgrade.itb，无需重新初始化 UBI2。
+        - Installer 内置本次构建的完整固件。
+        - 保留必要硬件兼容与功率定制。
+
+        [首次安装教程](https://github.com/yahuisme/w1700k-openwrt/blob/main/w1700k-first-flash.md)
+
+        [默认设置与使用说明](https://github.com/yahuisme/w1700k-openwrt#默认设置)
+        EOF
+
     - name: Collect build record
       id: record
       continue-on-error: true
@@ -339,8 +362,8 @@ jobs:
         python3 scripts/verify_staged.py firmware firmware/accepted-images.json '${{ steps.stage.outputs.acceptance }}'
         VERSION="$(cat firmware/version.txt)"
         RELEASE_TITLE="$VERSION"
-        gh release create "$VERSION" firmware/*sysupgrade.itb --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file firmware/release-notes.md
-        python3 scripts/verify_release.py "$VERSION" firmware/*sysupgrade.itb
+        gh release create "$VERSION" firmware/*.itb --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file firmware/release-notes.md
+        python3 scripts/verify_release.py "$VERSION" firmware/*.itb
         python3 scripts/verify_staged.py firmware firmware/accepted-images.json '${{ steps.stage.outputs.acceptance }}'
         # Recheck before pruning, before removing older standard releases.
         current_main

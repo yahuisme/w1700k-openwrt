@@ -3,7 +3,9 @@
   "device": "W1700K",
   "target": "airoha/an7581",
   "images": [
-    "openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb"
+    "openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb",
+    "openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb",
+    "openwrt-airoha-an7581-gemtek_w1700k-ubi-chainload-uboot.itb"
   ],
   "cache_prefix": {
     "tc": "tc-v3-ubi2-",

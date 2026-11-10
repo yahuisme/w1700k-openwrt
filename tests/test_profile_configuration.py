@@ -33,7 +33,7 @@ class ProfileConfigurationTests(unittest.TestCase):
         for package in ('apk-mbedtls', 'wpad-basic-mbedtls'):
             self.assertIn(f'# CONFIG_PACKAGE_{package} is not set', lines)
         self.assertIn('# CONFIG_SIGN_EACH_PACKAGE is not set', lines)
-        self.assertIn('# CONFIG_TARGET_ROOTFS_INITRAMFS is not set', lines)
+        self.assertIn('CONFIG_TARGET_ROOTFS_INITRAMFS=y', lines)
 
     @unittest.skipUnless(os.environ.get('PROFILE_KCONFIG_SOURCE') and
                          os.environ.get('PROFILE_KCONFIG_OLD_FRAGMENT'),

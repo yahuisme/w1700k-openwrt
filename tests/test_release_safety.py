@@ -10,7 +10,7 @@ import unittest
 
 from test_cache_workflow import ROOT, render, step
 import test_cache_key as cache_tests
-from record_fixture import READBACK
+from record_fixture import READBACK, installer_fixture
 
 load, SCRIPT = cache_tests.load, cache_tests.SCRIPT
 
@@ -20,6 +20,10 @@ CONFIG_TARGET_airoha_an7581=y
 CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_w1700k-ubi=y
 CONFIG_TARGET_BOARD="airoha"
 CONFIG_TARGET_SUBTARGET="an7581"
+CONFIG_TARGET_ROOTFS_INITRAMFS=y
+CONFIG_PACKAGE_u-boot-an7581_gemtek_w1700k=y
+CONFIG_PACKAGE_ubi-utils=y
+CONFIG_PACKAGE_fitblk=y
 '''
 for app in ('airoha-fancontrol', 'airoha-flowsense', 'airoha-npu', 'wifi7', 'wol', 'ttyd'):
     CONFIG += f'CONFIG_PACKAGE_luci-app-{app}=y\nCONFIG_PACKAGE_luci-i18n-{app}-zh-cn=y\n'
@@ -39,7 +43,7 @@ class ReleaseTests(unittest.TestCase):
             'gemtek_w1700k-ubi': {'supported_devices': ['gemtek,w1700k-ubi'],
                 'titles': [{'vendor': 'Gemtek', 'model': 'W1700K', 'variant': 'UBI'}],
                 'images': [{'name': IMAGE, 'type': 'sysupgrade', 'filesystem': 'squashfs', 'size': 20,
-                            'sha256': hashlib.sha256(b'fixture-not-firmware').hexdigest()}, {'name': 'chainload-uboot.itb', 'type': 'chainload-uboot'}]}}}
+                            'sha256': hashlib.sha256(b'fixture-not-firmware').hexdigest()}, installer_fixture(base, output, IMAGE)]}}}
         (output / 'profiles.json').write_text(json.dumps(data))
         return output, data
 
@@ -140,6 +144,8 @@ class ReleaseTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual((base / 'final.config').read_text(), CONFIG)
                     self.assertEqual((base / 'firmware' / IMAGE).read_bytes(), b'fixture-not-firmware')
+                    expected = json.loads((ROOT / 'user/default/build.json').read_text())['images']
+                    self.assertEqual({p.name for p in (base / 'firmware').glob('*.itb')}, set(expected))
                     notes = (base / 'firmware/release-notes.md').read_text()
                     self.assertIn('OpenWrt main', notes)
                     self.assertIn('https://github.com/openwrt/openwrt', notes)

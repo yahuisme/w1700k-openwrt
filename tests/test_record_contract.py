@@ -164,7 +164,8 @@ class RecordContract(unittest.TestCase):
     def test_readback_contract(self):
         helper = module('verify_release')
         for fault in ('ok', 'missing', 'extra', 'duplicate', 'name', 'size', 'state', 'digest',
-                      'tag', 'draft', 'prerelease', 'download', 'download-wrong', 'download-failure'):
+                      'tag', 'draft', 'prerelease', 'download', 'download-wrong', 'download-failure',
+                      'digest-installer', 'digest-chainloader'):
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as tmp:
                 base = Path(tmp)
                 profile, paths = self.fixture(base)
@@ -179,6 +180,9 @@ class RecordContract(unittest.TestCase):
                 if fault == 'size': assets[0]['size'] += 1
                 if fault == 'state': assets[0]['state'] = 'new'
                 if fault == 'digest': assets[0]['digest'] = 'sha256:' + '0' * 64
+                if fault in ('digest-installer', 'digest-chainloader'):
+                    token = 'installer' if fault == 'digest-installer' else 'chainload-uboot'
+                    next(asset for asset in assets if token in asset['name'])['digest'] = 'sha256:' + '0' * 64
                 if fault == 'tag': release['tag_name'] = 'wrong'
                 if fault in ('draft', 'prerelease'): release[fault] = True
                 if fault.startswith('download'):

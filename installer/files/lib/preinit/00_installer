@@ -1,0 +1,14 @@
+# Run a separate process: wrapping a shell function in 'if' disables errexit.
+if /installer/install.sh; then
+	installer_rc=0
+else
+	installer_rc=$?
+fi
+printf '[installer] Installer stopped (exit %s). Normal boot is blocked.\n' "$installer_rc" >&2
+printf '[installer] Serial diagnostic shell only; no automatic retry. Preserve logs before recovery.\n' >&2
+# Exiting the diagnostic shell must not restart installation or fall through.
+while :; do
+	/bin/sh -i
+	printf '[installer] Still stopped; installation will not be retried.\n' >&2
+	sleep 1
+done

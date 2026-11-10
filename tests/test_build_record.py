@@ -11,7 +11,7 @@ from test_cache_workflow import ROOT, step
 import test_release_safety as safety
 from test_release_safety import IMAGE
 from test_release_retention import GH, CURRENT, PREFIX, release
-from record_fixture import acceptance, prepare, READBACK
+from record_fixture import staged_images, acceptance, prepare, READBACK
 
 
 class BuildRecordTests(unittest.TestCase):
@@ -36,6 +36,8 @@ class BuildRecordTests(unittest.TestCase):
                 self.assertIn(hashlib.sha256((output / IMAGE).read_bytes()).hexdigest(),
                               (record / 'sha256sums').read_text())
                 self.assertFalse(list(record.glob('**/*.itb')))
+                self.assertEqual((record / 'targets/airoha/an7581/installer.json').read_bytes(),
+                                 (output / 'installer.json').read_bytes())
                 for path in record.rglob('*'):
                     if path.is_file():
                         self.assertEqual(path.stat().st_mode & 0o444, 0o444)
@@ -146,6 +148,8 @@ class BuildRecordTests(unittest.TestCase):
             'extra': "assets.append(dict(assets[0],name='extra.itb'))",
             'state': "assets[0]['state']='new'",
             'digest': "assets[0]['digest']='sha256:'+'0'*64",
+            'digest-installer': "next(a for a in assets if 'installer' in a['name'])['digest']='sha256:'+'0'*64",
+            'digest-chainloader': "next(a for a in assets if 'chainload-uboot' in a['name'])['digest']='sha256:'+'0'*64",
             'draft': 'pass',
             'bad-json': "print('{'); sys.exit(0)",
             'api-failure': 'sys.exit(17)',
@@ -162,6 +166,7 @@ class BuildRecordTests(unittest.TestCase):
                 (base / 'firmware/version.txt').write_text(CURRENT)
                 (base / 'firmware/release-notes.md').write_text('fixture')
                 (base / 'firmware' / IMAGE).write_bytes(b'local fixture image')
+                staged_images(base)
                 readback = READBACK.replace('    print(json.dumps', '    '+mutation+'\n    print(json.dumps')
                 if mode == 'title':
                     readback = readback.replace("name=Path('firmware/version.txt').read_text().strip()", "name='wrong-title'")
@@ -177,7 +182,8 @@ elif args[0] == 'api' and '/git/tags/' in args[1]:
 elif args[0] == 'api' and '/releases/tags/'""")
                 stub = stub.replace("elif args[0] == 'api' and '/releases/tags/'", """elif args[0] == 'api' and '/releases/assets/' in args[1]:
     if os.environ['MODE']=='download-failure': sys.exit(17)
-    sys.stdout.buffer.write(b'bad' if os.environ['MODE']=='download-wrong' else (Path('firmware') / os.environ['IMAGE']).read_bytes())
+    images=sorted(Path('firmware').glob('*.itb'))
+    sys.stdout.buffer.write(b'bad' if os.environ['MODE']=='download-wrong' else images[int(args[1].rsplit('/',1)[1])-1].read_bytes())
 elif args[0] == 'api' and '/releases/tags/'""")
                 (base / 'gh').write_text(stub)
                 (base / 'gh').chmod(0o755)

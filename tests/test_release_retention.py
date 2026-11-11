@@ -7,14 +7,14 @@ import subprocess
 import tempfile
 import unittest
 
-from test_cache_workflow import step, ROOT
+from test_cache_workflow import step, ROOT, MATRIX
 from record_fixture import staged_images, acceptance, READBACK
 from test_release_safety import IMAGE
 
 BLOCK = step('Publish firmware and prune releases')['run']
 PREFIX_MATCH = re.search(r'PREFIX="([^"]+)"', BLOCK)
 assert PREFIX_MATCH is not None
-PREFIX = PREFIX_MATCH[1]
+PREFIX = PREFIX_MATCH[1].replace('${DISTRO_TITLE}', MATRIX['title'])
 CURRENT = PREFIX + 'r1-current'
 API = ['api', '--paginate', '--slurp', 'repos/fixture/repo/releases?per_page=100']
 GH = '''#!/usr/bin/env python3
@@ -105,18 +105,24 @@ class RetentionTests(unittest.TestCase):
             'W1700K-ubi2_oc-r9-old', 'W1700K-ubi2-OC_old', 'W1700K-ubi2_OC-r9-old',
             PREFIX[:-1] + '-OC_old', PREFIX[:-1] + '-OC-r9-old',
             'W1700K-OC-Immortalwrt_old',
-            'W1700K-ImmortalWrt_old' if 'OpenWrt' in PREFIX else 'W1700K-OpenWrt_old')]
+            'W1700K-ImmortalWrt_old' if 'OpenWrt' in PREFIX else 'W1700K-OpenWrt_old',
+            'W1700K-ImmortalWrt-r123-current' if MATRIX['system'] == 'openwrt' else 'W1700K-OpenWrt-r123-current',
+            'W1700K-ImmortalWrt-r122-old' if MATRIX['system'] == 'openwrt' else 'W1700K-OpenWrt-r122-old')]
+        if MATRIX['system'] == 'immortalwrt':
+            protected += [release('W1700K-ubi2_old', 20), release('W1700K-ubi2-r1-old', 20)]
         draft = release(PREFIX + 'r8-draft', 21)
         draft['draft'] = True
         pre = release(PREFIX + 'r9-pre', 22)
         pre['prerelease'] = True
-        old = 'W1700K-ubi2-r1-old'
+        old = 'W1700K-ubi2-r1-old' if MATRIX['system'] == 'openwrt' else PREFIX + 'r1-old'
         self.replay([protected + [draft, pre, release(old, 1),
                                  release(PREFIX + 'r2-previous', 2), release(CURRENT, 3)]],
                     [PREFIX + 'r2-previous', old])
 
     def test_legacy_standard_forms_still_pruned(self):
-        tags = [PREFIX[:-1] + '_legacy', 'W1700K-ubi2_old', 'W1700K-ubi2-r1-old']
+        tags = [PREFIX[:-1] + '_legacy']
+        if MATRIX['system'] == 'openwrt':
+            tags += ['W1700K-ubi2_old', 'W1700K-ubi2-r1-old']
         self.replay([[release(CURRENT, 3)] + [release(tag, 1) for tag in tags]], tags)
 
     def test_current_outside_newest_two_is_only_survivor(self):

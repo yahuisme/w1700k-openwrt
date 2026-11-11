@@ -1,20 +1,31 @@
-# W1700K OpenWrt
+# W1700K OpenWrt / ImmortalWrt
 
-基于 [OpenWrt 官方 snapshot](https://github.com/openwrt/openwrt)。
+适用于 Quantum Fiber / Gemtek W1700K，提供 OpenWrt 与 ImmortalWrt 两种系统的首次安装和日常升级固件。
 
-适用于 Quantum Fiber / Gemtek W1700K，提供首次安装与日常升级固件。
+- [OpenWrt 官方 main](https://github.com/openwrt/openwrt)
+- [ImmortalWrt 官方 master](https://github.com/immortalwrt/immortalwrt)
 
 ## 固件下载
 
-前往 [Releases](https://github.com/yahuisme/w1700k-openwrt/releases) 下载。同一次发布包含：
+请先选定发行版，再在对应标签前缀下下载；不要把两个发行版或不同 Release 的文件混用。
 
-| 文件 | 用途 |
+| 发行版 | Release 标签前缀 | 下载 |
+| --- | --- | --- |
+| OpenWrt | `W1700K-OpenWrt-r<revision>-YY.MM.DD_HH.MM.SS` | [OpenWrt Releases](https://github.com/yahuisme/w1700k-openwrt/releases?q=W1700K-OpenWrt-) |
+| ImmortalWrt | `W1700K-ImmortalWrt-r<revision>-YY.MM.DD_HH.MM.SS` | [ImmortalWrt Releases](https://github.com/yahuisme/w1700k-openwrt/releases?q=W1700K-ImmortalWrt-) |
+
+每个发行版的 Release 都包含以下三个后缀；完整文件名中的发行版前缀必须与所选 Release 一致：
+
+| 文件后缀 | 用途 |
 | --- | --- |
-| `openwrt-airoha-an7581-gemtek_w1700k-ubi-chainload-uboot.itb` | 原厂 U-Boot 首次写入 Chainloader |
-| `openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb` | 初始化或重建 UBI2，并安装完整系统 |
-| `openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb` | 已有兼容 UBI2 系统的日常升级 |
+| `chainload-uboot.itb` | 原厂 U-Boot 首次写入 Chainloader |
+| `initramfs-installer.itb` | 初始化或重建 UBI2，并安装同次构建的完整系统 |
+| `squashfs-sysupgrade.itb` | 已有兼容 UBI2 系统的日常升级 |
 
-**首次安装或重建 UBI2 布局：[W1700K 刷机教程](w1700k-first-flash.md)。**
+**首次安装或重建 UBI2 布局：**
+
+- [OpenWrt 刷机教程](w1700k-openwrt-first-flash.md)
+- [ImmortalWrt 刷机教程](w1700k-immortalwrt-first-flash.md)
 
 ## 特性
 
@@ -40,7 +51,7 @@ Aurora 主题、配置应用及中文包通过官方签名 APK 软件源预装�
 
 ## 默认设置
 
-以下设置在首次启动或不保留配置升级时生效。
+以下设置在首次启动或不保留配置升级时生效，两个发行版的默认值相同。
 
 - 管理地址：`192.168.8.1`
 - 用户名：`root`
@@ -59,14 +70,14 @@ Aurora 主题、配置应用及中文包通过官方签名 APK 软件源预装�
 
 ## 日常升级
 
-1. 进入 **系统 → 备份 / 升级**。
-2. 上传下载表中的日常升级固件，取消勾选“保留配置”。
+1. 从所选发行版的对应标签下载 `squashfs-sysupgrade.itb`。
+2. 进入 **系统 → 备份 / 升级**，上传该发行版的日常升级固件，取消勾选“保留配置”。
 3. 校验通过后升级，等待重启，期间不要断电。
 
-无需重新运行 UBI2 Installer。
+已有兼容 UBI2 系统时，不要运行 `initramfs-installer.itb`，也无需重新初始化 UBI2。
 
 ## 构建与发布
 
-每隔3天自动构建；也可手动运行 [Actions](https://github.com/yahuisme/w1700k-openwrt/actions/workflows/W1700K.yaml)。每次拉取官方最新源码构建，保留最新一版。
+每隔3天自动构建；也可手动运行 [Actions](https://github.com/yahuisme/w1700k-openwrt/actions/workflows/W1700K.yaml)。每次分别拉取 OpenWrt 官方 main 和 ImmortalWrt 官方 master 构建，一次生成两个独立 Release，并各自只保留最新一版。
 
 [补丁说明与来源](https://github.com/yahuisme/packages/tree/main/w1700k-patches/SOURCES.md)

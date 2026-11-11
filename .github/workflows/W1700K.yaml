@@ -1,4 +1,4 @@
-name: W1700K OpenWrt Builds
+name: W1700K Firmware Builds
 
 on:
   workflow_dispatch:
@@ -15,17 +15,41 @@ permissions:
   contents: write
 jobs:
   build:
-    name: W1700K Build firmware
+    name: W1700K ${{ matrix.system }}
     runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      # Both writers share the repository's cache budget.
+      max-parallel: 1
+      matrix:
+        system: [openwrt, immortalwrt]
+        include:
+          - system: openwrt
+            title: OpenWrt
+            tc: tc-v3-ubi2-
+            cc: cc-v3-ubi2.
+            dl: dl-v3.
+            tb: tb-v1-ubi2-
+          - system: immortalwrt
+            title: ImmortalWrt
+            tc: tc-v3-immortalwrt-
+            cc: cc-v3-immortalwrt.
+            dl: dl-v3-immortalwrt.
+            tb: tb-v1-immortalwrt-
     env:
       DK_OPENWRT: /bld/openwrt
       DK_BIN: /bld/openwrt_bin
       DK_USER: /bld/user
       DK_PROFILE: /bld/user/default
+      SYSTEM: ${{ matrix.system }}
+      DISTRO_TITLE: ${{ matrix.title }}
       GH_TOKEN: ${{ github.token }}
     steps:
     - name: Check out repository
       uses: actions/checkout@v7
+
+    - name: Select distribution
+      run: python3 scripts/select_distribution.py "$SYSTEM"
 
     - name: Test installer
       run: |
@@ -39,12 +63,12 @@ jobs:
       id: gh
       continue-on-error: true
       uses: actions/cache/restore@v6
-      with: {path: ccarchive, key: 'cc-v3-ubi2.${{ github.run_id }}.${{ github.run_attempt }}', restore-keys: 'cc-v3-ubi2.'}
+      with: {path: ccarchive, key: '${{ matrix.cc }}${{ github.run_id }}.${{ github.run_attempt }}', restore-keys: '${{ matrix.cc }}'}
     - name: Restore download cache
       id: dl
       continue-on-error: true
       uses: actions/cache/restore@v6
-      with: {path: dlarchive, key: 'dl-v3.${{ github.run_id }}.${{ github.run_attempt }}', restore-keys: 'dl-v3.'}
+      with: {path: dlarchive, key: '${{ matrix.dl }}${{ github.run_id }}.${{ github.run_attempt }}', restore-keys: '${{ matrix.dl }}'}
     - name: Extract compiler cache
       id: cc_restore
       run: mkdir -p ghcache && python3 scripts/cache_recovery.py restore ccache ghcache ccarchive unused --restored '${{ steps.gh.outputs.cache-matched-key }}' --outcome '${{ steps.gh.outcome }}' >> "$GITHUB_OUTPUT"
@@ -83,8 +107,8 @@ jobs:
           # Match OpenWrt source-mirror permissions when download.pl falls back to Git.
           umask 022
           git config --global tar.umask 0022
-          REPO_URL="https://github.com/openwrt/openwrt"
-          REPO_BRANCH="main"
+          . "$DK_PROFILE/settings.ini"
+          [[ $REPO_URL && $REPO_BRANCH ]] || { echo "::error::Missing source settings"; exit 1; }
           mkdir -p $DK_OPENWRT
           cd $DK_OPENWRT
           if [ ! -d .git ]; then git init; fi
@@ -118,7 +142,7 @@ jobs:
           fi
         '
         KEY=$(docker_exec DK python3 /cache-scripts/cache.py key "$DK_OPENWRT" /tcarchive "$BUILDER_FINGERPRINT")
-        echo "key=tc-v3-ubi2-$KEY" >> "$GITHUB_OUTPUT"
+        echo "key=${{ matrix.tc }}$KEY" >> "$GITHUB_OUTPUT"
     - name: Restore toolchain cache
       id: tc
       continue-on-error: true
@@ -140,7 +164,7 @@ jobs:
       run: |
         KEY=$(docker_exec DK python3 /cache-scripts/bootstrap_cache.py key "$DK_OPENWRT" /tbarchive "$BUILDER_FINGERPRINT" "$TOOLCHAIN_KEY")
         [[ "$KEY" =~ ^[0-9a-f]{64}$ ]]
-        echo "key=tb-v1-ubi2-$KEY" >> "$GITHUB_OUTPUT"
+        echo "key=${{ matrix.tb }}$KEY" >> "$GITHUB_OUTPUT"
     - name: Restore compiler bootstrap
       id: tb
       continue-on-error: true
@@ -208,7 +232,7 @@ jobs:
       id: formal
       run: |
         docker_exec DK cat "$DK_OPENWRT/.config" > final.config
-        python3 scripts/validate_firmware.py final.config openwrt_bin/targets openwrt
+        python3 scripts/validate_firmware.py final.config openwrt_bin/targets "$SYSTEM"
 
     # Go may add downloads during world; cache-only faults must not block staging.
     - name: Check download cache changes
@@ -235,25 +259,25 @@ jobs:
         fi
         sudo chown -R "$(id -u):$(id -g)" tcarchive ccarchive dlarchive
         # Retire confirmed rolling compiler generations before admitting toolchain.
-        python3 scripts/cache_helper.py admit 'cc-v3-ubi2.' ccarchive/ccache.tar.gz '${{ steps.gh.outputs.cache-primary-key }}'
+        python3 scripts/cache_helper.py admit '${{ matrix.cc }}' ccarchive/ccache.tar.gz '${{ steps.gh.outputs.cache-primary-key }}'
     - name: Save compiler cache
       uses: actions/cache/save@v6
       if: steps.cc_budget.outputs.save == 'true' && hashFiles('ccarchive/ccache.tar.gz') != ''
       with: {path: ccarchive, key: '${{ steps.gh.outputs.cache-primary-key }}'}
     - name: Prune old compiler caches
       if: steps.cc_budget.outputs.save == 'true'
-      run: python3 scripts/cache_helper.py cleanup 'cc-v3-ubi2.' '${{ steps.gh.outputs.cache-primary-key }}'
+      run: python3 scripts/cache_helper.py cleanup '${{ matrix.cc }}' '${{ steps.gh.outputs.cache-primary-key }}'
     - name: Check toolchain cache budget
       id: tc_budget
       if: steps.tc_restore.outputs.hit != 'true' && steps.tc_restore.outputs.poisoned != 'true'
-      run: python3 scripts/cache_helper.py admit 'tc-v3-ubi2-' tcarchive/toolchain.tar.gz '${{ steps.inputs.outputs.key }}'
+      run: python3 scripts/cache_helper.py admit '${{ matrix.tc }}' tcarchive/toolchain.tar.gz '${{ steps.inputs.outputs.key }}'
     - name: Save toolchain cache
       uses: actions/cache/save@v6
       if: steps.tc_budget.outputs.save == 'true' && steps.tc_restore.outputs.poisoned != 'true' && hashFiles('tcarchive/toolchain.tar.gz') != ''
       with: {path: tcarchive, key: '${{ steps.inputs.outputs.key }}'}
     - name: Prune old toolchain caches
       if: steps.tc_budget.outputs.save == 'true' && steps.tc_restore.outputs.poisoned != 'true'
-      run: python3 scripts/cache_helper.py cleanup 'tc-v3-ubi2-' '${{ steps.inputs.outputs.key }}'
+      run: python3 scripts/cache_helper.py cleanup '${{ matrix.tc }}' '${{ steps.inputs.outputs.key }}'
     - name: Check bootstrap cache budget
       id: tb_budget
       if: steps.tc_restore.outputs.hit != 'true' && steps.tb_restore.outputs.hit != 'true' && steps.tb_restore.outputs.poisoned != 'true' && hashFiles('tbarchive/bootstrap.tar.gz') != ''
@@ -261,7 +285,7 @@ jobs:
         BOOTSTRAP_KEY: ${{ steps.tb_inputs.outputs.key }}
       run: |
         sudo chown -R "$(id -u):$(id -g)" tbarchive
-        python3 scripts/cache_helper.py admit 'tb-v1-ubi2-' tbarchive/bootstrap.tar.gz "$BOOTSTRAP_KEY"
+        python3 scripts/cache_helper.py admit '${{ matrix.tb }}' tbarchive/bootstrap.tar.gz "$BOOTSTRAP_KEY"
     - name: Save compiler bootstrap
       uses: actions/cache/save@v6
       if: steps.tb_budget.outputs.save == 'true' && hashFiles('tbarchive/bootstrap.tar.gz') != ''
@@ -270,18 +294,18 @@ jobs:
       if: steps.tb_budget.outputs.save == 'true'
       env:
         BOOTSTRAP_KEY: ${{ steps.tb_inputs.outputs.key }}
-      run: python3 scripts/cache_helper.py cleanup 'tb-v1-ubi2-' "$BOOTSTRAP_KEY"
+      run: python3 scripts/cache_helper.py cleanup '${{ matrix.tb }}' "$BOOTSTRAP_KEY"
     - name: Check download cache budget
       id: dl_budget
       if: steps.dl_changed.outputs.save == 'true'
-      run: python3 scripts/cache_helper.py admit 'dl-v3.' dlarchive/dl.tar.gz '${{ steps.dl.outputs.cache-primary-key }}' --replace-download
+      run: python3 scripts/cache_helper.py admit '${{ matrix.dl }}' dlarchive/dl.tar.gz '${{ steps.dl.outputs.cache-primary-key }}' --replace-download
     - name: Save download cache
       uses: actions/cache/save@v6
       if: steps.dl_changed.outputs.save == 'true' && steps.dl_budget.outputs.save == 'true' && hashFiles('dlarchive/dl.tar.gz') != ''
       with: {path: dlarchive, key: '${{ steps.dl.outputs.cache-primary-key }}'}
     - name: Prune old download caches
       if: steps.dl_budget.outputs.save == 'true'
-      run: python3 scripts/cache_helper.py cleanup 'dl-v3.' '${{ steps.dl.outputs.cache-primary-key }}'
+      run: python3 scripts/cache_helper.py cleanup '${{ matrix.dl }}' '${{ steps.dl.outputs.cache-primary-key }}'
 
     - name: Build installer
       id: installer
@@ -295,25 +319,30 @@ jobs:
         sudo chown -R "$(id -u):$(id -g)" openwrt_bin
         # Validate the final container config, not the input fragment.
         docker_exec DK cat "$DK_OPENWRT/.config" > final.config
-        python3 scripts/validate_firmware.py final.config openwrt_bin/targets openwrt --installer accepted-images.json
+        python3 scripts/validate_firmware.py final.config openwrt_bin/targets "$SYSTEM" --installer accepted-images.json
         mkdir firmware
-        install -t firmware openwrt_bin/targets/airoha/an7581/openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb openwrt_bin/targets/airoha/an7581/openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb openwrt_bin/targets/airoha/an7581/openwrt-airoha-an7581-gemtek_w1700k-ubi-chainload-uboot.itb openwrt_bin/targets/airoha/an7581/profiles.json
+        for suffix in squashfs-sysupgrade initramfs-installer chainload-uboot; do
+          install -t firmware "openwrt_bin/targets/airoha/an7581/${SYSTEM}-airoha-an7581-gemtek_w1700k-ubi-${suffix}.itb"
+        done
+        install -t firmware openwrt_bin/targets/airoha/an7581/profiles.json
         install -m 0644 accepted-images.json firmware/accepted-images.json
         echo "acceptance=$(sha256sum firmware/accepted-images.json | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
-        VERSION="W1700K-OpenWrt-r$(jq -r '.version_code' firmware/profiles.json | sed 's/^r//; s/-.*//')-$(TZ=Asia/Hong_Kong date +'%y.%m.%d_%H.%M.%S')"
+        VERSION="W1700K-${DISTRO_TITLE}-r$(jq -r '.version_code' firmware/profiles.json | sed 's/^r//; s/-.*//')-$(TZ=Asia/Hong_Kong date +'%y.%m.%d_%H.%M.%S')"
         echo "$VERSION" > firmware/version.txt
+        SOURCE_BRANCH=main
+        if [ "$SYSTEM" = immortalwrt ]; then SOURCE_BRANCH=master; fi
         RELEASE_NOTES="firmware/release-notes.md"
         cat > "$RELEASE_NOTES" <<EOF
-        ## Quantum Fiber / Gemtek W1700K OpenWrt
+        ## Quantum Fiber / Gemtek W1700K ${DISTRO_TITLE}
 
-        - 源码：[OpenWrt main](https://github.com/openwrt/openwrt)
+        - 源码：[${DISTRO_TITLE} ${SOURCE_BRANCH}](https://github.com/${SYSTEM}/${SYSTEM})
         - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
         - 首次安装：同次发布的 chainload-uboot.itb 与 initramfs-installer.itb。
         - 日常升级：sysupgrade.itb，无需重新初始化 UBI2。
         - Installer 内置本次构建的完整固件。
         - 保留必要硬件兼容与功率定制。
 
-        [首次安装教程](https://github.com/yahuisme/w1700k-openwrt/blob/main/w1700k-first-flash.md)
+        [首次安装教程](https://github.com/yahuisme/w1700k-openwrt/blob/main/w1700k-${SYSTEM}-first-flash.md)
 
         [默认设置与使用说明](https://github.com/yahuisme/w1700k-openwrt#默认设置)
         EOF
@@ -336,7 +365,7 @@ jobs:
       if: ${{ always() }}
       uses: actions/upload-artifact@v7
       with:
-        name: build-record-${{ github.run_id }}-${{ github.run_attempt }}
+        name: build-record-${{ matrix.system }}-${{ github.run_id }}-${{ github.run_attempt }}
         path: build-record/
         retention-days: 30
         if-no-files-found: error
@@ -367,10 +396,13 @@ jobs:
         python3 scripts/verify_staged.py firmware firmware/accepted-images.json '${{ steps.stage.outputs.acceptance }}'
         # Recheck before pruning, before removing older standard releases.
         current_main
-        PREFIX="W1700K-OpenWrt-"
-        # Keep only the current release; older production releases are removed.
+        PREFIX="W1700K-${DISTRO_TITLE}-"
+        # Legacy unlabelled UBI2 tags belong to this repository's OpenWrt history.
+        LEGACY="W1700K-${DISTRO_TITLE}_"
+        if [ "$SYSTEM" = openwrt ]; then LEGACY="$LEGACY|W1700K-ubi2[-_]"; fi
+        # Keep one production Release per distribution; never prune its sibling.
         if releases=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100") &&
-          old_tags=$(jq -er --arg current "$VERSION" --arg pattern "^(${PREFIX}r[0-9]+-|W1700K-OpenWrt_|W1700K-ubi2[-_])" '
+          old_tags=$(jq -er --arg current "$VERSION" --arg pattern "^(${PREFIX}r[0-9]+-|${LEGACY})" '
             flatten | map(select(.draft == false and .prerelease == false and
               (.tag_name | test($pattern)) and
               (.tag_name | test("^W1700K-ubi2[-_]oc([-_]|$)"; "i") | not))) |

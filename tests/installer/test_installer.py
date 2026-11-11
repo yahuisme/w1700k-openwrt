@@ -4,6 +4,7 @@ Requires root, busybox and its dynamic libraries; never exposes host /dev or
 /sys. Hardware commands, sync, reboot and sleep are scripts, not applets.
 """
 import hashlib
+import json
 import os
 from pathlib import Path
 import shutil
@@ -12,6 +13,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
+SYSTEM = json.loads((ROOT / 'user/default/build.json').read_text())['system']
 
 
 class InstallerSourceTest(unittest.TestCase):
@@ -56,7 +58,7 @@ class InstallerTest(unittest.TestCase):
             self.put(f"dev/ubi0_{n}", b"")
         self.put("dev/ubi0", b"")
         for suffix in ["initramfs-recovery", "squashfs-sysupgrade"]:
-            self.put(f"installer/openwrt-airoha-an7581-gemtek_w1700k-ubi-{suffix}.itb", (suffix.encode()+b"\0")*100)
+            self.put(f"installer/{SYSTEM}-airoha-an7581-gemtek_w1700k-ubi-{suffix}.itb", (suffix.encode()+b"\0")*100)
         images = sorted((self.root / "installer").glob("*.itb"))
         self.manifest = ''.join(hashlib.sha256(image.read_bytes()).hexdigest() +
                                 '  ' + image.name + '\n' for image in images)
@@ -91,7 +93,7 @@ nand_find_volume() { [ "$2" = fit ] && echo ubi0_4 || echo "$2"; }
         for name, target in [("functions.sh", "functions.sh"), ("common.sh", "upgrade/common.sh"),
                              ("nand.sh", "upgrade/nand.sh"), ("fit.sh", "upgrade/fit.sh"),
                              ("uci.sh", "config/uci.sh")]:
-            self.put("lib/" + target, (ROOT / "tests/installer/fixtures/openwrt" / name).read_bytes())
+            self.put("lib/" + target, (ROOT / 'tests/installer/fixtures' / SYSTEM / name).read_bytes())
         self.put("proc/mtd", 'mtd0: 00600000 00020000 "vendor"\nmtd1: 00100000 00020000 "chainloader"\nmtd2: 1b700000 00020000 "ubi"\n')
         self.stub("fw_printenv", "exit 1\n")  # Fresh env has no rootfs_data_max.
         self.stub("ubidetach", 'echo "ubidetach $*" >> /calls\nrm -rf /sys/class/ubi/ubi0*\n')
@@ -143,7 +145,7 @@ if [ "$2" = -s ]; then cat > "$1"; else cp "$2" "$1"; fi
                 self.assertIn("ubirmvol /dev/ubi0 -N fit", self.calls)
                 self.assertIn("ubiupdatevol /dev/ubi0_4 -s", self.calls)
                 self.assertEqual("ubidetach" in self.calls, scenario in ["attached-empty", "missing-fit"])
-                image = self.root / "installer/openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb"
+                image = self.root / f"installer/{SYSTEM}-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb"
                 self.assertEqual((self.root / "dev/ubi0_4").read_bytes(), image.read_bytes())
                 self.assertEqual((self.root / "sys/class/ubi/ubi0_5/name").read_text().strip(), "rootfs_data")
 
@@ -236,7 +238,7 @@ read -r answer
                 (self.root / 'bin' / tool).symlink_to('busybox')
 
     def test_empty_payload_stops_before_erase(self):
-        self.put("installer/openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-recovery.itb", b"")
+        self.put(f"installer/{SYSTEM}-airoha-an7581-gemtek_w1700k-ubi-initramfs-recovery.itb", b"")
         p = self.run_installer()
         self.assertNotIn("ubiformat", self.calls, p.stdout)
         self.assertIn("Empty required file", p.stdout)

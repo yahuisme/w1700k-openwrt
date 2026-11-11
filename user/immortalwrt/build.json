@@ -1,0 +1,18 @@
+{
+  "system": "immortalwrt",
+  "device": "W1700K",
+  "target": "airoha/an7581",
+  "images": [
+    "immortalwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb",
+    "immortalwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb",
+    "immortalwrt-airoha-an7581-gemtek_w1700k-ubi-chainload-uboot.itb"
+  ],
+  "cache_prefix": {
+    "tc": "tc-v3-immortalwrt-",
+    "cc": "cc-v3-immortalwrt.",
+    "dl": "dl-v3-immortalwrt."
+  },
+  "retired_cache_prefix": [
+    "tc-v3-immortalwrt-oc-"
+  ]
+}

@@ -24,7 +24,7 @@ PROFILE = load(Path(__file__).resolve().parents[1] / 'user/default')
 SLOTS = {PROFILE['cache_prefix'][kind]: limit for kind, limit in
          [('tc', 2_000_000_000), ('cc', 3_000_000_000), ('dl', 4_000_000_000)]}
 # Independent bootstrap tier; keep the build_profile tc/cc/dl contract intact.
-BOOTSTRAP_PREFIX = 'tb-v1-ubi2-'
+BOOTSTRAP_PREFIX = 'tb-v1-' + ('immortalwrt-' if PROFILE['system'] == 'immortalwrt' else 'ubi2-')
 SLOTS[BOOTSTRAP_PREFIX] = 1_000_000_000
 BUDGET = 10_000_000_000
 HEADROOM = 64 * 1024 * 1024

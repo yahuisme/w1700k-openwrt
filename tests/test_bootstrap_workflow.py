@@ -6,13 +6,13 @@ import subprocess
 import tempfile
 import unittest
 import yaml
-from test_cache_workflow import render_env
+from test_cache_workflow import render_env, STEPS
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def steps():
-    return yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())['jobs']['build']['steps']
+    return STEPS
 
 
 class BootstrapWorkflowTests(unittest.TestCase):

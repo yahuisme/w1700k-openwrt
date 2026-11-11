@@ -8,9 +8,10 @@ import tempfile
 import unittest
 import yaml
 from test_cache_helper import GH, entry
+from test_cache_workflow import STEPS
 
 ROOT = Path(__file__).resolve().parents[1]
-STEPS = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())['jobs']['build']['steps']
+
 # Reconstructed from run 34728875877 inventory total and the three recorded
 # upload sizes (34706572059, 34711268819, current API). IDs are fixture-only.
 REAL = [entry(1, 'tc-v3-ubi2-a8b702', 1564072318),

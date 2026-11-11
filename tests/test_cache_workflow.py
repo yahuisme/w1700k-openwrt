@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Local-only workflow tests: no Docker, GitHub API, or remote writes."""
 import os
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -11,6 +12,13 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / '.github/workflows/W1700K.yaml'
 STEPS = yaml.safe_load(WORKFLOW.read_text())['jobs']['build']['steps']
+MATRIX = next(row for row in yaml.safe_load(WORKFLOW.read_text())['jobs']['build']['strategy']['matrix']['include']
+              if row['system'] == json.loads((ROOT / 'user/default/build.json').read_text())['system'])
+os.environ['SYSTEM'] = MATRIX['system']
+os.environ['DISTRO_TITLE'] = MATRIX['title']
+# Resolve only the trusted matrix literals; step outputs remain fixture inputs.
+STEPS = yaml.safe_load(re.sub(r'\$\{\{\s*matrix\.(\w+)\s*\}\}',
+                            lambda match: MATRIX[match[1]], yaml.safe_dump(STEPS)))
 
 
 def step(name):
@@ -18,7 +26,8 @@ def step(name):
 
 
 def render(text, values):
-    return re.sub(r'\$\{\{\s*(.*?)\s*\}\}', lambda m: values.get(m[1], 'fixture'), text)
+    values = {**{'matrix.' + key: value for key, value in MATRIX.items()}, **values}
+    return re.sub(r'\$\{\{\s*(.*?)\s*\}\}', lambda m: values.get(m[1].strip(), 'fixture'), text)
 
 
 def render_env(item, values):
@@ -246,7 +255,7 @@ class WorkflowTests(unittest.TestCase):
     def test_cache_save_cleanup_order_and_failure_gates(self):
         workflow = yaml.safe_load(WORKFLOW.read_text())
         self.assertEqual(workflow['concurrency'], {'group': 'w1700k-cache', 'cancel-in-progress': False})
-        self.assertNotIn('strategy', workflow['jobs']['build'])
+        self.assertEqual(workflow['jobs']['build']['strategy']['max-parallel'], 1)
         previous = -1
         for kind, path in [('cc', 'ccarchive'), ('tc', 'tcarchive'), ('dl', 'dlarchive')]:
             admission = step(kind + '_budget')

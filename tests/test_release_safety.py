@@ -8,13 +8,13 @@ import sys
 import tempfile
 import unittest
 
-from test_cache_workflow import ROOT, render, step
+from test_cache_workflow import ROOT, render, step, MATRIX
 import test_cache_key as cache_tests
 from record_fixture import READBACK, installer_fixture
 
 load, SCRIPT = cache_tests.load, cache_tests.SCRIPT
 
-IMAGE = 'openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb'
+IMAGE = MATRIX['system'] + '-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb'
 CONFIG = '''CONFIG_TARGET_airoha=y
 CONFIG_TARGET_airoha_an7581=y
 CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_w1700k-ubi=y
@@ -95,6 +95,7 @@ class ReleaseTests(unittest.TestCase):
             notes = (base / 'firmware/release-notes.md').read_text()
             self.assertIn('## 默认设置\n', (ROOT / 'README.md').read_text())
             self.assertIn('/w1700k-openwrt#默认设置', notes)
+            self.assertIn('/blob/main/w1700k-' + MATRIX['system'] + '-first-flash.md)', notes)
             self.assertNotIn('#默认访问', notes)
 
     def test_stage_contract(self):
@@ -147,8 +148,9 @@ class ReleaseTests(unittest.TestCase):
                     expected = json.loads((ROOT / 'user/default/build.json').read_text())['images']
                     self.assertEqual({p.name for p in (base / 'firmware').glob('*.itb')}, set(expected))
                     notes = (base / 'firmware/release-notes.md').read_text()
-                    self.assertIn('OpenWrt main', notes)
-                    self.assertIn('https://github.com/openwrt/openwrt', notes)
+                    branch = 'main' if MATRIX['system'] == 'openwrt' else 'master'
+                    self.assertIn(MATRIX['title'] + ' ' + branch, notes)
+                    self.assertIn('https://github.com/' + MATRIX['system'] + '/' + MATRIX['system'], notes)
                     self.assertNotIn('ubi2', notes)
                 else:
                     self.assertNotEqual(result.returncode, 0, case)
@@ -219,7 +221,9 @@ elif args[:2]!=['release','delete']: sys.exit(99)
 ''')
                 gh.chmod(0o755)
                 version = (base / 'firmware/version.txt').read_text().strip()
-                standard = ['W1700K-OpenWrt_old', 'W1700K-OpenWrt-r1-old', 'W1700K-ubi2_old']
+                standard = ['W1700K-' + MATRIX['title'] + '_old', 'W1700K-' + MATRIX['title'] + '-r1-old']
+                if MATRIX['system'] == 'openwrt':
+                    standard.append('W1700K-ubi2_old')
                 oc = ['W1700K-OpenWrt-OC_old', 'W1700K-OpenWrt-OC-r1-old', 'W1700K-ubi2-oc_old']
                 entries = [dict(tag_name=tag, id=i, draft=False, prerelease=False,
                                 published_at=f'2026-01-{i+1:02d}T00:00:00Z')

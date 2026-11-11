@@ -24,7 +24,8 @@ class SharedProfileTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             data = helper.load()
         board, subtarget = data['target'].split('/')
-        expected = ([f"{data['system']}-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb"]
+        expected = ([f"{data['system']}-airoha-an7581-gemtek_w1700k-ubi-{kind}.itb"
+                     for kind in ("squashfs-sysupgrade", "initramfs-installer", "chainload-uboot")]
                     if data['device'] == 'W1700K' else
                     [f"immortalwrt-qualcommax-ipq807x-linksys_mx4200{version}-squashfs-{kind}.bin"
                      for version in ('v1', 'v2') for kind in ('factory', 'sysupgrade')])

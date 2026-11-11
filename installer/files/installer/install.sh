@@ -23,6 +23,7 @@ stage() { STAGE="$*"; log "Stage: $STAGE"; }
 INSTALLER_DIR="/installer"
 RECOVERY_IMAGE="${INSTALLER_DIR}/openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-recovery.itb"
 SYSUPGRADE_IMAGE="${INSTALLER_DIR}/openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb"
+PAYLOAD_MANIFEST="${INSTALLER_DIR}/payload.sha256"
 FACTORY_BIN="${INSTALLER_DIR}/factory.bin"
 
 # ---- Factory layout offsets ----
@@ -54,6 +55,20 @@ require_file() {
     die "Missing required file: $1"
   fi
   [ -s "$1" ] || die "Empty required file: $1"
+}
+
+verify_payloads() {
+  require_file "$PAYLOAD_MANIFEST"
+  # Accept exactly one digest for each fixed image, never arbitrary paths.
+  awk -v recovery="${RECOVERY_IMAGE##*/}" -v upgrade="${SYSUPGRADE_IMAGE##*/}" '
+    NF != 2 || length($1) != 64 || $1 ~ /[^0-9a-f]/ { bad=1 }
+    $2 == recovery { r++; next }
+    $2 == upgrade { u++; next }
+    { bad=1 }
+    END { if (bad || NR != 2 || r != 1 || u != 1) exit 1 }
+  ' "$PAYLOAD_MANIFEST" || die "Invalid payload manifest"
+  # No pipeline: preserve the digest tool failure even if it prints output.
+  (cd "$INSTALLER_DIR" && sha256sum -c "$PAYLOAD_MANIFEST") || die "Payload digest verification failed"
 }
 
 check_mtd() {
@@ -329,8 +344,10 @@ install_write_openwrt() {
 
 stage "validate layout"
 validate_layout
+stage "verify payload"
 require_file "$RECOVERY_IMAGE"
 require_file "$SYSUPGRADE_IMAGE"
+verify_payloads
 
 if ! prompt_confirm; then
   log "User aborted."

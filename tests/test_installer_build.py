@@ -110,6 +110,28 @@ class InstallerBuild(unittest.TestCase):
             original = tree_bytes(directory)
             original_copy = shutil.copytree
             real_run = subprocess.run
+            real_rename, real_write = Path.rename, Path.write_bytes
+            injected = []
+
+            def rename(path, target):
+                if path == source / "files":
+                    if fail == "rename-before":
+                        injected.append("rename")
+                        raise OSError("injected rename failure")
+                    result = real_rename(path, target)
+                    if fail in ("rename-interrupt", "rename-error"):
+                        injected.append("rename")
+                        error = KeyboardInterrupt if fail == "rename-interrupt" else OSError
+                        raise error("injected rename failure")
+                    return result
+                return real_rename(path, target)
+
+            def write(path, data):
+                if (len(calls) == 6 and fail in ("first-restore-failure", "multi-restore-failure")
+                        and (path == package_make or (fail == "multi-restore-failure" and path == rootfs_make))):
+                    injected.append(str(path))
+                    raise OSError("injected restore failure: " + str(path))
+                return real_write(path, data)
             calls, seed_sets, frozen = [], [], {}
 
             def restore_copy(a, b, *args, **kwargs):
@@ -165,9 +187,12 @@ class InstallerBuild(unittest.TestCase):
                         self.assertTrue(path.stat().st_mode & 0o111)
                     self.assertEqual((source / 'files/installer' / upgrade).read_bytes(), original[upgrade][0])
                     self.assertEqual((source / 'files/installer' / recovery).read_bytes(), LEAN_RECOVERY)
+                    self.assertEqual((source / 'files/installer/payload.sha256').read_text(),
+                                     digest(original[upgrade][0])[7:] + '  ' + upgrade + '\n' +
+                                     digest(LEAN_RECOVERY)[7:] + '  ' + recovery + '\n')
                     if index == 3:
                         frozen.update({relative: digest((source / 'files' / relative).read_bytes())
-                                       for relative in (*entrypoints, 'installer/' + upgrade, 'installer/' + recovery)})
+                                       for relative in (*entrypoints, 'installer/' + upgrade, 'installer/' + recovery, 'installer/payload.sha256')})
                 calls.append(tuple(command))
                 if fail == 'inner-build-failure' and index == 1:
                     raise subprocess.CalledProcessError(9, command)
@@ -197,6 +222,9 @@ class InstallerBuild(unittest.TestCase):
                     manifest()
                     if index == 5 and fail == 'config-mutated':
                         (source / '.config').write_bytes(b'changed-config\n')
+                    if index == 5 and fail == 'manifest-mutated':
+                        for tree in (source / 'files', roots):
+                            (tree / 'installer/payload.sha256').write_bytes(b'changed-manifest')
                     if index == 5 and fail == 'overlay-mutated':
                         for tree in (source / 'files', roots):
                             (tree / 'installer' / upgrade).write_bytes(b'changed-payload')
@@ -206,13 +234,21 @@ class InstallerBuild(unittest.TestCase):
                  patch.object(helper, 'verify_metadata') as metadata_check, \
                  patch.object(helper, 'print', create=True) as printed, \
                  patch.object(helper, 'verify_embedded') as embedded_check, \
+                 patch.object(Path, 'rename', rename), \
+                 patch.object(Path, 'write_bytes', write), \
                  patch.object(helper.shutil, 'copytree', side_effect=restore_copy), \
                  patch.object(helper.subprocess, 'run', side_effect=run):
                 errors = {
                     'config-mutated': (ValueError, 'configuration changed'),
                     'overlay-mutated': (ValueError, 'frozen input'),
+                    'manifest-mutated': (ValueError, 'frozen input'),
                     'embedded-corrupt': (ValueError, 'embedded mismatch'),
-                    'restore-failure': (OSError, 'restore failure'),
+                    'restore-failure': (OSError, 'restor'),
+                    'first-restore-failure': (OSError, 'restor'),
+                    'multi-restore-failure': (OSError, 'restor'),
+                    'rename-before': (OSError, 'rename failure'),
+                    'rename-error': (OSError, 'rename failure'),
+                    'rename-interrupt': (KeyboardInterrupt, 'rename failure'),
                     'fit-corrupt': (ValueError, 'FIT mismatch'),
                     'metadata-corrupt': (ValueError, 'metadata mismatch'),
                     'inner-build-failure': (subprocess.CalledProcessError, None),
@@ -232,8 +268,13 @@ class InstallerBuild(unittest.TestCase):
                     metadata_check.side_effect = ValueError('injected metadata mismatch')
                 if fail:
                     exception, pattern = errors[fail]
-                    with self.assertRaisesRegex(exception, pattern) if pattern else self.assertRaises(exception):
+                    with (self.assertRaisesRegex(exception, pattern) if pattern else
+                          self.assertRaises(exception)) as caught:
                         helper.build(source, installer, profile)
+                    if fail in ('first-restore-failure', 'multi-restore-failure'):
+                        self.assertIn('package/Makefile', str(caught.exception))
+                    if fail == 'multi-restore-failure':
+                        self.assertIn('include/rootfs.mk', str(caught.exception))
                 else:
                     helper.build(source, installer, profile)
                     self.assertEqual(len(calls), 6)
@@ -242,12 +283,13 @@ class InstallerBuild(unittest.TestCase):
                     self.assertGreaterEqual(fit_check.call_count, 4)
                     embedded_check.assert_called_once()
                     self.assertEqual(embedded_check.call_args.args[1], frozen,
-                                     'all four digests must be frozen before the outer make')
+                                     'all five digests must be frozen before the outer make')
                     self.assertEqual(frozen['installer/' + upgrade], digest(original[upgrade][0]))
                     self.assertEqual(frozen['installer/' + recovery], digest(LEAN_RECOVERY))
                 reached = {'inner-build-failure': 2, 'outer-build-failure': 5,
                            'inner-app-leaked': 3, 'inner-entrypoint': 3, 'stale-inner-image': 3,
-                           'fit-corrupt': 0, 'metadata-corrupt': 0}
+                           'fit-corrupt': 0, 'metadata-corrupt': 0,
+                           'rename-before': 0, 'rename-error': 0, 'rename-interrupt': 0}
                 self.assertEqual(len(calls), reached.get(fail or '', 6),
                                  'a negative case must reach its intended fault, not fail early')
                 timing = [call.args[0] for call in printed.call_args_list
@@ -258,15 +300,28 @@ class InstallerBuild(unittest.TestCase):
                         self.assertTrue(any(str(line).endswith('status=9') for line in timing))
                     else:
                         self.assertTrue(all(str(line).endswith('status=0') for line in timing))
-            self.assertEqual(package_make.read_text(), original_make)
-            self.assertEqual(rootfs_make.read_text(), original_rootfs)
+            self.assertEqual(package_make.read_text(),
+                             original_make.replace(REFRESH, '\t@:\n') if fail in
+                             ('first-restore-failure', 'multi-restore-failure') else original_make)
+            self.assertEqual(rootfs_make.read_text(), original_rootfs.replace(VERIFY_ROOT, '\t@:\n')
+                             if fail == 'multi-restore-failure' else original_rootfs)
             self.assertEqual((source / '.external-packages/provenance.json').read_text(), '{"frozen":true}')
             self.assertEqual((source / '.config').read_bytes(), original_config)
             self.assertEqual(tree_bytes(source / 'files'), formal_overlay)
-            if fail == 'restore-failure':
+            if fail in ('restore-failure', 'first-restore-failure', 'multi-restore-failure'):
                 backups = list(source.glob('.installer-*/formal-target'))
                 self.assertEqual(len(backups), 1)
                 self.assertEqual(tree_bytes(backups[0]), original)
+                work = backups[0].parent
+                self.assertEqual(tree_bytes(work / 'formal-files'), formal_overlay)
+                self.assertEqual((work / 'formal-config').read_bytes(), original_config)
+                self.assertEqual((work / 'formal-package-Makefile').read_text(), original_make)
+                self.assertEqual((work / 'formal-rootfs.mk').read_text(), original_rootfs)
+                if fail != 'restore-failure':
+                    self.assertEqual(tree_bytes(directory), original)
+                    self.assertEqual(len(injected), 2 if fail == 'multi-restore-failure' else 1)
+                self.assertFalse((directory / 'installer.json').exists())
+                self.assertFalse((directory / (prefix + 'initramfs-installer.itb')).exists())
                 self.assertTrue(any('backup retained' in str(call) and str(backups[0].parent) in str(call)
                                     for call in printed.call_args_list))
                 return
@@ -303,7 +358,7 @@ class InstallerBuild(unittest.TestCase):
                 self.exercise(fail)
 
     def test_frozen_config_overlay_and_embedded_fit_checks_remain_enforced(self):
-        for fail in ('config-mutated', 'overlay-mutated', 'embedded-corrupt'):
+        for fail in ('config-mutated', 'overlay-mutated', 'manifest-mutated', 'embedded-corrupt'):
             with self.subTest(fail=fail):
                 self.exercise(fail)
 
@@ -312,5 +367,12 @@ class InstallerBuild(unittest.TestCase):
             with self.subTest(fail=fail):
                 self.exercise(fail)
 
-    def test_restore_failure_retains_formal_target_backup(self):
-        self.exercise('restore-failure')
+    def test_restore_failure_retains_complete_backup_and_tries_remaining_items(self):
+        for fail in ('restore-failure', 'first-restore-failure', 'multi-restore-failure'):
+            with self.subTest(fail=fail):
+                self.exercise(fail)
+
+    def test_interruptions_before_and_after_overlay_rename_restore_formal_inputs(self):
+        for fail in ('rename-before', 'rename-error', 'rename-interrupt'):
+            with self.subTest(fail=fail):
+                self.exercise(fail)

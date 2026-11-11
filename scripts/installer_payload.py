@@ -152,7 +152,7 @@ def verify_embedded(path, expected):
         if name in expected:
             if name in entries or not stat.S_ISREG(mode):
                 raise ValueError('Duplicate/nonregular embedded input: ' + name)
-            if not name.endswith('.itb') and not mode & 0o111:
+            if name in ('installer/install.sh', 'lib/preinit/00_installer') and not mode & 0o111:
                 raise ValueError('Nonexecutable embedded installer: ' + name)
             entries[name] = 'sha256:' + hashlib.sha256(memoryview(data)[position:position + size]).hexdigest()
         position = (position + size + 3) & ~3

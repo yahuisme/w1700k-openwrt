@@ -21,19 +21,25 @@ class EmbeddedInstaller(unittest.TestCase):
                    'lib/preinit/00_installer': b'/installer/install.sh\n',
                    'installer/sysupgrade.itb': b'formal-sysupgrade',
                    'installer/recovery.itb': b'formal-recovery'}
+        content['installer/payload.sha256'] = ''.join(
+            hashlib.sha256(content['installer/' + name]).hexdigest() + '  ' + name + '\n'
+            for name in ('sysupgrade.itb', 'recovery.itb')).encode()
         expected = {}
         for name, data in content.items():
             path = files / name; path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(data); path.chmod(0o755 if not name.endswith('.itb') else 0o644)
+            path.write_bytes(data); path.chmod(0o755 if name in ('installer/install.sh', 'lib/preinit/00_installer') else 0o644)
             expected[name] = 'sha256:' + hashlib.sha256(data).hexdigest()
         if fault == 'changed': (files / 'installer/sysupgrade.itb').write_bytes(b'wrong-sysupgrade')
         if fault == 'missing': (files / 'installer/recovery.itb').unlink()
+        if fault == 'manifest-changed': (files / 'installer/payload.sha256').write_bytes(b'changed')
+        if fault == 'manifest-missing': (files / 'installer/payload.sha256').unlink()
         if fault == 'nonexecutable': (files / 'installer/install.sh').chmod(0o644)
         if fault == 'symlink':
             (files / 'installer/recovery.itb').unlink()
             (files / 'installer/recovery.itb').symlink_to('sysupgrade.itb')
         names = sorted(str(p.relative_to(files)) for p in files.rglob('*'))
         if fault == 'duplicate': names.append('installer/install.sh')
+        if fault == 'manifest-duplicate': names.append('installer/payload.sha256')
         cpio = subprocess.check_output(['cpio', '--quiet', '-o', '-H', 'newc'],
                                        input=('\n'.join(names)+'\n').encode(), cwd=files)
         if fault in ('nested', 'symlink-nested'):
@@ -63,7 +69,8 @@ class EmbeddedInstaller(unittest.TestCase):
     def test_final_fit_matches_every_frozen_input(self):
         verify = getattr(installer_payload, 'verify_embedded', None)
         self.assertTrue(callable(verify), 'missing final installer content verification')
-        for fault in ('', 'changed', 'missing', 'nonexecutable', 'symlink', 'duplicate', 'truncated', 'compressed-truncated', 'nested', 'symlink-nested', 'later-overlay'):
+        for fault in ('', 'changed', 'missing', 'nonexecutable', 'symlink', 'duplicate', 'truncated', 'compressed-truncated', 'nested', 'symlink-nested', 'later-overlay',
+                      'manifest-changed', 'manifest-missing', 'manifest-duplicate'):
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as tmp:
                 image, expected = self.fixture(Path(tmp), fault)
                 if fault:

@@ -117,7 +117,7 @@ def build(source, installer, profile):
         subprocess.run([str(source / 'staging_dir/host/bin/fwtool'), '-i', str(metadata),
                         str(directory / upgrade)], check=True)
         verify_metadata(json.loads(metadata.read_text()))
-        shutil.copytree(directory, work / 'formal-target')
+        shutil.copytree(directory, work / 'formal-target', symlinks=True)
         original_config = (source / '.config').read_bytes()
         package_make = source / 'package/Makefile'
         original_make = package_make.read_text()
@@ -132,11 +132,15 @@ def build(source, installer, profile):
             raise ValueError('Unexpected Aurora rootfs verification hook')
         packages = work / 'recovery-packages.list'
         packages.write_text('\n'.join(seeds) + '\n')
+        # Persist every original before the first destructive overlay swap.
+        (work / 'formal-config').write_bytes(original_config)
+        (work / 'formal-package-Makefile').write_text(original_make)
+        (work / 'formal-rootfs.mk').write_text(original_rootfs)
         had_files = (source / 'files').exists()
-        if had_files:
-            (source / 'files').rename(work / 'formal-files')
         restored = False
         try:
+            if had_files:
+                (source / 'files').rename(work / 'formal-files')
             (source / 'files').mkdir()
             package_make.write_text(original_make.replace(refresh, '\t@:\n'))
             rootfs_make.write_text(original_rootfs.replace(check_root, '\t@:\n'))
@@ -158,8 +162,11 @@ def build(source, installer, profile):
             shutil.copy2(work / recovery, embedded / recovery)
             for path in ('installer/install.sh', 'lib/preinit/00_installer'):
                 (source / 'files' / path).chmod(0o755)
+            (embedded / 'payload.sha256').write_text(
+                payload['digest'][7:] + '  ' + upgrade + '\n' +
+                inner['digest'][7:] + '  ' + recovery + '\n')
             frozen = {relative: entry(source / 'files' / relative)['digest'] for relative in (
-                'installer/install.sh', 'lib/preinit/00_installer',
+                'installer/install.sh', 'lib/preinit/00_installer', 'installer/payload.sha256',
                 'installer/' + upgrade, 'installer/' + recovery)}
             if frozen['installer/' + upgrade] != payload['digest'] or frozen['installer/' + recovery] != inner['digest']:
                 raise ValueError('Installer payload differs from frozen input')
@@ -185,15 +192,33 @@ def build(source, installer, profile):
                          source=subprocess.check_output(['git', '-C', str(source), 'rev-parse',
                                                          '--verify', 'HEAD'], text=True).strip())
         finally:
-            package_make.write_text(original_make)
-            rootfs_make.write_text(original_rootfs)
-            if (source / 'files').exists():
-                shutil.rmtree(source / 'files')
-            if had_files:
-                (work / 'formal-files').rename(source / 'files')
-            (source / '.config').write_bytes(original_config)
-            shutil.rmtree(directory)
-            shutil.copytree(work / 'formal-target', directory)
+            errors = []
+
+            def restore_tree(backup, target):
+                if target.exists():
+                    shutil.rmtree(target)
+                # Copy, never consume the only backup during restoration.
+                if backup is not None:
+                    shutil.copytree(backup, target, symlinks=True)
+
+            actions = [
+                ('package/Makefile', lambda: package_make.write_bytes((work / 'formal-package-Makefile').read_bytes())),
+                ('include/rootfs.mk', lambda: rootfs_make.write_bytes((work / 'formal-rootfs.mk').read_bytes())),
+                ('.config', lambda: (source / '.config').write_bytes((work / 'formal-config').read_bytes())),
+                ('target', lambda: restore_tree(work / 'formal-target', directory)),
+            ]
+            # A rename can fail before OR after moving. Trust the backup's
+            # existence, not an assignment after rename; never erase an unmoved overlay.
+            if (work / 'formal-files').exists() or not had_files:
+                actions.append(('files', lambda: restore_tree(
+                    work / 'formal-files' if had_files else None, source / 'files')))
+            for name, action in actions:
+                try:
+                    action()
+                except BaseException as error:
+                    errors.append(name + ': ' + repr(error))
+            if errors:
+                raise OSError('Formal build restoration failed: ' + '; '.join(errors))
             restored = True
         shutil.copy2(work / output, directory / output)
         (directory / 'installer.json').write_text(json.dumps(proof, indent=2) + '\n')

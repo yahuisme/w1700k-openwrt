@@ -3,6 +3,7 @@
 Requires root, busybox and its dynamic libraries; never exposes host /dev or
 /sys. Hardware commands, sync, reboot and sleep are scripts, not applets.
 """
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -31,7 +32,7 @@ class InstallerTest(unittest.TestCase):
         for token in libs.split():
             if token.startswith("/") and Path(token).is_file():
                 self.put(token, Path(token).read_bytes(), 0o755)
-        for cmd in "sh ash head cat basename mkdir hexdump dd strings grep cut tr sed wc cp printf cmp rm".split():
+        for cmd in "sh ash head cat basename mkdir hexdump dd strings grep cut tr sed wc cp printf cmp rm awk sha256sum".split():
             (self.root / "bin" / cmd).symlink_to("busybox")
         # Ubuntu ash has a sleep builtin which bypasses PATH stubs. Override
         # it only in the private scripts, never in the shipped installer.
@@ -56,6 +57,10 @@ class InstallerTest(unittest.TestCase):
         self.put("dev/ubi0", b"")
         for suffix in ["initramfs-recovery", "squashfs-sysupgrade"]:
             self.put(f"installer/openwrt-airoha-an7581-gemtek_w1700k-ubi-{suffix}.itb", (suffix.encode()+b"\0")*100)
+        images = sorted((self.root / "installer").glob("*.itb"))
+        self.manifest = ''.join(hashlib.sha256(image.read_bytes()).hexdigest() +
+                                '  ' + image.name + '\n' for image in images)
+        self.put("installer/payload.sha256", self.manifest)
         for cmd in "sync reboot sleep ubidetach ubiformat ubiattach ubimkvol mknod".split():
             self.stub(cmd, 'echo "'+cmd+' $*" >> /calls\nexit 0\n')
         self.stub("ubinfo", "exit 1\n")
@@ -87,7 +92,6 @@ nand_find_volume() { [ "$2" = fit ] && echo ubi0_4 || echo "$2"; }
                              ("nand.sh", "upgrade/nand.sh"), ("fit.sh", "upgrade/fit.sh"),
                              ("uci.sh", "config/uci.sh")]:
             self.put("lib/" + target, (ROOT / "tests/installer/fixtures/openwrt" / name).read_bytes())
-        (self.root / "bin/awk").symlink_to("busybox")
         self.put("proc/mtd", 'mtd0: 00600000 00020000 "vendor"\nmtd1: 00100000 00020000 "chainloader"\nmtd2: 1b700000 00020000 "ubi"\n')
         self.stub("fw_printenv", "exit 1\n")  # Fresh env has no rootfs_data_max.
         self.stub("ubidetach", 'echo "ubidetach $*" >> /calls\nrm -rf /sys/class/ubi/ubi0*\n')
@@ -186,6 +190,50 @@ read -r answer
         calls = self.root / "calls"
         self.calls = calls.read_text() if calls.exists() else ""
         return p
+
+    def assert_payload_rejected(self):
+        p = self.run_installer()
+        self.assertNotEqual(p.returncode, 0, p.stdout)
+        self.assertIn("stage=verify payload", p.stdout)
+        self.assertEqual(self.calls, "", p.stdout)
+        self.assertFalse((self.root / "installer/factory.bin").exists())
+
+    def test_missing_payload_manifest_stops_before_erase(self):
+        (self.root / "installer/payload.sha256").unlink()
+        self.assert_payload_rejected()
+
+    def test_bad_payload_manifests_stop_before_erase(self):
+        first = self.manifest.splitlines()[0]
+        for manifest in ('', first + '\n', self.manifest + first + '\n',
+                         self.manifest.replace(first[:64], '0' * 63, 1),
+                         self.manifest.replace(first[:64], 'z' * 64, 1),
+                         self.manifest + 'garbage\n'):
+            with self.subTest(manifest=manifest):
+                self.put("installer/payload.sha256", manifest)
+                self.assert_payload_rejected()
+
+    def test_missing_corrupt_or_truncated_payloads_stop_before_erase(self):
+        for image in sorted((self.root / "installer").glob("*.itb")):
+            original = image.read_bytes()
+            for damage in ('missing', 'corrupt', 'truncated'):
+                with self.subTest(image=image.name, damage=damage):
+                    if damage == 'missing':
+                        image.unlink()
+                    elif damage == 'corrupt':
+                        image.write_bytes(b'X' + original[1:])
+                    else:
+                        image.write_bytes(original[:-1])
+                    self.assert_payload_rejected()
+                    image.write_bytes(original)
+
+    def test_digest_tool_failures_stop_before_erase(self):
+        for tool in ('sha256sum', 'awk'):
+            with self.subTest(tool=tool):
+                # Plausible stdout must not hide the producer's nonzero exit.
+                self.stub(tool, 'echo "' + self.manifest.splitlines()[0] + '"\nexit 8\n')
+                self.assert_payload_rejected()
+                (self.root / 'bin' / tool).unlink()
+                (self.root / 'bin' / tool).symlink_to('busybox')
 
     def test_empty_payload_stops_before_erase(self):
         self.put("installer/openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-recovery.itb", b"")

@@ -155,7 +155,7 @@ class WorkflowTests(unittest.TestCase):
             output = base / 'output'
             env = dict(os.environ, RUNNER_TEMP=tmp, GITHUB_OUTPUT=str(output))
             def run(name):
-                block = render(step(name)['run'], {'steps.dl_restore.outputs.matched-key': 'dl-v3.old'})
+                block = render(step(name)['run'], {'steps.dl_restore.outputs.matched-key': MATRIX['dl'] + 'old'})
                 if name == 'Prepare build environment':
                     block = block.split('[ -f "user/default/config.diff" ]', 1)[0]
                 result = subprocess.run(['bash', '-e', '-c', 'sudo() { "$@"; };\n' + block],
@@ -175,10 +175,11 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn('restore-keys', tc['with'])
         self.assertEqual(tc['with']['path'], 'tcarchive')
         self.assertIn('steps.inputs.outputs.key', tc['with']['key'])
-        for name, path, prefix in [('gh', 'ccarchive', 'cc-v3-'), ('dl', 'dlarchive', 'dl-v3.')]:
+        for name, path, prefix in [('gh', 'ccarchive', MATRIX['cc']),
+                                  ('dl', 'dlarchive', MATRIX['dl'])]:
             restore = step(name)
             self.assertEqual(restore['with']['path'], path)
-            self.assertTrue(restore['with']['restore-keys'].startswith(prefix))
+            self.assertEqual(restore['with']['restore-keys'], prefix)
             self.assertIn('github.run_id', restore['with']['key'])
             self.assertIn('github.run_attempt', restore['with']['key'])
 
@@ -219,7 +220,8 @@ class WorkflowTests(unittest.TestCase):
                 if source_status or key_status:
                     self.assertFalse(output.exists())
                 else:
-                    self.assertEqual(output.read_text(), 'key=tc-v3-ubi2-fixture-key\n')
+                    self.assertEqual(output.read_text(),
+                                     f"key={MATRIX['tc']}fixture-key\n")
 
     def test_single_profile_config_matches_staged_profile(self):
         workflow = yaml.safe_load(WORKFLOW.read_text())

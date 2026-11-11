@@ -10,14 +10,16 @@ SYSTEMS = {'openwrt': 'OpenWrt', 'immortalwrt': 'ImmortalWrt'}
 class InstallerDocsTest(unittest.TestCase):
     def test_each_distribution_has_a_complete_separate_guide(self):
         readme = (ROOT / 'README.md').read_text()
-        index = (ROOT / 'w1700k-first-flash.md').read_text()
+        installer_readme = (ROOT / 'installer/README.md').read_text()
         for system, title in SYSTEMS.items():
             with self.subTest(system=system):
                 filename = f'w1700k-{system}-first-flash.md'
                 self.assertTrue((ROOT / filename).is_file(), filename)
                 text = (ROOT / filename).read_text()
                 self.assertIn(f']({filename})', readme)
-                self.assertIn(f']({filename})', index)
+                self.assertIn(f'](../{filename})', installer_readme)
+                self.assertIn('[PuTTY 中文版](https://github.com/larryli/putty)', text)
+                self.assertIn('[Tftpd64 官方下载](https://github.com/PJO2/tftpd64/releases/)', text)
                 self.assertIn(f'# W1700K {title}', text)
                 self.assertIn(f'/w1700k-openwrt/releases?q=W1700K-{title}-', text)
                 self.assertIn('[返回项目首页](README.md)', text)

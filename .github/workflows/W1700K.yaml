@@ -48,15 +48,20 @@ jobs:
     - name: Check out repository
       uses: actions/checkout@v7
 
-    - name: Select distribution
-      run: python3 scripts/select_distribution.py "$SYSTEM"
-
-    - name: Test installer
+    - name: Test distribution contracts
       run: |
         sudo apt-get update
         sudo apt-get install -y python3-libfdt python3-yaml busybox cpio device-tree-compiler u-boot-tools
+        PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests python3 -m unittest test_dual_build -v
+
+    - name: Select distribution
+      run: python3 scripts/select_distribution.py "$SYSTEM"
+
+    - name: Test installer and workflow contracts
+      run: |
         sudo env PYTHONDONTWRITEBYTECODE=1 TMPDIR="$RUNNER_TEMP" python3 -m unittest discover -s tests/installer -v
         PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_installer_*.py' -v
+        PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests python3 -m unittest test_cache_workflow test_source_revisions test_workflow_merge -v
 
     # Rolling caches contain no staging or build stamps.
     - name: Restore compiler cache

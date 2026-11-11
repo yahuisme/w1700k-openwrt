@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import unittest
 
-from test_cache_workflow import render, step
+from test_cache_workflow import render, step, MATRIX
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -69,7 +69,8 @@ class SourceRevisionTests(unittest.TestCase):
                     self.assertIn('Feed luci: ' + env['FEED_SHA'], result.stdout)
                     self.assertEqual((source / '.config').read_text(), 'CONFIG_TEST=y\nCONFIG_CCACHE_DIR="/ghcache"\n')
                     self.assertEqual((profile / 'config.diff').read_text(), 'CONFIG_TEST=y\n')
-                    self.assertEqual((base / 'output').read_text(), 'key=tc-v3-ubi2-fixture-key\n')
+                    self.assertEqual((base / 'output').read_text(),
+                                     f"key={MATRIX['tc']}fixture-key\n")
 
     def test_custom_donor_checkouts(self):
         script = (ROOT / 'user/default/custom.sh').read_text()

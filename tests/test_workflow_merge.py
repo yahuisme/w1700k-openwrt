@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-from test_cache_workflow import STEPS, step, render
+from test_cache_workflow import STEPS, step, render, MATRIX
 
 
 ENV_STUB = r'''
@@ -33,12 +33,12 @@ install() { record install; command cat > "$RUNNER_TEMP/docker_exec"; }
 CACHE_STUB = r'''
 record() { printf '%s\n' "$1" >> "$LOG"; [ "$FAIL" != "$1" ]; }
 docker_exec() { record "$4"; }
-sudo() { [ "$1" = chown ]; record chown; }
+sudo() { [ "$1" = chown ] || return 1; record chown; }
 python3() {
-    record admit
-    [ "$1" = scripts/cache_helper.py ] && [ "$2" = admit ]
-    [ "$3" = cc-v3-ubi2. ] && [ "$4" = ccarchive/ccache.tar.gz ]
-    [ "$5" = cc-v3-ubi2.new ]
+    record admit || return 1
+    [ "$#" = 5 ] && [ "$1" = scripts/cache_helper.py ] && [ "$2" = admit ] &&
+    [ "$3" = "$CC_PREFIX" ] && [ "$4" = ccarchive/ccache.tar.gz ] &&
+    [ "$5" = "${CC_PREFIX}new" ] || return 1
     printf 'save=%s\n' "$ADMIT" >> "$GITHUB_OUTPUT"
 }
 '''
@@ -86,6 +86,30 @@ class WorkflowMergeTests(unittest.TestCase):
                                      f'IMAGE_ID=sha256:{1:064d}\nBUILDER_FINGERPRINT={2:064d}\n')
                     self.assertIn('exec docker exec', (base/'docker_exec').read_text())
 
+    def test_cache_stub_rejects_wrong_admission_arguments(self):
+        arguments = ['scripts/cache_helper.py', 'admit', MATRIX['cc'],
+                     'ccarchive/ccache.tar.gz', MATRIX['cc'] + 'new']
+        cases = [('valid', arguments, '')]
+        for index in range(len(arguments)):
+            wrong = arguments.copy()
+            wrong[index] = 'unexpected'
+            cases.append((f'argument-{index}', wrong, ''))
+        cases += [('missing', arguments[:-1], ''), ('extra', arguments + ['extra'], ''),
+                  ('record-failure', arguments, 'admit')]
+        for name, actual, failure in cases:
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                # The conditional suppresses errexit inside functions: checks
+                # must return their own failure rather than rely on bash -e.
+                result = subprocess.run(['bash', '-eo', 'pipefail', '-c', CACHE_STUB +
+                                         '\nstatus=0; python3 "$@" || status=$?; exit "$status"',
+                                         'fixture', *actual], cwd=base, capture_output=True, text=True,
+                                        env=dict(os.environ, FAIL=failure, ADMIT='true',
+                                                 CC_PREFIX=MATRIX['cc'], LOG=str(base / 'calls'),
+                                                 GITHUB_OUTPUT=str(base / 'output')))
+                self.assertEqual(result.returncode == 0, name == 'valid', result.stderr)
+                self.assertEqual((base / 'output').exists(), name == 'valid')
+
     def test_complete_cache_success_denial_and_early_failures(self):
         for warm in (False, True):
             for changed in (False, True):
@@ -95,12 +119,13 @@ class WorkflowMergeTests(unittest.TestCase):
                         base = Path(tmp)
                         values = {'steps.tc_restore.outputs.hit': str(warm).lower(),
                                   'steps.dl_changed.outputs.save': str(changed).lower(),
-                                  'steps.inputs.outputs.key': 'tc-v3-ubi2-new',
+                                  'steps.inputs.outputs.key': MATRIX['tc'] + 'new',
                                   'steps.tc_restore.outputs.poisoned': 'false',
-                                  'steps.gh.outputs.cache-primary-key': 'cc-v3-ubi2.new'}
+                                  'steps.gh.outputs.cache-primary-key': MATRIX['cc'] + 'new'}
                         result = subprocess.run(['bash', '-eo', 'pipefail', '-c', CACHE_STUB + render(step('cc_budget')['run'], values)],
                                                 cwd=base, env=dict(os.environ, FAIL=fail, ADMIT=admit,
-                                                DK_OPENWRT='/build', LOG=str(base/'calls'), GITHUB_OUTPUT=str(base/'output')),
+                                                DK_OPENWRT='/build', CC_PREFIX=MATRIX['cc'],
+                                                LOG=str(base/'calls'), GITHUB_OUTPUT=str(base/'output')),
                                                 text=True, capture_output=True)
                         self.assertEqual(result.returncode == 0, not fail, result.stderr)
                         self.assertEqual((base/'calls').read_text().splitlines(), expected if not fail else expected[:expected.index(fail)+1])

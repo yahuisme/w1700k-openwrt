@@ -9,8 +9,8 @@
 ## 1. 准备
 
 - Windows 电脑、网线、3.3V USB-TTL
-- [PuTTY](https://www.putty.org/)：串口终端
-- [Tftpd64](https://bitbucket.org/phjounin/tftpd64/wiki/Home)：TFTP 服务
+- [PuTTY 中文版](https://github.com/larryli/putty)：串口终端
+- [Tftpd64 官方下载](https://github.com/PJO2/tftpd64/releases/)：TFTP 服务
 
 从 [Release](https://github.com/yahuisme/w1700k-openwrt/releases?q=W1700K-ImmortalWrt-) 下载同一次发布的以下两个文件，放入 `C:\tftp`：
 

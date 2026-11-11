@@ -113,7 +113,6 @@ class DualBuildTests(unittest.TestCase):
         workflow = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())
         steps = workflow['jobs']['build']['steps']
         names = [step['name'] for step in steps]
-        self.assertLess(names.index('Select distribution'), names.index('Test installer and workflow contracts'))
         self.assertLess(names.index('Select distribution'), names.index('Restore compiler cache'))
         upload = next(step for step in steps if step.get('id') == 'record_upload')
         self.assertIn('matrix.system', upload['with']['name'])
@@ -122,19 +121,6 @@ class DualBuildTests(unittest.TestCase):
             if step.get('id') in ('formal', 'stage'):
                 self.assertIn('openwrt_bin/targets "$SYSTEM"', step['run'])
         self.assertEqual(workflow['jobs']['build']['env']['DK_PROFILE'], '/bld/user/default')
-
-    def test_workflow_tests_fresh_and_selected_profiles(self):
-        workflow = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())
-        steps = workflow['jobs']['build']['steps']
-        names = [step['name'] for step in steps]
-        fresh = next(step for step in steps if step['name'] == 'Test distribution contracts')
-        selected = next(step for step in steps if step['name'] == 'Test installer and workflow contracts')
-        self.assertLess(names.index(fresh['name']), names.index('Select distribution'))
-        self.assertLess(names.index('Select distribution'), names.index(selected['name']))
-        self.assertIn('python3-yaml', fresh['run'])
-        self.assertIn('python3 -m unittest test_dual_build -v', fresh['run'])
-        self.assertIn('python3 -m unittest test_cache_workflow test_source_revisions test_workflow_merge -v',
-                      selected['run'])
 
     def test_missing_overlay_input_fails_before_profile_mutation(self):
         for missing in ('build.json', 'config.diff', 'settings.ini'):

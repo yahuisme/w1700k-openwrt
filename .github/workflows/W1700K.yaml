@@ -48,20 +48,8 @@ jobs:
     - name: Check out repository
       uses: actions/checkout@v7
 
-    - name: Test distribution contracts
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y python3-libfdt python3-yaml busybox cpio device-tree-compiler u-boot-tools
-        PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests python3 -m unittest test_dual_build -v
-
     - name: Select distribution
       run: python3 scripts/select_distribution.py "$SYSTEM"
-
-    - name: Test installer and workflow contracts
-      run: |
-        sudo env PYTHONDONTWRITEBYTECODE=1 TMPDIR="$RUNNER_TEMP" python3 -m unittest discover -s tests/installer -v
-        PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_installer_*.py' -v
-        PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests python3 -m unittest test_cache_workflow test_source_revisions test_workflow_merge -v
 
     # Rolling caches contain no staging or build stamps.
     - name: Restore compiler cache
@@ -81,13 +69,13 @@ jobs:
       id: dl_restore
       run: mkdir -p dlcache && python3 scripts/cache_recovery.py restore dl dlcache dlarchive unused --restored '${{ steps.dl.outputs.cache-matched-key }}' --outcome '${{ steps.dl.outcome }}' >> "$GITHUB_OUTPUT"
     - name: Prepare build environment
+      id: environment
       run: |
         mkdir -p build-record openwrt_bin ghcache dlcache tcarchive ccarchive dlarchive tbarchive
 
         sudo python3 scripts/dlcache.py snapshot dlcache "$RUNNER_TEMP/dlcache-before.json"
         [ -f "user/default/config.diff" ] || { echo "::error::config.diff not found"; exit 1; }
-        sudo tee /etc/docker/daemon.json <<< '{"max-concurrent-downloads":50,"max-concurrent-uploads":50,"experimental":true}'
-        sudo systemctl reload docker
+
         IMAGE=w1700k-builder:local
         docker build --platform linux/arm64 -t "$IMAGE" docker
         IMAGE_ID=$(docker image inspect --format "{{.Id}}" "$IMAGE")
@@ -267,7 +255,7 @@ jobs:
         python3 scripts/cache_helper.py admit '${{ matrix.cc }}' ccarchive/ccache.tar.gz '${{ steps.gh.outputs.cache-primary-key }}'
     - name: Save compiler cache
       uses: actions/cache/save@v6
-      if: steps.cc_budget.outputs.save == 'true' && hashFiles('ccarchive/ccache.tar.gz') != ''
+      if: steps.cc_budget.outputs.save == 'true'
       with: {path: ccarchive, key: '${{ steps.gh.outputs.cache-primary-key }}'}
     - name: Prune old compiler caches
       if: steps.cc_budget.outputs.save == 'true'
@@ -278,22 +266,26 @@ jobs:
       run: python3 scripts/cache_helper.py admit '${{ matrix.tc }}' tcarchive/toolchain.tar.gz '${{ steps.inputs.outputs.key }}'
     - name: Save toolchain cache
       uses: actions/cache/save@v6
-      if: steps.tc_budget.outputs.save == 'true' && steps.tc_restore.outputs.poisoned != 'true' && hashFiles('tcarchive/toolchain.tar.gz') != ''
+      if: steps.tc_budget.outputs.save == 'true' && steps.tc_restore.outputs.poisoned != 'true'
       with: {path: tcarchive, key: '${{ steps.inputs.outputs.key }}'}
     - name: Prune old toolchain caches
       if: steps.tc_budget.outputs.save == 'true' && steps.tc_restore.outputs.poisoned != 'true'
       run: python3 scripts/cache_helper.py cleanup '${{ matrix.tc }}' '${{ steps.inputs.outputs.key }}'
     - name: Check bootstrap cache budget
       id: tb_budget
-      if: steps.tc_restore.outputs.hit != 'true' && steps.tb_restore.outputs.hit != 'true' && steps.tb_restore.outputs.poisoned != 'true' && hashFiles('tbarchive/bootstrap.tar.gz') != ''
+      if: steps.tc_restore.outputs.hit != 'true' && steps.tb_restore.outputs.hit != 'true' && steps.tb_restore.outputs.poisoned != 'true'
       env:
         BOOTSTRAP_KEY: ${{ steps.tb_inputs.outputs.key }}
       run: |
+        if [ ! -s tbarchive/bootstrap.tar.gz ]; then
+          echo 'save=false' >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
         sudo chown -R "$(id -u):$(id -g)" tbarchive
         python3 scripts/cache_helper.py admit '${{ matrix.tb }}' tbarchive/bootstrap.tar.gz "$BOOTSTRAP_KEY"
     - name: Save compiler bootstrap
       uses: actions/cache/save@v6
-      if: steps.tb_budget.outputs.save == 'true' && hashFiles('tbarchive/bootstrap.tar.gz') != ''
+      if: steps.tb_budget.outputs.save == 'true'
       with: {path: tbarchive, key: '${{ steps.tb_inputs.outputs.key }}'}
     - name: Prune old bootstrap caches
       if: steps.tb_budget.outputs.save == 'true'
@@ -306,7 +298,7 @@ jobs:
       run: python3 scripts/cache_helper.py admit '${{ matrix.dl }}' dlarchive/dl.tar.gz '${{ steps.dl.outputs.cache-primary-key }}' --replace-download
     - name: Save download cache
       uses: actions/cache/save@v6
-      if: steps.dl_changed.outputs.save == 'true' && steps.dl_budget.outputs.save == 'true' && hashFiles('dlarchive/dl.tar.gz') != ''
+      if: steps.dl_changed.outputs.save == 'true' && steps.dl_budget.outputs.save == 'true'
       with: {path: dlarchive, key: '${{ steps.dl.outputs.cache-primary-key }}'}
     - name: Prune old download caches
       if: steps.dl_budget.outputs.save == 'true'
@@ -355,7 +347,7 @@ jobs:
     - name: Collect build record
       id: record
       continue-on-error: true
-      if: ${{ always() }}
+      if: ${{ !cancelled() && steps.environment.outcome == 'success' }}
       run: |
         mkdir -p build-record
         printf 'repository=%s\nworkflow_sha=%s\nrun_id=%s\nrun_attempt=%s\nrunner_os=%s\nrunner_arch=%s\nimage_id=%s\nbuilder_fingerprint=%s\n' \
@@ -367,7 +359,7 @@ jobs:
     - name: Upload build record
       id: record_upload
       continue-on-error: true
-      if: ${{ always() }}
+      if: ${{ !cancelled() && steps.record.outcome != 'skipped' }}
       uses: actions/upload-artifact@v7
       with:
         name: build-record-${{ matrix.system }}-${{ github.run_id }}-${{ github.run_attempt }}

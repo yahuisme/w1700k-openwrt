@@ -185,6 +185,14 @@ class CacheOrderTests(unittest.TestCase):
                 saves, _, log = self.run_tail([], warm=warm)
                 self.assertEqual(saves, ['cc'] + ([] if warm else ['tc']) + ['dl'], log)
 
+    def test_unavailable_bootstrap_keeps_other_cache_saves(self):
+        for size in (None, 0, 1_000_000_001):
+            with self.subTest(size=size):
+                saves, state, log = self.run_tail([], tb=size)
+                self.assertEqual(saves, ['cc', 'tc', 'dl'], log)
+                self.assertEqual({row['key'] for row in state['entries']},
+                                 {'cc-v3-ubi2.new', 'tc-v3-ubi2-new', 'dl-v3.new'})
+
     def test_budget_denial_allows_smaller_later_candidate(self):
         saves, _, log = self.run_tail([entry(1, 'legacy', 8600000000)], cc=1500000000, tc=100)
         self.assertEqual(saves, ['tc', 'dl'], log)

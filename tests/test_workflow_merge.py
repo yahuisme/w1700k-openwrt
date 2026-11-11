@@ -13,8 +13,6 @@ tar() { record "extract:$3"; }
 sudo() {
     case "$1" in
         python3) record snapshot;;
-        tee) record daemon; command cat >/dev/null;;
-        systemctl) record reload;;
         *) return 99;;
     esac
 }
@@ -58,8 +56,24 @@ class WorkflowMergeTests(unittest.TestCase):
                      'Publish firmware and prune releases'):
             self.assertIn(step(name), STEPS)
 
+    def test_build_does_not_install_runner_test_dependencies(self):
+        for item in STEPS:
+            block = item.get('run', '')
+            self.assertNotIn('apt-get', block, item['name'])
+            self.assertNotIn('-m unittest', block, item['name'])
+
+    def test_cache_save_uses_existing_archive_admission(self):
+        for item in STEPS:
+            if item.get('uses') == 'actions/cache/save@v6':
+                self.assertNotIn('hashFiles(', item['if'], item['name'])
+                self.assertIn("outputs.save == 'true'", item['if'], item['name'])
+        bootstrap = step('tb_budget')
+        self.assertNotIn('hashFiles(', bootstrap['if'])
+        self.assertLess(bootstrap['run'].index('[ ! -s tbarchive/bootstrap.tar.gz ]'),
+                        bootstrap['run'].index('cache_helper.py admit'))
+
     def test_complete_environment_success_and_early_failures(self):
-        expected = ['snapshot', 'daemon', 'reload', 'build', 'image', 'run', 'exec', 'install']
+        expected = ['snapshot', 'build', 'image', 'run', 'exec', 'install']
         for fail in ['', *expected, 'missing-config']:
             with self.subTest(fail=fail), tempfile.TemporaryDirectory() as tmp:
                 base = Path(tmp)

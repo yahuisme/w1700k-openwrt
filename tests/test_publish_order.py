@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-from test_cache_workflow import STEPS, step, render, render_env
+from test_cache_workflow import STEPS, step, render, render_env, MATRIX
 import test_release_safety as release
 from test_cache_workflow import ROOT
 from test_cache_helper import GH, entry
@@ -36,7 +36,7 @@ class PublishOrderTests(unittest.TestCase):
         self.assertLess(STEPS.index(step('Build installer')), STEPS.index(stage))
         self.assertLess(STEPS.index(cache_tail[-1]), STEPS.index(publish))
         self.assertEqual(publish['env'], {'GH_TOKEN': '${{ secrets.RELEASE_TOKEN }}'})
-        cases = ['', 'Validate formal firmware', 'Build installer', 'Download sources', 'Compile firmware', stage['name'], publish['name'], 'cancel_before_compile',
+        cases = ['', 'environment', 'Validate formal firmware', 'Build installer', 'Download sources', 'Compile firmware', stage['name'], publish['name'], 'cancel_before_compile',
                  'cancel_after_stage', 'Collect build record', 'Upload build record'] + [s['name'] for s in cache_tail]
         for fault in cases:
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as tmp:
@@ -61,6 +61,9 @@ esac
                 cc.parent.mkdir(parents=True)
                 cc.write_text('#!/bin/bash\nexit 0\n')
                 cc.chmod(0o755)
+                bootstrap = base / 'tbarchive/bootstrap.tar.gz'
+                bootstrap.parent.mkdir()
+                bootstrap.write_bytes(b'fixture bootstrap archive')
                 # Execute actual YAML shell blocks, mocking only external build,
                 # cache, sudo and GitHub commands. Never invoke a host compiler.
                 stubs = '''
@@ -87,15 +90,16 @@ export -f sudo nproc make python3 docker_exec git
                            GITHUB_OUTPUT=str(base / 'output'), GITHUB_SHA='a' * 40,
                            GITHUB_REPOSITORY='fixture/repo', LOG=str(base / 'calls'),
                            IMAGE_ID='sha256:'+'a'*64, BUILDER_FINGERPRINT='b'*64,
-                           BOOTSTRAP_KEY='tb-v1-ubi2-new',
+                           BOOTSTRAP_KEY=MATRIX['tb'] + 'new',
                            PATH=str(base / 'bin') + ':' + os.environ['PATH'], FAULT=fault)
                 values = {'secrets.RELEASE_TOKEN': 'fixture-token',
                           'steps.tc_restore.outputs.hit': 'false',
+                          'steps.environment.outcome': 'failure' if fault == 'environment' else 'success',
                           'steps.tb_restore.outputs.hit': 'false',
                           'steps.tc_restore.outputs.poisoned': 'false',
                           'steps.tb_restore.outputs.poisoned': 'false',
-                          'steps.tb_inputs.outputs.key': 'tb-v1-ubi2-new'}
-                successful = True
+                          'steps.tb_inputs.outputs.key': MATRIX['tb'] + 'new'}
+                successful = fault != 'environment'
                 cancelled = fault == 'cancel_before_compile'
                 executed, saved, outcomes = [], [], {}
                 for current in STEPS[STEPS.index(step('Download sources')):]:
@@ -143,11 +147,14 @@ export -f sudo nproc make python3 docker_exec git
                             'success' if outcome == 'failure' and current.get('continue-on-error') else outcome)
                     if name == stage['name'] and fault == 'cancel_after_stage':
                         cancelled = True
-                should_publish = fault not in ('Validate formal firmware', 'Build installer', 'Download sources', 'Compile firmware', stage['name'],
+                should_publish = fault not in ('environment', 'Validate formal firmware', 'Build installer', 'Download sources', 'Compile firmware', stage['name'],
                                                'cancel_before_compile', 'cancel_after_stage')
                 self.assertEqual(publish['name'] in executed, should_publish, (fault, outcomes))
                 calls = (base / 'calls').read_text() if (base / 'calls').exists() else ''
                 self.assertEqual('release create' in calls, should_publish)
+                for name in ('Collect build record', 'Upload build record'):
+                    self.assertEqual(name in executed, not (fault == 'environment' or fault.startswith('cancel_')),
+                                     (fault, outcomes))
                 if fault in ('', publish['name'], 'Collect build record', 'Upload build record'):
                     self.assertEqual(saved, ['ccarchive', 'tcarchive', 'tbarchive', 'dlarchive'])
                 if fault in [s['name'] for s in cache_tail]:
@@ -198,7 +205,7 @@ class CachePublicationIntegrationTests(unittest.TestCase):
             for directory in ('ccarchive', 'tcarchive', 'dlarchive', 'dlcache'):
                 (base / directory).mkdir()
             state = base / 'state.json'
-            old = [entry(1, 'cc-v3-ubi2.old'), entry(2, 'tc-v3-ubi2-old'), entry(3, 'dl-v3.old')]
+            old = [entry(i, MATRIX[tier] + 'old') for i, tier in enumerate(('cc', 'tc', 'dl'), 1)]
             state.write_text(json.dumps(dict(entries=old, calls=[], reads=0,
                                              fail_reads=[2] if fault == 'readback' else [])))
             gh = GH.replace("if a == ['api', '--paginate'", """if a[:2] == ['api', 'repos/fixture/repo/git/ref/heads/main']:
@@ -263,13 +270,14 @@ export -f make docker_exec sudo git
                 (base / 'dlcache/broken').symlink_to('missing')
             values = {'secrets.RELEASE_TOKEN': 'fixture-token',
                       'steps.tc_restore.outputs.hit': tc_hit,
+                      'steps.environment.outcome': 'success',
                       'steps.tb_restore.outputs.hit': tb_hit,
                       'steps.tc_restore.outputs.poisoned': 'false',
-                          'steps.tb_restore.outputs.poisoned': 'false',
-                          'steps.tb_inputs.outputs.key': 'tb-v1-ubi2-new',
-                      'steps.inputs.outputs.key': 'tc-v3-ubi2-new',
-                      'steps.gh.outputs.cache-primary-key': 'cc-v3-ubi2.new',
-                      'steps.dl.outputs.cache-primary-key': 'dl-v3.new',
+                      'steps.tb_restore.outputs.poisoned': 'false',
+                      'steps.tb_inputs.outputs.key': MATRIX['tb'] + 'new',
+                      'steps.inputs.outputs.key': MATRIX['tc'] + 'new',
+                      'steps.gh.outputs.cache-primary-key': MATRIX['cc'] + 'new',
+                      'steps.dl.outputs.cache-primary-key': MATRIX['dl'] + 'new',
                       'steps.dl.outputs.cache-matched-key': '',
                       'steps.stage.outcome': 'skipped'}
             successful, cancelled = True, False
@@ -375,7 +383,7 @@ export -f make docker_exec sudo git
                     self.assertEqual(self.conclusions['Upload build record'], 'success', log)
                 if fault in ('none', 'publish', 'metadata', 'metadata-feed', 'metadata-external', 'metadata-external-invalid', 'upload'):
                     self.assertEqual({item['key'] for item in inventory['entries']},
-                                     {'cc-v3-ubi2.new', 'tc-v3-ubi2-new', 'dl-v3.new'}, log)
+                                     {MATRIX[tier] + 'new' for tier in ('cc', 'tc', 'dl')}, log)
                     self.assertLess(executed.index('Prune old download caches'),
                                     executed.index('Publish firmware and prune releases'))
                 else:

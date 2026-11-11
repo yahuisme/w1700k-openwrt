@@ -116,23 +116,23 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('--restored', check['run'])
         admit = step('dl_budget')
         save = next(s for s in STEPS if s.get('uses') == 'actions/cache/save@v6' and s['with']['path'] == 'dlarchive')
+        self.assertNotIn('hashFiles(', admit.get('if', ''))
+        self.assertNotIn('hashFiles(', save.get('if', ''))
         for changed in ('true', 'false', ''):
             for admitted in ('true', 'false', ''):
-                for archive in ('present', ''):
-                    values = {'steps.dl_changed.outputs.save': changed,
-                              'steps.dl_budget.outputs.save': admitted,
-                              "hashFiles('dlarchive/dl.tar.gz')": archive}
-                    for s, expected in (
-                        (check, True),
-                        (admit, changed == 'true'),
-                        (save, changed == 'true' and admitted == 'true' and bool(archive)),
-                    ):
-                        condition = s.get('if', 'True')
-                        for key in sorted(values, key=len, reverse=True):
-                            condition = condition.replace(key, repr(values[key]))
-                        # Only trusted local workflow comparisons and fixture literals;
-                        # no event input, network data, or builtins are evaluated.
-                        self.assertEqual(eval(condition.replace('&&', ' and '), {'__builtins__': {}}), expected)
+                values = {'steps.dl_changed.outputs.save': changed,
+                          'steps.dl_budget.outputs.save': admitted}
+                for s, expected in (
+                    (check, True),
+                    (admit, changed == 'true'),
+                    (save, changed == 'true' and admitted == 'true'),
+                ):
+                    condition = s.get('if', 'True')
+                    for key in sorted(values, key=len, reverse=True):
+                        condition = condition.replace(key, repr(values[key]))
+                    # Only trusted local workflow comparisons and fixture literals;
+                    # no event input, network data, or builtins are evaluated.
+                    self.assertEqual(eval(condition.replace('&&', ' and '), {'__builtins__': {}}), expected)
             values = {'steps.dl_changed.outputs.save': changed,
                       'steps.tc_restore.outputs.hit': 'true'}
             block = render(step('Prepare build caches')['run'], values)

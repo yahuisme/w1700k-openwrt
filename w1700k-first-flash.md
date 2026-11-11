@@ -21,8 +21,6 @@ openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb
 
 另一个文件 `openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb` 用于日常升级，不要替代 Installer。首次安装的两个文件不要混用发行版或版本。
 
-Installer 使用同次 OpenWrt 源码构建临时系统，内嵌同次 sysupgrade。安装完成就是本仓库的完整 OpenWrt 系统，包含中文 LuCI，无需再刷一次。
-
 ## 2. 连接与设置
 
 ### 接线
@@ -123,6 +121,10 @@ reset
 4. Boot installer via TFTP
 ```
 
+本仓库 Chainloader 默认请求 `openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb`。
+
+若已有 Chainloader 请求的文件名不同，以 Tftpd64 显示的请求名为准：将本次下载的 Installer 复制一份并改为该名称，再选择菜单，不要换用其他发行版或版本的文件。
+
 下载并启动后，串口会提示：
 
 ```text
@@ -141,6 +143,8 @@ Initialize/reinstall UBI2 on mtd2 and erase its contents? (yes/no)
 > 进入命令行不代表安装完成，短暂无输出时不要断电。报错或未自动重启时，保留完整串口日志，不要盲目重刷。
 
 ## 4. 登录后台
+
+安装完成后即为本仓库的完整系统，包含中文 LuCI，无需再次升级。
 
 1. 电脑保持连接黄色 1G LAN 口。
 2. 将有线网卡恢复为自动获取 IP 和 DNS。

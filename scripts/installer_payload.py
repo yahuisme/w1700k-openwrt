@@ -149,6 +149,13 @@ def verify_embedded(path, expected):
         mode, size = fields[1], fields[6]
         if name == 'TRAILER!!!':
             break
+        # Validate after recognizing the archive: an unsafe first member must
+        # not be skipped as a kernel string literal. Allow the native root
+        # directory and one leading ./, but never filesystem path aliases.
+        if name in ('', '.') and stat.S_ISDIR(mode):
+            pass
+        elif any(part in ('', '.', '..') for part in name.split('/')):
+            raise ValueError('Invalid embedded newc path: ' + name)
         if name in expected:
             if name in entries or not stat.S_ISREG(mode):
                 raise ValueError('Duplicate/nonregular embedded input: ' + name)

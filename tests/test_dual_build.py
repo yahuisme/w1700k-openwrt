@@ -80,6 +80,30 @@ class DualBuildTests(unittest.TestCase):
             script = (root / 'user/default/custom.sh').read_text()
             script = script.replace('# Shared 610 replaces the upstream CN/US customization.',
                                     '# Shared 610 covers the CN/US customization previously provided by 600.')
+            # Normalize only explicitly reviewed post-migration additions.
+            for payload in (
+                'tree/package/network/utils/iwinfo/patches/998-fix-multi-radio-scan.patch',
+                'tree/package/network/services/hostapd/patches/mtk-0015-hostapd-mtk-6G-band-does-not-require-DFS.patch',
+                'tree/package/system/procd/patches/001-watchdog-clamp-default-to-device-limit.patch',
+            ):
+                # The last preflight member owns the shell loop delimiter.
+                last = '    ' + payload + '; do\n'
+                continued = '    ' + payload + ' \\\n'
+                self.assertEqual(script.count(last) + script.count(continued), 1, payload)
+                if last in script:
+                    script = script.replace(' \\\n' + last, '; do\n', 1)
+                else:
+                    script = script.replace(continued, '', 1)
+            watchdog = '''# Expose the native watchdog timeout limit to procd.
+KERNEL_CONFIG=target/linux/airoha/an7581/config-6.18
+[ -f "$KERNEL_CONFIG" ] || { echo "ERROR: Airoha kernel config not found" >&2; exit 1; }
+sed -i '/^CONFIG_WATCHDOG_SYSFS=/d; /^# CONFIG_WATCHDOG_SYSFS is not set$/d' "$KERNEL_CONFIG"
+printf 'CONFIG_WATCHDOG_SYSFS=y\\n' >> "$KERNEL_CONFIG"
+# End watchdog timeout limit
+
+'''
+            self.assertEqual(script.count(watchdog), 1)
+            script = script.replace(watchdog, '', 1)
             self.assertEqual(hashlib.sha256(script.encode()).hexdigest(), '91a1f09c268b6e0dfbb29c7cb8528a73dfdd9acc985ef82fce3f9776e1207247')
             installer = (root / 'installer/files/installer/install.sh').read_text()
             installer = installer.replace('  # No pipeline: preserve the digest tool failure even if it prints output.\n', '')

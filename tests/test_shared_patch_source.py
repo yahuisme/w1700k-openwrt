@@ -20,7 +20,7 @@ class SharedPatchSource(unittest.TestCase):
     def test_complete_customization_and_invalid_payloads(self):
         source = Path(os.environ['TXPOWER_SOURCE'])
         payloads = sorted(p.relative_to(PATCHES) for p in PATCHES.rglob('*.patch'))
-        self.assertEqual(len(payloads), 12, 'update the full production payload matrix')
+        self.assertEqual(len(payloads), 14, 'update the full production payload matrix')
         cases = [(None, None)] + [(kind, name) for name in payloads
                                   for kind in ('missing', 'empty')]
         for kind, broken in cases:
@@ -40,7 +40,8 @@ class SharedPatchSource(unittest.TestCase):
                 for name in ('package/network/config/wifi-scripts/files-ucode/lib/netifd/wireless/mac80211.sh',
                              'package/network/config/wifi-scripts/files-ucode/usr/share/ucode/wifi/hostapd.uc',
                              'package/network/services/hostapd/files/hostapd.uc',
-                             'target/linux/airoha/dts/an7581-w1700k-ubi.dts'):
+                             'target/linux/airoha/dts/an7581-w1700k-ubi.dts',
+                             'target/linux/airoha/an7581/config-6.18'):
                     destination = work / name
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copyfile(source / name, destination)
@@ -107,6 +108,8 @@ export -f git python3
                     self.assertIn('Custom commands completed', result.stdout)
                     self.assertEqual(official_templates, {p: (work / p).read_bytes()
                                                         for p in official_templates})
+                    kernel_config = (work / 'target/linux/airoha/an7581/config-6.18').read_text().splitlines()
+                    self.assertEqual(kernel_config.count('CONFIG_WATCHDOG_SYSFS=y'), 1)
                     node(FLASH_RUN, destination, '192.168.8.1')
                     for original in (PATCHES / 'tree').rglob('*.patch'):
                         self.assertEqual(original.read_bytes(), (work / original.relative_to(PATCHES / 'tree')).read_bytes())

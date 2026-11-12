@@ -57,6 +57,7 @@ for file in \
     tree/package/kernel/mt76/patches/911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch \
     tree/package/kernel/mt76/patches/912-mt76-mt7996-use-mcu-station-statistics.patch \
     tree/package/kernel/mt76/patches/913-mt76-mt7996-clean-up-truncated-txfree.patch \
+    tree/package/network/utils/iwinfo/patches/998-fix-multi-radio-scan.patch \
     tree/package/network/utils/iwinfo/patches/999-fix-txpower-list.patch; do
     [ -s "$PATCH_DIR/$file" ] || { echo "ERROR: Required patch missing or empty: $file" >&2; exit 1; }
 done

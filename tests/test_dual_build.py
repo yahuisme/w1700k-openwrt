@@ -28,6 +28,12 @@ class DualBuildTests(unittest.TestCase):
         self.assertEqual(workflow['concurrency'], {'group': 'w1700k-cache', 'cancel-in-progress': False})
 
 
+    def test_workflow_names_distinguish_entry_and_template(self):
+        entry = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())
+        worker = yaml.safe_load(WORKFLOW.read_text())
+        self.assertEqual(entry['name'], 'W1700K Firmware')
+        self.assertEqual(worker['name'], 'W1700K Build Template')
+
     def test_reusable_workflow_has_only_the_call_trigger(self):
         entry = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())
         worker = yaml.safe_load(WORKFLOW.read_text())
@@ -123,6 +129,7 @@ class DualBuildTests(unittest.TestCase):
                                     '# Shared 610 covers the CN/US customization previously provided by 600.')
             # Normalize only explicitly reviewed post-migration additions.
             for payload in (
+                'tree/package/kernel/mt76/patches/914-mt76-mt7996-free-rro-drop-buffers.patch',
                 'tree/package/network/utils/iwinfo/patches/998-fix-multi-radio-scan.patch',
                 'tree/package/network/services/hostapd/patches/mtk-0015-hostapd-mtk-6G-band-does-not-require-DFS.patch',
                 'tree/package/system/procd/patches/001-watchdog-clamp-default-to-device-limit.patch',

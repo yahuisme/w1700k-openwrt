@@ -1,4 +1,4 @@
-name: W1700K Build Firmware
+name: W1700K Build Template
 
 on:
   workflow_call:

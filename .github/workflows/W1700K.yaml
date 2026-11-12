@@ -1,4 +1,4 @@
-name: W1700K Firmware Builds
+name: W1700K Firmware
 
 on:
   workflow_dispatch:

@@ -10,7 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 from patch_source import PATCHES
 
 NEW = ('912-mt76-mt7996-use-mcu-station-statistics.patch',
-       '913-mt76-mt7996-clean-up-truncated-txfree.patch')
+       '913-mt76-mt7996-clean-up-truncated-txfree.patch',
+       '914-mt76-mt7996-free-rro-drop-buffers.patch')
 
 
 class Mt76PayloadTests(unittest.TestCase):
@@ -49,6 +50,9 @@ class Mt76PayloadTests(unittest.TestCase):
                     self.assertIn(str(name), result.stderr)
 
     def test_complete_payload_passes(self):
+        custom = (ROOT / 'user/default/custom.sh').read_text()
+        for name in NEW:
+            self.assertIn('tree/package/kernel/mt76/patches/' + name, custom)
         result = self.preflight()
         self.assertEqual(result.returncode, 0, result.stderr)
         for name in NEW:

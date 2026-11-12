@@ -7,21 +7,63 @@ import subprocess
 import tempfile
 import unittest
 import yaml
+from workflow_fixture import WORKFLOW, distribution_inputs
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class DualBuildTests(unittest.TestCase):
-    def test_both_distributions_run_without_fail_fast(self):
+    def test_explicit_distributions_run_serially_without_failure_cascade(self):
         workflow = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())
-        build = workflow['jobs']['build']
-        self.assertIn('strategy', build, 'one invocation must build both distributions')
-        strategy = build['strategy']
-        self.assertFalse(strategy['fail-fast'])
-        self.assertEqual(strategy['max-parallel'], 1, 'cache admission shares one repository budget')
-        self.assertEqual(strategy['matrix']['system'], ['openwrt', 'immortalwrt'])
+        self.assertEqual(list(workflow['jobs']), ['openwrt', 'immortalwrt'])
+        first, second = workflow['jobs'].values()
+        self.assertNotIn('needs', first)
+        self.assertNotIn('if', first)
+        self.assertEqual(second['needs'], 'openwrt')
+        self.assertEqual(second['if'], "${{ !cancelled() && needs.openwrt.result != 'cancelled' }}")
+        for system, job in workflow['jobs'].items():
+            self.assertEqual(job['uses'], './.github/workflows/build-firmware.yaml')
+            self.assertEqual(job['with']['system'], system)
+            self.assertNotIn('strategy', job)
         self.assertEqual(workflow['concurrency'], {'group': 'w1700k-cache', 'cancel-in-progress': False})
 
+
+    def test_reusable_workflow_has_only_the_call_trigger(self):
+        entry = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())
+        worker = yaml.safe_load(WORKFLOW.read_text())
+        triggers = worker.get('on', worker.get(True))
+        self.assertEqual(set(triggers), {'workflow_call'})
+        call = triggers['workflow_call']
+        self.assertEqual(set(call['inputs']), {'system', 'title', 'tc', 'cc', 'dl', 'tb'})
+        self.assertEqual(call['secrets'], {'RELEASE_TOKEN': {'required': True}})
+        self.assertEqual(worker['permissions'], entry['permissions'])
+        self.assertNotIn('concurrency', worker, 'only the entry owns the cache lock')
+        self.assertEqual(list(worker['jobs']), ['build'])
+        build = worker['jobs']['build']
+        self.assertEqual(build['runs-on'], 'ubuntu-24.04-arm')
+        self.assertNotIn('strategy', build)
+        for system, job in entry['jobs'].items():
+            self.assertEqual(job['name'], {'openwrt': 'OpenWrt', 'immortalwrt': 'ImmortalWrt'}[system])
+            self.assertEqual(set(job['with']), set(call['inputs']))
+            self.assertEqual(job['secrets'], {'RELEASE_TOKEN': '${{ secrets.RELEASE_TOKEN }}'})
+            for spec in call['inputs'].values():
+                self.assertEqual(spec, {'required': True, 'type': 'string'})
+        self.assertEqual(build['steps'][0]['uses'], 'actions/checkout@v7')
+        self.assertNotIn('ref', build['steps'][0].get('with', {}))
+
+    def test_failure_and_cancellation_conditions(self):
+        workflow = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())
+        expression = workflow['jobs']['immortalwrt']['if']
+        self.assertTrue(expression.startswith('${{ ') and expression.endswith(' }}'))
+        expression = expression[4:-3]
+        for cancelled in (False, True):
+            for result in ('success', 'failure', 'cancelled', 'skipped'):
+                with self.subTest(cancelled=cancelled, result=result):
+                    condition = expression.replace('!cancelled()', str(not cancelled))
+                    condition = condition.replace('needs.openwrt.result', repr(result)).replace('&&', ' and ')
+                    # Evaluate only the checked-in condition with fixed local values.
+                    actual = eval(condition, {'__builtins__': {}})
+                    self.assertEqual(actual, not cancelled and result != 'cancelled')
 
     def test_immortal_profile_and_installer_are_selected_together(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -46,9 +88,8 @@ class DualBuildTests(unittest.TestCase):
             self.assertIsNone(before)
 
 
-    def test_selected_cache_namespaces_match_matrix_and_protect_peer(self):
-        workflow = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())
-        rows = workflow['jobs']['build']['strategy']['matrix']['include']
+    def test_selected_cache_namespaces_match_inputs_and_protect_peer(self):
+        rows = distribution_inputs()
         namespaces = []
         for row in rows:
             with self.subTest(system=row['system']), tempfile.TemporaryDirectory() as tmp:
@@ -134,12 +175,12 @@ printf 'CONFIG_WATCHDOG_SYSFS=y\\n' >> "$KERNEL_CONFIG"
 
 
     def test_workflow_selects_profile_before_any_consumer(self):
-        workflow = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())
+        workflow = yaml.safe_load(WORKFLOW.read_text())
         steps = workflow['jobs']['build']['steps']
         names = [step['name'] for step in steps]
         self.assertLess(names.index('Select distribution'), names.index('Restore compiler cache'))
         upload = next(step for step in steps if step.get('id') == 'record_upload')
-        self.assertIn('matrix.system', upload['with']['name'])
+        self.assertIn('inputs.system', upload['with']['name'])
         self.assertEqual(upload['with']['retention-days'], 30)
         for step in steps:
             if step.get('id') in ('formal', 'stage'):
@@ -170,7 +211,7 @@ printf 'CONFIG_WATCHDOG_SYSFS=y\\n' >> "$KERNEL_CONFIG"
                 for name in ('user', 'installer', 'scripts'):
                     shutil.copytree(ROOT / name, root / name)
                 subprocess.run(['/usr/bin/python3', 'scripts/select_distribution.py', system], cwd=root, check=True)
-                rows = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())['jobs']['build']['strategy']['matrix']['include']
+                rows = distribution_inputs()
                 own = next(row for row in rows if row['system'] == system)
                 other = next(row for row in rows if row['system'] == peer)
                 entries = [entry(1, own['cc'] + 'old', 300_000_000),

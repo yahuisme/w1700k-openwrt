@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = next((ROOT / '.github/workflows').glob('*y*ml'))
+WORKFLOW = ROOT / '.github/workflows/W1700K.yaml'
 
 
 class BuildScheduleTests(unittest.TestCase):
@@ -33,10 +33,10 @@ class BuildScheduleTests(unittest.TestCase):
                 self.assertEqual(days[-1], 1 + 3 * ((monthrange(year, month)[1] - 1) // 3))
 
     def test_build_has_no_daily_date_gate(self):
-        self.assertEqual(set(self.workflow['jobs']), {'build'})
-        build = self.workflow['jobs']['build']
-        self.assertNotIn('needs', build)
-        self.assertNotIn('if', build)
+        self.assertEqual(set(self.workflow['jobs']), {'openwrt', 'immortalwrt'})
+        self.assertNotIn('needs', self.workflow['jobs']['openwrt'])
+        self.assertNotIn('if', self.workflow['jobs']['openwrt'])
+        self.assertEqual(self.workflow['jobs']['immortalwrt']['needs'], 'openwrt')
         self.assertFalse((ROOT / 'scripts/build_schedule.py').exists())
 
     def test_manual_dispatch_remains_available(self):

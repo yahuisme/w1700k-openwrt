@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import unittest
 import yaml
-from test_cache_workflow import render_env, STEPS
+from test_cache_workflow import render_env, STEPS, MATRIX
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -50,7 +50,7 @@ class BootstrapWorkflowTests(unittest.TestCase):
                           'steps.tb_restore.outputs.hit': 'false' if save == 'true' else 'true',
                           'steps.tc_restore.outputs.poisoned': 'false',
                           'steps.tb_restore.outputs.poisoned': 'false',
-                          'steps.tb_inputs.outputs.key': 'tb-v1-ubi2-test'}
+                          'steps.tb_inputs.outputs.key': MATRIX['tb'] + 'test'}
                 env = dict(os.environ, **render_env(item, values), DK_OPENWRT=tmp,
                            LOG=str(root / 'calls'), PACK_STATUS=str(pack_status), MAIN_STATUS=str(main_status))
                 prefix = '''
@@ -83,7 +83,7 @@ class BootstrapWorkflowTests(unittest.TestCase):
             with self.subTest(status=status, digest=digest), tempfile.TemporaryDirectory() as tmp:
                 output = Path(tmp) / 'output'
                 env = dict(os.environ, GITHUB_OUTPUT=str(output), DK_OPENWRT='/build',
-                           BUILDER_FINGERPRINT='b' * 64, TOOLCHAIN_KEY='tc-v3-ubi2-test',
+                           BUILDER_FINGERPRINT='b' * 64, TOOLCHAIN_KEY=MATRIX['tc'] + 'test',
                            KEY_STATUS=str(status), DIGEST=digest)
                 prefix = 'docker_exec() { printf "%s\\n" "$DIGEST"; return "$KEY_STATUS"; };\n'
                 result = subprocess.run(['bash', '-eo', 'pipefail', '-c', prefix + block],
@@ -93,7 +93,7 @@ class BootstrapWorkflowTests(unittest.TestCase):
                     self.assertFalse(output.exists())
                 else:
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertEqual(output.read_text(), 'key=tb-v1-ubi2-' + digest + '\n')
+                    self.assertEqual(output.read_text(), 'key=' + MATRIX['tb'] + digest + '\n')
 
     def test_bootstrap_save_is_confirmed_before_next_tier(self):
         all_steps = steps()
@@ -105,8 +105,8 @@ class BootstrapWorkflowTests(unittest.TestCase):
         self.assertEqual(all_steps.index(save), all_steps.index(admission) + 1)
         self.assertEqual(all_steps.index(cleanup), all_steps.index(save) + 1)
         self.assertLess(all_steps.index(cleanup), all_steps.index(by_id['dl_budget']))
-        self.assertIn('tb-v1-ubi2-', admission['run'])
-        self.assertIn('tb-v1-ubi2-', cleanup['run'])
+        self.assertIn(MATRIX['tb'], admission['run'])
+        self.assertIn(MATRIX['tb'], cleanup['run'])
         self.assertEqual(cleanup['if'], "steps.tb_budget.outputs.save == 'true'")
         self.assertNotIn('continue-on-error', cleanup)
 

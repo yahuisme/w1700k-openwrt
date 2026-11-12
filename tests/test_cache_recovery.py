@@ -84,7 +84,7 @@ class RecoveryTests(unittest.TestCase):
 
     def test_workflow_consumers_use_health_not_raw_action_hits(self):
         import yaml
-        steps = yaml.safe_load((REPO / '.github/workflows/W1700K.yaml').read_text())['jobs']['build']['steps']
+        steps = yaml.safe_load((REPO / '.github/workflows/build-firmware.yaml').read_text())['jobs']['build']['steps']
         by_id = {s['id']: s for s in steps if 'id' in s}
         for tier in ('gh', 'dl', 'tc', 'tb'):
             self.assertTrue(by_id[tier].get('continue-on-error'), tier)
@@ -124,7 +124,7 @@ class RecoveryTests(unittest.TestCase):
     def test_production_unpack_blocks_emit_only_effective_outputs(self):
         import yaml
         from test_cache_workflow import render, render_env
-        steps = yaml.safe_load((REPO / '.github/workflows/W1700K.yaml').read_text())['jobs']['build']['steps']
+        steps = yaml.safe_load((REPO / '.github/workflows/build-firmware.yaml').read_text())['jobs']['build']['steps']
         for kind, name in (('ccache', 'Extract compiler cache'), ('dl', 'Extract download cache'),
                            ('toolchain', 'Extract toolchain cache'), ('bootstrap', 'Extract compiler bootstrap')):
             with self.subTest(kind=kind):

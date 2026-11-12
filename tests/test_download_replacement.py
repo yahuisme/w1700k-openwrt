@@ -4,7 +4,7 @@ from pathlib import Path
 import unittest
 
 import test_cache_helper as safety
-from test_cache_workflow import step
+from test_cache_workflow import step, MATRIX
 
 h, entry = safety.h, safety.entry
 DL, TC, CC = safety.DL, safety.TC, safety.CC
@@ -145,7 +145,7 @@ class DownloadReplacementTests(unittest.TestCase):
 
     def test_production_download_step_opts_in_without_changing_other_tiers(self):
         self.assertEqual(step('Check download cache budget')['run'].strip(),
-                         "python3 scripts/cache_helper.py admit 'dl-v3.' dlarchive/dl.tar.gz "
+                         f"python3 scripts/cache_helper.py admit '{MATRIX['dl']}' dlarchive/dl.tar.gz "
                          "'${{ steps.dl.outputs.cache-primary-key }}' --replace-download")
         for name in ('Prepare build caches', 'Check toolchain cache budget', 'Check bootstrap cache budget'):
             self.assertNotIn('--replace-download', step(name)['run'])

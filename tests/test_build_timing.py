@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class BuildTimingTests(unittest.TestCase):
     def test_timing_covers_bootstrap_world_and_failures(self):
-        workflow = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())
+        workflow = yaml.safe_load((ROOT / '.github/workflows/build-firmware.yaml').read_text())
         block = next(s['run'] for s in workflow['jobs']['build']['steps']
                      if s.get('name') == 'Compile firmware')
         for hot, pre, main, fallback, stats in (

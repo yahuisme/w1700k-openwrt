@@ -1,5 +1,6 @@
 """Official-source migration contract; optional real prepared-tree checks."""
 import os
+import json
 from pathlib import Path
 import subprocess
 import tempfile
@@ -11,14 +12,14 @@ from patch_source import PATCHES
 
 class OfficialMigrationTests(unittest.TestCase):
     def test_single_standard_official_source(self):
-        workflow = (ROOT / '.github/workflows/W1700K.yaml').read_text()
+        workflow = (ROOT / '.github/workflows/build-firmware.yaml').read_text()
         self.assertIn('. "$DK_PROFILE/settings.ini"', workflow)
-        for folder, system, branch in [('default', 'openwrt', 'main'),
+        selected = json.loads((ROOT / 'user/default/build.json').read_text())['system']
+        for folder, system, branch in [('default', selected, 'main' if selected == 'openwrt' else 'master'),
                                        ('immortalwrt', 'immortalwrt', 'master')]:
             settings = (ROOT / 'user' / folder / 'settings.ini').read_text()
             self.assertIn(f'REPO_URL="https://github.com/{system}/{system}"', settings)
             self.assertIn(f'REPO_BRANCH="{branch}"', settings)
-        self.assertIn("cron: '0 0 1-31/3 * *'", workflow)
         for removed in ('matrix.target', 'ubi2-oc', 'w1700k.github.io', 'vermagic.txt'):
             self.assertNotIn(removed, workflow)
         self.assertLess(workflow.index('git clean -ffdx'), workflow.index('./scripts/feeds update'))

@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class FetchFailureTests(unittest.TestCase):
     def test_fetch_failure_stops_before_reset(self):
-        lines = (ROOT / '.github/workflows/W1700K.yaml').read_text().splitlines()
+        lines = (ROOT / '.github/workflows/build-firmware.yaml').read_text().splitlines()
         start = next(i for i, line in enumerate(lines) if 'git fetch origin ' in line)
         end = next(i for i in range(start, len(lines)) if 'git clean -ffdx' in lines[i])
         fragment = '\n'.join(line.strip() for line in lines[start:end + 1])

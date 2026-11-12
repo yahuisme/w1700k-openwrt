@@ -35,7 +35,7 @@ class ProfileContract(unittest.TestCase):
 
     def test_workflow_installs_rootfs_overlay(self):
         import yaml
-        workflow = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())
+        workflow = yaml.safe_load((ROOT / '.github/workflows/build-firmware.yaml').read_text())
         block = next(s['run'] for s in workflow['jobs']['build']['steps']
                      if s.get('id') == 'inputs')
         commands = [line.strip() for line in block.splitlines()

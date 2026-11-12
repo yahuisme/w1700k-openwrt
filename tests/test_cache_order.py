@@ -8,15 +8,16 @@ import tempfile
 import unittest
 import yaml
 from test_cache_helper import GH, entry
-from test_cache_workflow import STEPS
+from test_cache_workflow import STEPS, MATRIX
 
 ROOT = Path(__file__).resolve().parents[1]
+TC, CC, DL, TB = (MATRIX[tier] for tier in ('tc', 'cc', 'dl', 'tb'))
 
 # Reconstructed from run 34728875877 inventory total and the three recorded
 # upload sizes (34706572059, 34711268819, current API). IDs are fixture-only.
-REAL = [entry(1, 'tc-v3-ubi2-a8b702', 1564072318),
-        entry(2, 'cc-v3-ubi2.34706572059.1', 534728921),
-        entry(3, 'cc-v3-ubi2.34711268819.1', 534835080)]
+REAL = [entry(1, TC + 'a8b702', 1564072318),
+        entry(2, CC + '34706572059.1', 534728921),
+        entry(3, CC + '34711268819.1', 534835080)]
 
 
 class CacheOrderTests(unittest.TestCase):
@@ -44,14 +45,14 @@ class CacheOrderTests(unittest.TestCase):
                     with p.open('wb') as f:
                         f.truncate(size)
             values = {'steps.tc_restore.outputs.hit': 'true' if warm else 'false',
-                      'steps.inputs.outputs.key': 'tc-v3-ubi2-new',
-                      'steps.gh.outputs.cache-primary-key': 'cc-v3-ubi2.new',
-                      'steps.dl.outputs.cache-primary-key': 'dl-v3.new',
+                      'steps.inputs.outputs.key': TC + 'new',
+                      'steps.gh.outputs.cache-primary-key': CC + 'new',
+                      'steps.dl.outputs.cache-primary-key': DL + 'new',
                       'steps.dl_changed.outputs.save': 'true',
                       'steps.tb_restore.outputs.hit': 'false',
                       'steps.tc_restore.outputs.poisoned': 'false',
                           'steps.tb_restore.outputs.poisoned': 'false',
-                          'steps.tb_inputs.outputs.key': 'tb-v1-ubi2-new'}
+                          'steps.tb_inputs.outputs.key': TB + 'new'}
             env = dict(os.environ, PATH=tmp + os.pathsep + os.environ['PATH'],
                        MOCK_STATE=str(state), GITHUB_REF='refs/heads/main', GITHUB_OUTPUT=str(base / 'output'))
             def resolve(expr):
@@ -108,10 +109,10 @@ class CacheOrderTests(unittest.TestCase):
             return saves, json.loads(state.read_text()), '\n'.join(logs)
 
     def test_measured_download_replacement_order_and_upload_failure(self):
-        entries = [entry(1, 'tc-v3-ubi2-new', 1_566_850_926),
-                   entry(2, 'cc-v3-ubi2.old', 1_079_492_879),
-                   entry(3, 'tb-v1-ubi2-old', 216_817_510),
-                   entry(4, 'dl-v3.old', 3_738_752_266)]
+        entries = [entry(1, TC + 'new', 1_566_850_926),
+                   entry(2, CC + 'old', 1_079_492_879),
+                   entry(3, TB + 'old', 216_817_510),
+                   entry(4, DL + 'old', 3_738_752_266)]
         saves, state, log = self.run_tail(entries, warm=True, cc=1_079_492_879,
                                           tc=None, dl=3_738_752_266)
         self.assertEqual(saves, ['cc', 'dl'], log)
@@ -120,7 +121,7 @@ class CacheOrderTests(unittest.TestCase):
         self.assertLess(calls.index(['cache', 'delete', '2']),
                         calls.index(['cache', 'delete', '4']))
         self.assertEqual({e['key'] for e in state['entries']},
-                         {'tc-v3-ubi2-new', 'cc-v3-ubi2.new', 'tb-v1-ubi2-old', 'dl-v3.new'})
+                         {TC + 'new', CC + 'new', TB + 'old', DL + 'new'})
         # Only the download upload is pending here. A failed save may leave no
         # old download seed, but never removes compiler/toolchain/bootstrap.
         for fault in ('action_failure', 'warning'):
@@ -135,15 +136,15 @@ class CacheOrderTests(unittest.TestCase):
                                  [['cache', 'delete', '4']])
 
     def test_bootstrap_tail_saves_and_confirms_before_download(self):
-        entries = [entry(1, 'tc-v3-ubi2-old', 1566625575),
-                   entry(2, 'cc-v3-ubi2.old', 1110777262),
-                   entry(3, 'dl-v3.old', 3073244832),
-                   entry(4, 'tb-v1-ubi2-old', 900000000)]
+        entries = [entry(1, TC + 'old', 1566625575),
+                   entry(2, CC + 'old', 1110777262),
+                   entry(3, DL + 'old', 3073244832),
+                   entry(4, TB + 'old', 900000000)]
         saves, state, log = self.run_tail(entries, cc=1110777262, tc=1566625575,
                                           dl=3073244832, tb=900000000)
         self.assertEqual(saves, ['cc', 'tc', 'tb', 'dl'], log)
         self.assertEqual({e['key'] for e in state['entries']},
-                         {'cc-v3-ubi2.new', 'tc-v3-ubi2-new', 'tb-v1-ubi2-new', 'dl-v3.new'})
+                         {CC + 'new', TC + 'new', TB + 'new', DL + 'new'})
         for fault in ('warning', 'wrong_ref', 'zero', 'action_failure'):
             with self.subTest(fault=fault):
                 saves, state, log = self.run_tail(entries, warm=False, cc=None, tc=None,
@@ -154,11 +155,11 @@ class CacheOrderTests(unittest.TestCase):
 
     def test_measured_download_tail_preserves_retired_oc(self):
         # Historical OC entries still count toward the standard writer's budget.
-        entries = [entry(1, 'tc-v3-ubi2-old', 1568383907),
-                   entry(2, 'cc-v3-ubi2.old', 548162862),
+        entries = [entry(1, TC + 'old', 1568383907),
+                   entry(2, CC + 'old', 548162862),
                    entry(3, 'tc-v3-ubi2-oc-old', 1568156316),
                    entry(4, 'cc-v3-ubi2-oc.old', 547492660),
-                   entry(5, 'dl-v3.old', 1941241977)]
+                   entry(5, DL + 'old', 1941241977)]
         for warm in (False, True):
             with self.subTest(warm=warm):
                 saves, state, log = self.run_tail(entries, warm=warm,
@@ -171,7 +172,7 @@ class CacheOrderTests(unittest.TestCase):
         saves, state, log = self.run_tail(REAL)
         self.assertEqual(saves, ['cc', 'tc', 'dl'], log)
         self.assertIn('inventory=2099258880 candidate+margin=1642476605', log)
-        self.assertEqual({e['key'] for e in state['entries']}, {'cc-v3-ubi2.new', 'tc-v3-ubi2-new', 'dl-v3.new'})
+        self.assertEqual({e['key'] for e in state['entries']}, {CC + 'new', TC + 'new', DL + 'new'})
 
     def test_unconfirmed_upload_blocks_later_admission(self):
         saves, state, log = self.run_tail(REAL, fault='warning')
@@ -191,7 +192,7 @@ class CacheOrderTests(unittest.TestCase):
                 saves, state, log = self.run_tail([], tb=size)
                 self.assertEqual(saves, ['cc', 'tc', 'dl'], log)
                 self.assertEqual({row['key'] for row in state['entries']},
-                                 {'cc-v3-ubi2.new', 'tc-v3-ubi2-new', 'dl-v3.new'})
+                                 {CC + 'new', TC + 'new', DL + 'new'})
 
     def test_budget_denial_allows_smaller_later_candidate(self):
         saves, _, log = self.run_tail([entry(1, 'legacy', 8600000000)], cc=1500000000, tc=100)
@@ -226,10 +227,10 @@ class CacheOrderTests(unittest.TestCase):
         self.assertEqual(state['entries'], [])
 
     def test_warm_inventory_preserves_retired_oc_and_other_refs(self):
-        entries = [entry(1, 'tc-v3-ubi2-new', 1564072318),
-                   entry(2, 'cc-v3-ubi2.old', 534835080),
+        entries = [entry(1, TC + 'new', 1564072318),
+                   entry(2, CC + 'old', 534835080),
                    entry(3, 'cc-v3-ubi2-oc.peer', 100),
-                   entry(4, 'cc-v3-ubi2.other', 100, 'refs/heads/other')]
+                   entry(4, CC + 'other', 100, 'refs/heads/other')]
         saves, state, log = self.run_tail(entries, warm=True)
         self.assertEqual(saves, ['cc', 'dl'], log)
         self.assertTrue({1, 3, 4} <= {e['id'] for e in state['entries']})

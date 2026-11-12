@@ -9,15 +9,15 @@ import tempfile
 import unittest
 import yaml
 
+from workflow_fixture import ENTRY, WORKFLOW, selected_inputs
+
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / '.github/workflows/W1700K.yaml'
 STEPS = yaml.safe_load(WORKFLOW.read_text())['jobs']['build']['steps']
-MATRIX = next(row for row in yaml.safe_load(WORKFLOW.read_text())['jobs']['build']['strategy']['matrix']['include']
-              if row['system'] == json.loads((ROOT / 'user/default/build.json').read_text())['system'])
+MATRIX = selected_inputs()
 os.environ['SYSTEM'] = MATRIX['system']
 os.environ['DISTRO_TITLE'] = MATRIX['title']
-# Resolve only the trusted matrix literals; step outputs remain fixture inputs.
-STEPS = yaml.safe_load(re.sub(r'\$\{\{\s*matrix\.(\w+)\s*\}\}',
+# Resolve only trusted caller inputs; step outputs remain fixture inputs.
+STEPS = yaml.safe_load(re.sub(r'\$\{\{\s*inputs\.(\w+)\s*\}\}',
                             lambda match: MATRIX[match[1]], yaml.safe_dump(STEPS)))
 
 
@@ -26,7 +26,7 @@ def step(name):
 
 
 def render(text, values):
-    values = {**{'matrix.' + key: value for key, value in MATRIX.items()}, **values}
+    values = {**{'inputs.' + key: value for key, value in MATRIX.items()}, **values}
     return re.sub(r'\$\{\{\s*(.*?)\s*\}\}', lambda m: values.get(m[1].strip(), 'fixture'), text)
 
 
@@ -255,9 +255,9 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn('dlcache.py snapshot', result.stdout)
 
     def test_cache_save_cleanup_order_and_failure_gates(self):
-        workflow = yaml.safe_load(WORKFLOW.read_text())
+        workflow = yaml.safe_load(ENTRY.read_text())
         self.assertEqual(workflow['concurrency'], {'group': 'w1700k-cache', 'cancel-in-progress': False})
-        self.assertEqual(workflow['jobs']['build']['strategy']['max-parallel'], 1)
+        self.assertEqual(workflow['jobs']['immortalwrt']['needs'], 'openwrt')
         previous = -1
         for kind, path in [('cc', 'ccarchive'), ('tc', 'tcarchive'), ('dl', 'dlarchive')]:
             admission = step(kind + '_budget')

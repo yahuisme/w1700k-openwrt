@@ -1,0 +1,399 @@
+name: W1700K Build Firmware
+
+on:
+  workflow_call:
+    inputs:
+      system: {required: true, type: string}
+      title: {required: true, type: string}
+      tc: {required: true, type: string}
+      cc: {required: true, type: string}
+      dl: {required: true, type: string}
+      tb: {required: true, type: string}
+    secrets:
+      RELEASE_TOKEN:
+        required: true
+permissions:
+  actions: write
+  contents: write
+jobs:
+  build:
+    name: Build firmware
+    runs-on: ubuntu-24.04-arm
+    env:
+      DK_OPENWRT: /bld/openwrt
+      DK_BIN: /bld/openwrt_bin
+      DK_USER: /bld/user
+      DK_PROFILE: /bld/user/default
+      SYSTEM: ${{ inputs.system }}
+      DISTRO_TITLE: ${{ inputs.title }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v7
+
+    - name: Select distribution
+      run: python3 scripts/select_distribution.py "$SYSTEM"
+
+    # Rolling caches contain no staging or build stamps.
+    - name: Restore compiler cache
+      id: gh
+      continue-on-error: true
+      uses: actions/cache/restore@v6
+      with: {path: ccarchive, key: '${{ inputs.cc }}${{ github.run_id }}.${{ github.run_attempt }}', restore-keys: '${{ inputs.cc }}'}
+    - name: Restore download cache
+      id: dl
+      continue-on-error: true
+      uses: actions/cache/restore@v6
+      with: {path: dlarchive, key: '${{ inputs.dl }}${{ github.run_id }}.${{ github.run_attempt }}', restore-keys: '${{ inputs.dl }}'}
+    - name: Extract compiler cache
+      id: cc_restore
+      run: mkdir -p ghcache && python3 scripts/cache_recovery.py restore ccache ghcache ccarchive unused --restored '${{ steps.gh.outputs.cache-matched-key }}' --outcome '${{ steps.gh.outcome }}' >> "$GITHUB_OUTPUT"
+    - name: Extract download cache
+      id: dl_restore
+      run: mkdir -p dlcache && python3 scripts/cache_recovery.py restore dl dlcache dlarchive unused --restored '${{ steps.dl.outputs.cache-matched-key }}' --outcome '${{ steps.dl.outcome }}' >> "$GITHUB_OUTPUT"
+    - name: Prepare build environment
+      id: environment
+      run: |
+        mkdir -p build-record openwrt_bin ghcache dlcache tcarchive ccarchive dlarchive tbarchive
+
+        sudo python3 scripts/dlcache.py snapshot dlcache "$RUNNER_TEMP/dlcache-before.json"
+        [ -f "user/default/config.diff" ] || { echo "::error::config.diff not found"; exit 1; }
+
+        IMAGE=w1700k-builder:local
+        docker build --platform linux/arm64 -t "$IMAGE" docker
+        IMAGE_ID=$(docker image inspect --format "{{.Id}}" "$IMAGE")
+        [[ "$IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]]
+        echo "IMAGE_ID=$IMAGE_ID" >> "$GITHUB_ENV"
+        docker run -d --name DK -v "$PWD/build-record:/build-record" -v "$PWD/user:$DK_USER" -v "$PWD/openwrt_bin:$DK_BIN" -v "$PWD/ghcache:/ghcache" -v "$PWD/scripts:/cache-scripts:ro" -v "$PWD/installer:/installer:ro" -v "$PWD/docker:/builder-context:ro" -v "$PWD/tcarchive:/tcarchive" -v "$PWD/tbarchive:/tbarchive" -v "$PWD/ccarchive:/ccarchive" -v "$PWD/dlarchive:/dlarchive" -v "$PWD/dlcache:/dlcache" "$IMAGE_ID" sleep infinity
+        BUILDER_FINGERPRINT=$(docker exec -u 0 DK python3 /cache-scripts/builder_fingerprint.py /builder-context)
+        [[ "$BUILDER_FINGERPRINT" =~ ^[0-9a-f]{64}$ ]]
+        echo "BUILDER_FINGERPRINT=$BUILDER_FINGERPRINT" >> "$GITHUB_ENV"
+        install -m 755 /dev/stdin /usr/local/bin/docker_exec <<'DKR'
+        #!/bin/bash
+        for n in DK_BIN DK_USER DK_PROFILE DK_OPENWRT; do e+=(-e "$n=${!n}"); done
+        exec docker exec -u 0 -i "${e[@]}" "$@"
+        DKR
+
+    - name: Prepare source and cache key
+      id: inputs
+      run: |
+        # Variables expand inside the container, not on the runner.
+        # shellcheck disable=SC2016
+        docker_exec DK bash -e -c '
+          # Match OpenWrt source-mirror permissions when download.pl falls back to Git.
+          umask 022
+          git config --global tar.umask 0022
+          . "$DK_PROFILE/settings.ini"
+          [[ $REPO_URL && $REPO_BRANCH ]] || { echo "::error::Missing source settings"; exit 1; }
+          mkdir -p $DK_OPENWRT
+          cd $DK_OPENWRT
+          if [ ! -d .git ]; then git init; fi
+          git remote set-url origin $REPO_URL 2>&- || git remote add origin $REPO_URL
+          git fetch origin "+refs/heads/$REPO_BRANCH:refs/remotes/origin/$REPO_BRANCH"
+          git checkout -f -B "$REPO_BRANCH" "origin/$REPO_BRANCH"
+          git reset --hard "origin/$REPO_BRANCH"
+          # Remove ALL builder-preseeded patches, feeds, overlays and ABI files.
+          git clean -ffdx
+          mountpoint $DK_BIN || { echo "::error::not mounted" >&2; exit 1; }
+          ln -s $DK_BIN bin && ln -s /dlcache dl
+          ./scripts/feeds update -a >/dev/null || { echo "::error::feeds update failed"; exit 1; }
+          ./scripts/feeds install -a >/dev/null || { echo "::error::feeds install failed"; exit 1; }
+          cp $DK_PROFILE/config.diff .config
+          echo "CONFIG_CCACHE_DIR=\"/ghcache\"" >> .config
+          cp -r "$DK_PROFILE/files/" .
+          bash $DK_PROFILE/custom.sh
+          # Log actual source/feed revisions after customization; fail on broken Git access.
+          revision=$(git rev-parse --verify HEAD)
+          printf "Source %s/%s: %s\n" "$REPO_URL" "$REPO_BRANCH" "$revision"
+          for feed in feeds/*; do
+            [ -e "$feed/.git" ] || continue
+            revision=$(git -C "$feed" rev-parse --verify HEAD)
+            printf "Feed %s: %s\n" "${feed##*/}" "$revision"
+          done
+          make defconfig
+          # Host LLVM is optional upstream; this lean image does not provide it.
+          if grep -qx CONFIG_USE_LLVM_HOST=y .config; then
+            echo "::error::Host LLVM selected: builder needs clang, llc, llvm-dis, opt and llvm-strip; review include/bpf.mk" >&2
+            exit 1
+          fi
+        '
+        KEY=$(docker_exec DK python3 /cache-scripts/cache.py key "$DK_OPENWRT" /tcarchive "$BUILDER_FINGERPRINT")
+        echo "key=${{ inputs.tc }}$KEY" >> "$GITHUB_OUTPUT"
+    - name: Restore toolchain cache
+      id: tc
+      continue-on-error: true
+      uses: actions/cache/restore@v6
+      with:
+        path: tcarchive
+        key: ${{ steps.inputs.outputs.key }}
+        # No restore-keys: toolchain artifacts must be an exact match.
+    - name: Extract toolchain cache
+      id: tc_restore
+      run: mkdir -p tcarchive && docker_exec DK python3 /cache-scripts/cache_recovery.py restore toolchain "$DK_OPENWRT" /tcarchive '${{ steps.inputs.outputs.key }}' --restored '${{ steps.tc.outputs.cache-matched-key }}' --outcome '${{ steps.tc.outcome }}' >> "$GITHUB_OUTPUT"
+
+
+    - name: Prepare bootstrap cache key
+      id: tb_inputs
+      if: steps.tc_restore.outputs.hit != 'true'
+      env:
+        TOOLCHAIN_KEY: ${{ steps.inputs.outputs.key }}
+      run: |
+        KEY=$(docker_exec DK python3 /cache-scripts/bootstrap_cache.py key "$DK_OPENWRT" /tbarchive "$BUILDER_FINGERPRINT" "$TOOLCHAIN_KEY")
+        [[ "$KEY" =~ ^[0-9a-f]{64}$ ]]
+        echo "key=${{ inputs.tb }}$KEY" >> "$GITHUB_OUTPUT"
+    - name: Restore compiler bootstrap
+      id: tb
+      continue-on-error: true
+      if: steps.tc_restore.outputs.hit != 'true'
+      uses: actions/cache/restore@v6
+      with:
+        path: tbarchive
+        key: ${{ steps.tb_inputs.outputs.key }}
+        # Bootstrap is exact too; never restore an arbitrary older tools tree.
+    - name: Extract compiler bootstrap
+      id: tb_restore
+      if: steps.tc_restore.outputs.hit != 'true'
+      env:
+        BOOTSTRAP_KEY: ${{ steps.tb_inputs.outputs.key }}
+      run: mkdir -p tbarchive && docker_exec DK python3 /cache-scripts/cache_recovery.py restore bootstrap "$DK_OPENWRT" /tbarchive "$BOOTSTRAP_KEY" --restored '${{ steps.tb.outputs.cache-matched-key }}' --outcome '${{ steps.tb.outcome }}' >> "$GITHUB_OUTPUT"
+
+
+    - name: Download sources
+      run: |
+        # Restore host tools before download; keep cold download work for compilation.
+        # shellcheck disable=SC2016
+        docker_exec DK bash -e -c '
+          cd $DK_OPENWRT
+          umask 022
+          git config --global tar.umask 0022
+          make download -j8 || exit 1
+        '
+
+    - name: Compile firmware
+      env:
+        BOOTSTRAP_KEY: ${{ steps.tb_inputs.outputs.key }}
+        BOOTSTRAP_RECHECK: ${{ steps.tc_restore.outputs.hit != 'true' }}
+        BOOTSTRAP_SAVE: ${{ steps.tb_restore.outputs.poisoned != 'true' && steps.tc_restore.outputs.hit != 'true' && steps.tb_restore.outputs.hit != 'true' }}
+      run: |
+        # Variables expand inside the container, not on the runner.
+        # shellcheck disable=SC2016
+        docker_exec DK env BOOTSTRAP_KEY="${BOOTSTRAP_KEY:-}" BOOTSTRAP_RECHECK="${BOOTSTRAP_RECHECK:-false}" BOOTSTRAP_SAVE="${BOOTSTRAP_SAVE:-false}" bash -e -c '
+          cd $DK_OPENWRT
+          export FORCE_UNSAFE_CONFIGURE=1 CCACHE_MAXSIZE=3G CCACHE_NOHASHDIR=true CCACHE_COMPILERCHECK=content
+          CCACHE=staging_dir/host/bin/ccache
+          started=$SECONDS
+          status=0
+          if [ "$BOOTSTRAP_RECHECK" = true ] || [ ! -x "$CCACHE" ]; then
+            make tools/ccache/compile -j$(($(nproc) + 1)) || status=$?
+          fi
+          printf "Build timing: bootstrap=%ss status=%s\n" "$((SECONDS - started))" "$status"
+          [ "$status" = 0 ] || exit "$status"
+          # Snapshot before world: packages may later write to staging_dir/host.
+          if [ "$BOOTSTRAP_SAVE" = true ]; then
+            if ! python3 /cache-scripts/bootstrap_cache.py pack "$DK_OPENWRT" /tbarchive "$BOOTSTRAP_KEY"; then
+              rm -f /tbarchive/bootstrap.tar.gz /tbarchive/key
+              echo "::warning::Bootstrap snapshot unavailable; firmware compilation continues."
+            fi
+          fi
+          $CCACHE -d /ghcache --zero-stats
+          trap "$CCACHE -d /ghcache -sz ||:" EXIT
+          started=$SECONDS
+          status=0
+          make -j$(($(nproc) + 1)) || make -j1 V=s || status=$?
+          printf "Build timing: world=%ss status=%s\n" "$((SECONDS - started))" "$status"
+          exit "$status"
+        '
+
+    - name: Validate formal firmware
+      id: formal
+      run: |
+        docker_exec DK cat "$DK_OPENWRT/.config" > final.config
+        python3 scripts/validate_firmware.py final.config openwrt_bin/targets "$SYSTEM"
+
+    # Go may add downloads during world; cache-only faults must not block staging.
+    - name: Check download cache changes
+      id: dl_changed
+      continue-on-error: true
+      run: |
+        echo 'save=false' >> "$GITHUB_OUTPUT"
+        # shellcheck disable=SC2024
+        sudo python3 scripts/dlcache.py check dlcache "$RUNNER_TEMP/dlcache-before.json" --restored '${{ steps.dl_restore.outputs.matched-key }}' > "$RUNNER_TEMP/dlcache-check"
+        cat "$RUNNER_TEMP/dlcache-check" >> "$GITHUB_OUTPUT"
+
+    # One standard writer: total 10 GB including legacy entries and margin.
+    # Count all own generations and unknown/legacy entries on each admission.
+    # Save/readback/cleanup precedes the next admission in each writer.
+    - name: Prepare build caches
+      id: cc_budget
+      run: |
+        docker_exec DK python3 /cache-scripts/cache.py ccache /ghcache /ccarchive unused
+        if [ '${{ steps.tc_restore.outputs.hit }}' != true ] && [ '${{ steps.tc_restore.outputs.poisoned }}' != true ]; then
+          docker_exec DK python3 /cache-scripts/cache.py toolchain "$DK_OPENWRT" /tcarchive '${{ steps.inputs.outputs.key }}'
+        fi
+        if [ '${{ steps.dl_changed.outputs.save }}' = true ]; then
+          docker_exec DK python3 /cache-scripts/cache.py dl /dlcache /dlarchive unused
+        fi
+        sudo chown -R "$(id -u):$(id -g)" tcarchive ccarchive dlarchive
+        # Retire confirmed rolling compiler generations before admitting toolchain.
+        python3 scripts/cache_helper.py admit '${{ inputs.cc }}' ccarchive/ccache.tar.gz '${{ steps.gh.outputs.cache-primary-key }}'
+    - name: Save compiler cache
+      uses: actions/cache/save@v6
+      if: steps.cc_budget.outputs.save == 'true'
+      with: {path: ccarchive, key: '${{ steps.gh.outputs.cache-primary-key }}'}
+    - name: Prune old compiler caches
+      if: steps.cc_budget.outputs.save == 'true'
+      run: python3 scripts/cache_helper.py cleanup '${{ inputs.cc }}' '${{ steps.gh.outputs.cache-primary-key }}'
+    - name: Check toolchain cache budget
+      id: tc_budget
+      if: steps.tc_restore.outputs.hit != 'true' && steps.tc_restore.outputs.poisoned != 'true'
+      run: python3 scripts/cache_helper.py admit '${{ inputs.tc }}' tcarchive/toolchain.tar.gz '${{ steps.inputs.outputs.key }}'
+    - name: Save toolchain cache
+      uses: actions/cache/save@v6
+      if: steps.tc_budget.outputs.save == 'true' && steps.tc_restore.outputs.poisoned != 'true'
+      with: {path: tcarchive, key: '${{ steps.inputs.outputs.key }}'}
+    - name: Prune old toolchain caches
+      if: steps.tc_budget.outputs.save == 'true' && steps.tc_restore.outputs.poisoned != 'true'
+      run: python3 scripts/cache_helper.py cleanup '${{ inputs.tc }}' '${{ steps.inputs.outputs.key }}'
+    - name: Check bootstrap cache budget
+      id: tb_budget
+      if: steps.tc_restore.outputs.hit != 'true' && steps.tb_restore.outputs.hit != 'true' && steps.tb_restore.outputs.poisoned != 'true'
+      env:
+        BOOTSTRAP_KEY: ${{ steps.tb_inputs.outputs.key }}
+      run: |
+        if [ ! -s tbarchive/bootstrap.tar.gz ]; then
+          echo 'save=false' >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        sudo chown -R "$(id -u):$(id -g)" tbarchive
+        python3 scripts/cache_helper.py admit '${{ inputs.tb }}' tbarchive/bootstrap.tar.gz "$BOOTSTRAP_KEY"
+    - name: Save compiler bootstrap
+      uses: actions/cache/save@v6
+      if: steps.tb_budget.outputs.save == 'true'
+      with: {path: tbarchive, key: '${{ steps.tb_inputs.outputs.key }}'}
+    - name: Prune old bootstrap caches
+      if: steps.tb_budget.outputs.save == 'true'
+      env:
+        BOOTSTRAP_KEY: ${{ steps.tb_inputs.outputs.key }}
+      run: python3 scripts/cache_helper.py cleanup '${{ inputs.tb }}' "$BOOTSTRAP_KEY"
+    - name: Check download cache budget
+      id: dl_budget
+      if: steps.dl_changed.outputs.save == 'true'
+      run: python3 scripts/cache_helper.py admit '${{ inputs.dl }}' dlarchive/dl.tar.gz '${{ steps.dl.outputs.cache-primary-key }}' --replace-download
+    - name: Save download cache
+      uses: actions/cache/save@v6
+      if: steps.dl_changed.outputs.save == 'true' && steps.dl_budget.outputs.save == 'true'
+      with: {path: dlarchive, key: '${{ steps.dl.outputs.cache-primary-key }}'}
+    - name: Prune old download caches
+      if: steps.dl_budget.outputs.save == 'true'
+      run: python3 scripts/cache_helper.py cleanup '${{ inputs.dl }}' '${{ steps.dl.outputs.cache-primary-key }}'
+
+    - name: Build installer
+      id: installer
+      if: ${{ !cancelled() && steps.formal.outcome == 'success' }}
+      run: docker_exec DK python3 /cache-scripts/build_installer.py "$DK_OPENWRT" /installer
+
+    - name: Validate and stage firmware
+      id: stage
+      if: ${{ !cancelled() && steps.installer.outcome == 'success' }}
+      run: |
+        sudo chown -R "$(id -u):$(id -g)" openwrt_bin
+        # Validate the final container config, not the input fragment.
+        docker_exec DK cat "$DK_OPENWRT/.config" > final.config
+        python3 scripts/validate_firmware.py final.config openwrt_bin/targets "$SYSTEM" --installer accepted-images.json
+        mkdir firmware
+        for suffix in squashfs-sysupgrade initramfs-installer chainload-uboot; do
+          install -t firmware "openwrt_bin/targets/airoha/an7581/${SYSTEM}-airoha-an7581-gemtek_w1700k-ubi-${suffix}.itb"
+        done
+        install -t firmware openwrt_bin/targets/airoha/an7581/profiles.json
+        install -m 0644 accepted-images.json firmware/accepted-images.json
+        echo "acceptance=$(sha256sum firmware/accepted-images.json | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+        VERSION="W1700K-${DISTRO_TITLE}-r$(jq -r '.version_code' firmware/profiles.json | sed 's/^r//; s/-.*//')-$(TZ=Asia/Hong_Kong date +'%y.%m.%d_%H.%M.%S')"
+        echo "$VERSION" > firmware/version.txt
+        SOURCE_BRANCH=main
+        if [ "$SYSTEM" = immortalwrt ]; then SOURCE_BRANCH=master; fi
+        RELEASE_NOTES="firmware/release-notes.md"
+        cat > "$RELEASE_NOTES" <<EOF
+        ## Quantum Fiber / Gemtek W1700K ${DISTRO_TITLE}
+
+        - 源码：[${DISTRO_TITLE} ${SOURCE_BRANCH}](https://github.com/${SYSTEM}/${SYSTEM})
+        - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
+        - 首次安装：同次发布的 chainload-uboot.itb 与 initramfs-installer.itb。
+        - 日常升级：sysupgrade.itb，无需重新初始化 UBI2。
+        - Installer 内置本次构建的完整固件。
+        - 保留必要硬件兼容与功率定制。
+
+        [首次安装教程](https://github.com/yahuisme/w1700k-openwrt/blob/main/w1700k-${SYSTEM}-first-flash.md)
+
+        [默认设置与使用说明](https://github.com/yahuisme/w1700k-openwrt#默认设置)
+        EOF
+
+    - name: Collect build record
+      id: record
+      continue-on-error: true
+      if: ${{ !cancelled() && steps.environment.outcome == 'success' }}
+      run: |
+        mkdir -p build-record
+        printf 'repository=%s\nworkflow_sha=%s\nrun_id=%s\nrun_attempt=%s\nrunner_os=%s\nrunner_arch=%s\nimage_id=%s\nbuilder_fingerprint=%s\n' \
+          "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
+          "$RUNNER_OS" "$RUNNER_ARCH" "$IMAGE_ID" "$BUILDER_FINGERPRINT" > build-record/environment.txt
+        docker_exec DK python3 /cache-scripts/build_record.py "$DK_OPENWRT" /build-record > build-record/collection.log 2>&1 || { cat build-record/collection.log; exit 1; }
+        [[ "$IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ && "$BUILDER_FINGERPRINT" =~ ^[0-9a-f]{64}$ ]]
+
+    - name: Upload build record
+      id: record_upload
+      continue-on-error: true
+      if: ${{ !cancelled() && steps.record.outcome != 'skipped' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: build-record-${{ inputs.system }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: build-record/
+        retention-days: 30
+        if-no-files-found: error
+
+    - name: Publish firmware and prune releases
+      if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
+      env:
+        GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+      run: |
+        # Read-only freshness gate; API errors/malformed replies fail closed.
+        # This check and create are NOT atomic: main may advance between them.
+        current_main() {
+          local head
+          head=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha') || return 1
+          [[ "$head" =~ ^[0-9a-f]{40}$ ]] || return 1
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo '::notice::Obsolete build: skipping release mutations; caches may continue.'
+            exit 0
+          fi
+        }
+        current_main
+        # Independent native acceptance remains mandatory even if record upload failed.
+        python3 scripts/verify_staged.py firmware firmware/accepted-images.json '${{ steps.stage.outputs.acceptance }}'
+        VERSION="$(cat firmware/version.txt)"
+        RELEASE_TITLE="$VERSION"
+        gh release create "$VERSION" firmware/*.itb --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file firmware/release-notes.md
+        python3 scripts/verify_release.py "$VERSION" firmware/*.itb
+        python3 scripts/verify_staged.py firmware firmware/accepted-images.json '${{ steps.stage.outputs.acceptance }}'
+        # Recheck before pruning, before removing older standard releases.
+        current_main
+        PREFIX="W1700K-${DISTRO_TITLE}-"
+        # Legacy unlabelled UBI2 tags belong to this repository's OpenWrt history.
+        LEGACY="W1700K-${DISTRO_TITLE}_"
+        if [ "$SYSTEM" = openwrt ]; then LEGACY="$LEGACY|W1700K-ubi2[-_]"; fi
+        # Keep one production Release per distribution; never prune its sibling.
+        if releases=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100") &&
+          old_tags=$(jq -er --arg current "$VERSION" --arg pattern "^(${PREFIX}r[0-9]+-|${LEGACY})" '
+            flatten | map(select(.draft == false and .prerelease == false and
+              (.tag_name | test($pattern)) and
+              (.tag_name | test("^W1700K-ubi2[-_]oc([-_]|$)"; "i") | not))) |
+            if any(.tag_name == $current) then
+              [.[] | select(.tag_name != $current)] | map(.tag_name) | join("\n")
+            else error("Published release missing from inventory") end
+          ' <<< "$releases"); then
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            gh release delete "$tag" --cleanup-tag -y || echo "::warning::Failed to delete release $tag"
+          done <<< "$old_tags"
+        else
+          echo "::warning::Release inventory unavailable; retaining all releases"
+        fi

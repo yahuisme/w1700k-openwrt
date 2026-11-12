@@ -41,7 +41,7 @@ class InstallerDocsTest(unittest.TestCase):
         self.assertIn('各自只保留最新一版', readme)
 
     def test_release_notes_link_to_the_selected_guide(self):
-        workflow = (ROOT / '.github/workflows/W1700K.yaml').read_text()
+        workflow = (ROOT / '.github/workflows/build-firmware.yaml').read_text()
         self.assertIn('/blob/main/w1700k-${SYSTEM}-first-flash.md)', workflow)
 
 

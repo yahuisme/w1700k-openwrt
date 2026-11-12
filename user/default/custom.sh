@@ -55,13 +55,12 @@ for file in \
     tree/target/linux/airoha/patches-6.18/746-net-dsa-mt7530-pre-deassert-phy-reset-gpios-before-mdio-scan.patch \
     tree/target/linux/airoha/patches-6.18/940-pmdomain-airoha-cpu-pll-fallback.patch \
     tree/package/kernel/mt76/patches/911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch \
-    tree/package/kernel/mt76/patches/912-mt76-mt7996-use-mcu-station-statistics.patch \
     tree/package/kernel/mt76/patches/913-mt76-mt7996-clean-up-truncated-txfree.patch \
     tree/package/kernel/mt76/patches/914-mt76-mt7996-free-rro-drop-buffers.patch \
     tree/package/network/utils/iwinfo/patches/998-fix-multi-radio-scan.patch \
     tree/package/network/utils/iwinfo/patches/999-fix-txpower-list.patch \
     tree/package/network/services/hostapd/patches/mtk-0015-hostapd-mtk-6G-band-does-not-require-DFS.patch \
-    tree/package/system/procd/patches/001-watchdog-clamp-default-to-device-limit.patch; do
+    tree/package/system/procd/patches/001-watchdog-reconcile-timeout.patch; do
     [ -s "$PATCH_DIR/$file" ] || { echo "ERROR: Required patch missing or empty: $file" >&2; exit 1; }
 done
 # Preserve buildroot ownership when copying the patch overlay.
@@ -77,13 +76,6 @@ patch -p1 --fuzz=0 --no-backup-if-mismatch < "$PATCH_DIR/patches/920-wifi-non-ml
 mkdir -p feeds/luci/modules/luci-mod-status/patches
 cp -f "$PATCH_DIR/patches/998-single-wiphy.patch" \
     feeds/luci/modules/luci-mod-status/patches/998-single-wiphy.patch
-
-# Expose the native watchdog timeout limit to procd.
-KERNEL_CONFIG=target/linux/airoha/an7581/config-6.18
-[ -f "$KERNEL_CONFIG" ] || { echo "ERROR: Airoha kernel config not found" >&2; exit 1; }
-sed -i '/^CONFIG_WATCHDOG_SYSFS=/d; /^# CONFIG_WATCHDOG_SYSFS is not set$/d' "$KERNEL_CONFIG"
-printf 'CONFIG_WATCHDOG_SYSFS=y\n' >> "$KERNEL_CONFIG"
-# End watchdog timeout limit
 
 # Status LED colors: upgrade green, running white; keep native boot/failsafe.
 DTS=target/linux/airoha/dts/an7581-w1700k-ubi.dts

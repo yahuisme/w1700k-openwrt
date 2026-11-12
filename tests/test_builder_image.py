@@ -6,10 +6,10 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
-import yaml
+from workflow_fixture import build_job
 
 ROOT = Path(__file__).resolve().parents[1]
-STEPS = yaml.safe_load((ROOT / '.github/workflows/build-firmware.yaml').read_text())['jobs']['build']['steps']
+STEPS = build_job()['steps']
 BLOCK = next(s['run'] for s in STEPS if s.get('name') == 'Prepare build environment')
 BLOCK = BLOCK[BLOCK.index('IMAGE='):BLOCK.index('install -m 755')]
 IMAGE_ID = 'sha256:' + 'b' * 64

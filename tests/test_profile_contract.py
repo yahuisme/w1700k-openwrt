@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from workflow_fixture import build_job
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = ROOT / 'user/default'
@@ -34,9 +35,7 @@ class ProfileContract(unittest.TestCase):
         self.assertIn('CONFIG_PACKAGE_kmod-tcp-bbr=y', (PROFILE / 'config.diff').read_text().splitlines())
 
     def test_workflow_installs_rootfs_overlay(self):
-        import yaml
-        workflow = yaml.safe_load((ROOT / '.github/workflows/build-firmware.yaml').read_text())
-        block = next(s['run'] for s in workflow['jobs']['build']['steps']
+        block = next(s['run'] for s in build_job()['steps']
                      if s.get('id') == 'inputs')
         commands = [line.strip() for line in block.splitlines()
                     if line.strip().startswith('cp ') and '$DK_PROFILE/files/' in line]

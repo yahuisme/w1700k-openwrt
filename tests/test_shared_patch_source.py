@@ -20,7 +20,7 @@ class SharedPatchSource(unittest.TestCase):
     def test_complete_customization_and_invalid_payloads(self):
         source = Path(os.environ['TXPOWER_SOURCE'])
         payloads = sorted(p.relative_to(PATCHES) for p in PATCHES.rglob('*.patch'))
-        self.assertEqual(len(payloads), 15, 'update the full production payload matrix')
+        self.assertEqual(len(payloads), 14, 'update the full production payload matrix')
         cases = [(None, None)] + [(kind, name) for name in payloads
                                   for kind in ('missing', 'empty')]
         for kind, broken in cases:
@@ -109,7 +109,9 @@ export -f git python3
                     self.assertEqual(official_templates, {p: (work / p).read_bytes()
                                                         for p in official_templates})
                     kernel_config = (work / 'target/linux/airoha/an7581/config-6.18').read_text().splitlines()
-                    self.assertEqual(kernel_config.count('CONFIG_WATCHDOG_SYSFS=y'), 1)
+                    self.assertEqual(kernel_config,
+                                     (source / 'target/linux/airoha/an7581/config-6.18').read_text().splitlines(),
+                                     'watchdog cadence repair must not override the official kernel config')
                     node(FLASH_RUN, destination, '192.168.8.1')
                     for original in (PATCHES / 'tree').rglob('*.patch'):
                         self.assertEqual(original.read_bytes(), (work / original.relative_to(PATCHES / 'tree')).read_bytes())

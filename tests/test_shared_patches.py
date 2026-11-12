@@ -22,6 +22,11 @@ class SharedPatchTests(unittest.TestCase):
         self.assertIn('"$PATCH_DIR/patches/610-w1700k-power-30.patch"', custom)
         self.assertIn('"$PATCH_DIR/patches/998-single-wiphy.patch"', custom)
 
+    def test_no_speculative_statistics_or_watchdog_sysfs_override(self):
+        custom = (ROOT / 'user/default/custom.sh').read_text()
+        self.assertNotIn('912-mt76-mt7996-use-mcu-station-statistics.patch', custom)
+        self.assertNotIn('CONFIG_WATCHDOG_SYSFS', custom)
+
     def test_no_duplicate_patch_payloads(self):
         self.assertFalse(list((ROOT / 'user/default').glob('patches/*.patch')))
         self.assertFalse(list((ROOT / 'user/default/tree').rglob('*.patch')))

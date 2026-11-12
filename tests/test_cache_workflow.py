@@ -6,19 +6,33 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+from typing import Any
 import unittest
 import yaml
 
-from workflow_fixture import ENTRY, WORKFLOW, selected_inputs
+from workflow_fixture import ENTRY, WORKFLOW, build_job, selected_inputs, workflow
 
 ROOT = Path(__file__).resolve().parents[1]
-STEPS = yaml.safe_load(WORKFLOW.read_text())['jobs']['build']['steps']
+DOCUMENT = workflow()
+JOB = build_job(DOCUMENT)
 MATRIX = selected_inputs()
-os.environ['SYSTEM'] = MATRIX['system']
-os.environ['DISTRO_TITLE'] = MATRIX['title']
-# Resolve only trusted caller inputs; step outputs remain fixture inputs.
-STEPS = yaml.safe_load(re.sub(r'\$\{\{\s*inputs\.(\w+)\s*\}\}',
-                            lambda match: MATRIX[match[1]], yaml.safe_dump(STEPS)))
+WORKFLOW_ENV = {**DOCUMENT['env'], **JOB['env']}
+os.environ['SYSTEM'] = WORKFLOW_ENV['SYSTEM']
+os.environ['DISTRO_TITLE'] = WORKFLOW_ENV['DISTRO_TITLE']
+# Resolve parsed string values, not dumped YAML (which can wrap expressions).
+# Only production env is substituted; step outputs remain fixture inputs.
+def resolve_production_env(value: Any) -> Any:
+    if isinstance(value, str):
+        return re.sub(r'\$\{\{\s*env\.(\w+)\s*\}\}',
+                      lambda match: WORKFLOW_ENV[match[1]], value)
+    if isinstance(value, list):
+        return [resolve_production_env(item) for item in value]
+    if isinstance(value, dict):
+        return {key: resolve_production_env(item) for key, item in value.items()}
+    return value
+
+
+STEPS = resolve_production_env(JOB['steps'])
 
 
 def step(name):
@@ -26,12 +40,13 @@ def step(name):
 
 
 def render(text, values):
-    values = {**{'inputs.' + key: value for key, value in MATRIX.items()}, **values}
+    values = {**{'env.' + key: value for key, value in WORKFLOW_ENV.items()}, **values}
     return re.sub(r'\$\{\{\s*(.*?)\s*\}\}', lambda m: values.get(m[1].strip(), 'fixture'), text)
 
 
 def render_env(item, values):
     """Render this workflow's trusted boolean/string env expressions only."""
+    values = {**{'env.' + key: value for key, value in WORKFLOW_ENV.items()}, **values}
     def value(match):
         expression = match[1].strip()
         if expression in values:
@@ -46,6 +61,23 @@ def render_env(item, values):
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_production_env_is_resolved_without_consuming_step_mocks(self):
+        self.assertEqual(JOB['env']['SYSTEM'], MATRIX['system'])
+        for name, tier in (('TC_PREFIX', 'tc'), ('CC_PREFIX', 'cc'),
+                           ('DL_PREFIX', 'dl'), ('TB_PREFIX', 'tb')):
+            with self.subTest(name=name):
+                self.assertEqual(WORKFLOW_ENV[name], MATRIX[tier])
+                text = '${{ env.' + name + ' }}${{ steps.mock.outputs.key }}'
+                self.assertEqual(render(text, {'steps.mock.outputs.key': 'mock-key'}),
+                                 MATRIX[tier] + 'mock-key')
+                self.assertEqual(render_env({'env': {'PREFIX': '${{ env.' + name + ' }}'}}, {}),
+                                 {'PREFIX': MATRIX[tier]})
+        self.assertIn('steps.inputs.outputs.key', step('tc')['with']['key'])
+        self.assertNotIn('env.CC_PREFIX', step('gh')['with']['key'])
+        self.assertIn("cache_helper.py admit '" + MATRIX['cc'] + "'", step('cc_budget')['run'])
+        for item in STEPS:
+            self.assertNotRegex(json.dumps(item), r'\$\{\{\s*env\.')
+
     def test_compile_nested_block(self):
         block = step('Compile firmware')['run']
         for case, hot, pre, main, fallback, stats, expected in (
@@ -225,7 +257,7 @@ class WorkflowTests(unittest.TestCase):
 
     def test_single_profile_config_matches_staged_profile(self):
         workflow = yaml.safe_load(WORKFLOW.read_text())
-        self.assertEqual(workflow['jobs']['build']['env']['DK_PROFILE'], '/bld/user/default')
+        self.assertEqual(workflow['env']['DK_PROFILE'], '/bld/user/default')
         block = step('inputs')['run']
         start = block.index('cp $DK_PROFILE/config.diff .config')
         end = block.index('cp -r', start)

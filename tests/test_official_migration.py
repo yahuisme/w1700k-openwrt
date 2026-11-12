@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from workflow_fixture import WORKFLOW
 
 ROOT = Path(__file__).resolve().parents[1]
 from patch_source import PATCHES
@@ -12,7 +13,7 @@ from patch_source import PATCHES
 
 class OfficialMigrationTests(unittest.TestCase):
     def test_single_standard_official_source(self):
-        workflow = (ROOT / '.github/workflows/build-firmware.yaml').read_text()
+        workflow = WORKFLOW.read_text()
         self.assertIn('. "$DK_PROFILE/settings.ini"', workflow)
         selected = json.loads((ROOT / 'user/default/build.json').read_text())['system']
         for folder, system, branch in [('default', selected, 'main' if selected == 'openwrt' else 'master'),
@@ -34,7 +35,6 @@ class OfficialMigrationTests(unittest.TestCase):
         mt76_patches = sorted(p.name for p in tree.glob('package/kernel/mt76/patches/*.patch'))
         self.assertEqual(mt76_patches, [
             '911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch',
-            '912-mt76-mt7996-use-mcu-station-statistics.patch',
             '913-mt76-mt7996-clean-up-truncated-txfree.patch',
             '914-mt76-mt7996-free-rro-drop-buffers.patch'])
         self.assertFalse((tree / 'package/network/config/firewall4').exists())

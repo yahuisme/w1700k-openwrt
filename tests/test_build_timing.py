@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-import yaml
+from workflow_fixture import build_job
 from test_cache_workflow import render_env
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,8 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class BuildTimingTests(unittest.TestCase):
     def test_timing_covers_bootstrap_world_and_failures(self):
-        workflow = yaml.safe_load((ROOT / '.github/workflows/build-firmware.yaml').read_text())
-        block = next(s['run'] for s in workflow['jobs']['build']['steps']
+        steps = build_job()['steps']
+        block = next(s['run'] for s in steps
                      if s.get('name') == 'Compile firmware')
         for hot, pre, main, fallback, stats in (
                 (False, 0, 0, 0, 0), (True, 0, 0, 0, 0),
@@ -31,7 +31,7 @@ class BuildTimingTests(unittest.TestCase):
                     cc.chmod(0o755)
                 env = dict(os.environ, DK_OPENWRT=tmp, PRE=str(pre), MAIN=str(main),
                            FALLBACK=str(fallback), STATS=str(stats), STUB=str(stub),
-                           **render_env(next(s for s in workflow['jobs']['build']['steps']
+                           **render_env(next(s for s in steps
                                              if s.get('name') == 'Compile firmware'), {
                                'steps.tc_restore.outputs.hit': 'true' if hot else 'false',
                                'steps.tb_restore.outputs.hit': 'true',

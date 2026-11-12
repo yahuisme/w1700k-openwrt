@@ -9,8 +9,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 from patch_source import PATCHES
 
-NEW = ('912-mt76-mt7996-use-mcu-station-statistics.patch',
-       '913-mt76-mt7996-clean-up-truncated-txfree.patch',
+NEW = ('913-mt76-mt7996-clean-up-truncated-txfree.patch',
        '914-mt76-mt7996-free-rro-drop-buffers.patch')
 
 

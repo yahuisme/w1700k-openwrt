@@ -1,7 +1,7 @@
 """Installer assembly ordering and explicit native dependencies."""
 from pathlib import Path
 import unittest
-import yaml
+from workflow_fixture import build_job
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -12,8 +12,7 @@ class InstallerWorkflow(unittest.TestCase):
         self.assertIn('CONFIG_TARGET_ROOTFS_INITRAMFS=y', config)
         self.assertIn('CONFIG_PACKAGE_u-boot-an7581_gemtek_w1700k=y', config)
         self.assertFalse((ROOT / 'user/default/files/installer').exists())
-        workflow = yaml.safe_load((ROOT / '.github/workflows/build-firmware.yaml').read_text())
-        steps = workflow['jobs']['build']['steps']
+        steps = build_job()['steps']
         names = [s['name'] for s in steps]
         self.assertLess(names.index('Compile firmware'), names.index('Build installer'))
         self.assertLess(names.index('Prepare build caches'), names.index('Build installer'))

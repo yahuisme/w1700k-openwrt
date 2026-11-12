@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from workflow_fixture import WORKFLOW
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -11,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 @unittest.skipUnless(os.geteuid() == 0, 'requires root to reproduce runner/container uid boundary')
 class TreeOverlayOwnership(unittest.TestCase):
     def test_post_customization_git_gate(self):
-        workflow = (ROOT / '.github/workflows/build-firmware.yaml').read_text()
+        workflow = WORKFLOW.read_text()
         custom = workflow.index('bash $DK_PROFILE/custom.sh')
         config = workflow.index('make defconfig', custom)
         self.assertIn('revision=$(git rev-parse --verify HEAD)', workflow[custom:config])

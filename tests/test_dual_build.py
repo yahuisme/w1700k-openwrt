@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import unittest
 import yaml
-from workflow_fixture import WORKFLOW, distribution_inputs
+from workflow_fixture import WORKFLOW, build_job, distribution_inputs
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -22,40 +22,26 @@ class DualBuildTests(unittest.TestCase):
         self.assertEqual(second['needs'], 'openwrt')
         self.assertEqual(second['if'], "${{ !cancelled() && needs.openwrt.result != 'cancelled' }}")
         for system, job in workflow['jobs'].items():
-            self.assertEqual(job['uses'], './.github/workflows/build-firmware.yaml')
-            self.assertEqual(job['with']['system'], system)
+            self.assertNotIn('uses', job)
+            self.assertEqual(job['env']['SYSTEM'], system)
             self.assertNotIn('strategy', job)
         self.assertEqual(workflow['concurrency'], {'group': 'w1700k-cache', 'cancel-in-progress': False})
 
-
-    def test_workflow_names_distinguish_entry_and_template(self):
+    def test_single_workflow_has_flat_job_names_and_shared_steps(self):
         entry = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())
-        worker = yaml.safe_load(WORKFLOW.read_text())
         self.assertEqual(entry['name'], 'W1700K Firmware')
-        self.assertEqual(worker['name'], 'W1700K Build Template')
-
-    def test_reusable_workflow_has_only_the_call_trigger(self):
-        entry = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())
-        worker = yaml.safe_load(WORKFLOW.read_text())
-        triggers = worker.get('on', worker.get(True))
-        self.assertEqual(set(triggers), {'workflow_call'})
-        call = triggers['workflow_call']
-        self.assertEqual(set(call['inputs']), {'system', 'title', 'tc', 'cc', 'dl', 'tb'})
-        self.assertEqual(call['secrets'], {'RELEASE_TOKEN': {'required': True}})
-        self.assertEqual(worker['permissions'], entry['permissions'])
-        self.assertNotIn('concurrency', worker, 'only the entry owns the cache lock')
-        self.assertEqual(list(worker['jobs']), ['build'])
-        build = worker['jobs']['build']
-        self.assertEqual(build['runs-on'], 'ubuntu-24.04-arm')
-        self.assertNotIn('strategy', build)
+        self.assertEqual(set(entry.get('on', entry.get(True))), {'workflow_dispatch', 'schedule'})
+        self.assertFalse((ROOT / '.github/workflows/build-firmware.yaml').exists())
+        first, second = entry['jobs'].values()
+        self.assertIs(first['steps'], second['steps'], 'one native YAML anchor, not copied build logic')
         for system, job in entry['jobs'].items():
-            self.assertEqual(job['name'], {'openwrt': 'OpenWrt', 'immortalwrt': 'ImmortalWrt'}[system])
-            self.assertEqual(set(job['with']), set(call['inputs']))
-            self.assertEqual(job['secrets'], {'RELEASE_TOKEN': '${{ secrets.RELEASE_TOKEN }}'})
-            for spec in call['inputs'].values():
-                self.assertEqual(spec, {'required': True, 'type': 'string'})
-        self.assertEqual(build['steps'][0]['uses'], 'actions/checkout@v7')
-        self.assertNotIn('ref', build['steps'][0].get('with', {}))
+            title = {'openwrt': 'OpenWrt', 'immortalwrt': 'ImmortalWrt'}[system]
+            self.assertEqual(job['name'], title + ' build firmware')
+            self.assertNotIn('/', job['name'])
+            self.assertEqual(job['env']['DISTRO_TITLE'], title)
+            self.assertEqual(job['runs-on'], 'ubuntu-24.04-arm')
+            self.assertEqual(job['steps'][0]['uses'], 'actions/checkout@v7')
+            self.assertNotIn('ref', job['steps'][0].get('with', {}))
 
     def test_failure_and_cancellation_conditions(self):
         workflow = yaml.safe_load((ROOT / '.github/workflows/W1700K.yaml').read_text())
@@ -132,7 +118,7 @@ class DualBuildTests(unittest.TestCase):
                 'tree/package/kernel/mt76/patches/914-mt76-mt7996-free-rro-drop-buffers.patch',
                 'tree/package/network/utils/iwinfo/patches/998-fix-multi-radio-scan.patch',
                 'tree/package/network/services/hostapd/patches/mtk-0015-hostapd-mtk-6G-band-does-not-require-DFS.patch',
-                'tree/package/system/procd/patches/001-watchdog-clamp-default-to-device-limit.patch',
+                'tree/package/system/procd/patches/001-watchdog-reconcile-timeout.patch',
             ):
                 # The last preflight member owns the shell loop delimiter.
                 last = '    ' + payload + '; do\n'
@@ -142,16 +128,12 @@ class DualBuildTests(unittest.TestCase):
                     script = script.replace(' \\\n' + last, '; do\n', 1)
                 else:
                     script = script.replace(continued, '', 1)
-            watchdog = '''# Expose the native watchdog timeout limit to procd.
-KERNEL_CONFIG=target/linux/airoha/an7581/config-6.18
-[ -f "$KERNEL_CONFIG" ] || { echo "ERROR: Airoha kernel config not found" >&2; exit 1; }
-sed -i '/^CONFIG_WATCHDOG_SYSFS=/d; /^# CONFIG_WATCHDOG_SYSFS is not set$/d' "$KERNEL_CONFIG"
-printf 'CONFIG_WATCHDOG_SYSFS=y\\n' >> "$KERNEL_CONFIG"
-# End watchdog timeout limit
-
-'''
-            self.assertEqual(script.count(watchdog), 1)
-            script = script.replace(watchdog, '', 1)
+            # Reconstruct the one explicitly retired migration input; do not
+            # refresh the immutable baseline digest to hide unrelated drift.
+            anchor = '    tree/package/kernel/mt76/patches/913-mt76-mt7996-clean-up-truncated-txfree.patch'
+            self.assertEqual(script.count(anchor), 1)
+            retired = '    tree/package/kernel/mt76/patches/912-mt76-mt7996-use-mcu-station-statistics.patch \\\n'
+            script = script.replace(anchor, retired + anchor, 1)
             self.assertEqual(hashlib.sha256(script.encode()).hexdigest(), '91a1f09c268b6e0dfbb29c7cb8528a73dfdd9acc985ef82fce3f9776e1207247')
             installer = (root / 'installer/files/installer/install.sh').read_text()
             installer = installer.replace('  # No pipeline: preserve the digest tool failure even if it prints output.\n', '')
@@ -183,16 +165,16 @@ printf 'CONFIG_WATCHDOG_SYSFS=y\\n' >> "$KERNEL_CONFIG"
 
     def test_workflow_selects_profile_before_any_consumer(self):
         workflow = yaml.safe_load(WORKFLOW.read_text())
-        steps = workflow['jobs']['build']['steps']
+        steps = build_job(workflow)['steps']
         names = [step['name'] for step in steps]
         self.assertLess(names.index('Select distribution'), names.index('Restore compiler cache'))
         upload = next(step for step in steps if step.get('id') == 'record_upload')
-        self.assertIn('inputs.system', upload['with']['name'])
+        self.assertIn('env.SYSTEM', upload['with']['name'])
         self.assertEqual(upload['with']['retention-days'], 30)
         for step in steps:
             if step.get('id') in ('formal', 'stage'):
                 self.assertIn('openwrt_bin/targets "$SYSTEM"', step['run'])
-        self.assertEqual(workflow['jobs']['build']['env']['DK_PROFILE'], '/bld/user/default')
+        self.assertEqual(workflow['env']['DK_PROFILE'], '/bld/user/default')
 
     def test_missing_overlay_input_fails_before_profile_mutation(self):
         for missing in ('build.json', 'config.diff', 'settings.ini'):
@@ -258,12 +240,16 @@ printf 'CONFIG_WATCHDOG_SYSFS=y\\n' >> "$KERNEL_CONFIG"
             for name in ('user', 'installer', 'scripts', 'tests', '.github'):
                 shutil.copytree(ROOT / name, root / name)
             subprocess.run(['/usr/bin/python3', 'scripts/select_distribution.py', 'immortalwrt'], cwd=root, check=True)
-            env = dict(os.environ, PYTHONPATH='tests', SYSTEM='immortalwrt', DISTRO_TITLE='ImmortalWrt')
+            # The selected profile, not a test-only or inherited distro override,
+            # must choose the native job and its production environment.
+            env = dict(os.environ, PYTHONPATH='tests', SYSTEM='openwrt', DISTRO_TITLE='OpenWrt')
             env.pop('TEST_SYSTEM', None)
             result = subprocess.check_output(['/usr/bin/python3', '-c',
-                "import test_cache_workflow as fixture; print(fixture.MATRIX['system'])"],
+                "import test_cache_workflow as fixture; "
+                "print(fixture.MATRIX['system'], fixture.JOB['env']['SYSTEM'], "
+                "fixture.WORKFLOW_ENV['TC_PREFIX'])"],
                 cwd=root, env=env, text=True)
-            self.assertEqual(result.strip(), 'immortalwrt')
+            self.assertEqual(result.strip(), 'immortalwrt immortalwrt tc-v3-immortalwrt-')
 
 
 if __name__ == '__main__':

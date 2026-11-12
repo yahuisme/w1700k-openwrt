@@ -145,7 +145,8 @@ class FinalConfigTests(unittest.TestCase):
         import sys
         mount = Path(self.tmp.name) / 'cache-scripts'
         mount.mkdir()
-        for name in ('cache.py', 'bootstrap_cache.py', 'cache_config.py', 'build_profile.py'):
+        for name in ('cache.py', 'bootstrap_cache.py', 'cache_config.py',
+                     'build_profile.py', 'toolchain_archive.py'):
             shutil.copy2(REPO / 'scripts' / name, mount / name)
         environment = dict(os.environ, DK_PROFILE=str(REPO / 'user/default'), PYTHONPATH='')
         # The container has no checkout user/default; absolute standalone script

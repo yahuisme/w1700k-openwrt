@@ -1,10 +1,14 @@
 #!/bin/sh
 # Retained-config migration only: official fw4 has no fork bridge flowtable.
-uci -q delete firewall.bridge_flow_offload
+# Read the package first: a missing section is harmless, a UCI read failure is not.
+FIREWALL="$(uci -q show firewall)" || exit 1
+if printf '%s\n' "$FIREWALL" | grep -q '^firewall\.bridge_flow_offload='; then
+    uci -q delete firewall.bridge_flow_offload || exit 1
+fi
 rm -f /usr/share/bridge-flow-offload/apply-rules.sh \
     /etc/hotplug.d/iface/51-bridge-flow-offload \
     /etc/hotplug.d/iface/51-bridge-hw-offload \
     /etc/hotplug.d/net/50-bridge-hw-offload \
-    /usr/share/nftables.d/ruleset-post/30-bridge-offload.nft
+    /usr/share/nftables.d/ruleset-post/30-bridge-offload.nft || exit 1
 # The normal boot runner commits UCI after all defaults scripts.
 exit 0

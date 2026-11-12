@@ -57,6 +57,51 @@ class ProfileContract(unittest.TestCase):
         self.assertIn('wuci() { uci -P "$STAGE" "$@" || exit 1; }', text)
         self.assertNotIn('wuci -q delete wireless.${IFACE_', text)
 
+    def test_migration_failure_is_not_marked_applied_by_boot(self):
+        script = PROFILE / 'files/etc/uci-defaults/90-bridge-hw-offload'
+        for failure in ('read', 'delete', 'remove'):
+            with self.subTest(failure=failure):
+                # Only inert functions are invoked: never change the host's UCI/files.
+                wrapper = '''
+uci() {
+    case "$*" in
+        '-q show firewall')
+            [ "$FAILURE" != read ] || return 7
+            printf '%s\\n' 'firewall.bridge_flow_offload=include'
+            ;;
+        '-q delete firewall.bridge_flow_offload')
+            [ "$FAILURE" != delete ] || return 7
+            ;;
+        *) return 9 ;;
+    esac
+}
+rm() { [ "$FAILURE" != remove ]; }
+if ( . "$1" ); then
+    printf '%s\\n' APPLIED
+else
+    printf '%s\\n' RETRY
+fi
+'''
+                result = subprocess.run(['busybox', 'ash', '-c', wrapper, 'boot', str(script)],
+                                        env=dict(os.environ, FAILURE=failure), capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, 'RETRY\n', result.stderr)
+
+    def test_migration_without_legacy_section_succeeds(self):
+        script = PROFILE / 'files/etc/uci-defaults/90-bridge-hw-offload'
+        wrapper = '''
+uci() {
+    [ "$*" = '-q show firewall' ] || return 9
+    printf '%s\\n' 'firewall.defaults=defaults'
+}
+rm() { return 0; }
+if ( . "$1" ); then echo APPLIED; else echo RETRY; fi
+'''
+        result = subprocess.run(['busybox', 'ash', '-c', wrapper, 'boot', str(script)],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, 'APPLIED\n', result.stderr)
+
     def test_union_migration_cleanup(self):
         text = (PROFILE / 'files/etc/uci-defaults/90-bridge-hw-offload').read_text()
         paths = ['/usr/share/bridge-flow-offload/apply-rules.sh',
@@ -71,8 +116,17 @@ class ProfileContract(unittest.TestCase):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.touch()
                 text = text.replace(name, tmp + name)
+            wrapper = r'''
+uci() {
+    case "$*" in
+        '-q show firewall') printf '%s\n' 'firewall.bridge_flow_offload=include' ;;
+        '-q delete firewall.bridge_flow_offload') printf '%s\n' "$*" ;;
+        *) return 9 ;;
+    esac
+}
+'''
             for _ in range(2):
-                result = subprocess.run(['busybox', 'ash', '-c', 'uci() { printf "%s\\n" "$*"; };\n' + text], capture_output=True, text=True)
+                result = subprocess.run(['busybox', 'ash', '-c', wrapper + text], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn('-q delete firewall.bridge_flow_offload', result.stdout)
                 self.assertTrue(all(not Path(tmp + name).exists() for name in paths))

@@ -11,12 +11,13 @@ import subprocess
 import sys
 
 try:
-    from . import cache_config
+    from . import cache_config, toolchain_archive
 except ImportError:
     try:
-        from scripts import cache_config
+        from scripts import cache_config, toolchain_archive
     except ImportError:
         import cache_config
+        import toolchain_archive
 
 try:
     from .build_profile import load
@@ -163,7 +164,8 @@ def restore(root, cache, expected):
     if (cache / 'toolchain.tar.gz').exists():
         if (cache / 'key').read_text().strip() != expected:
             raise ValueError('toolchain key mismatch')
-        subprocess.run(['tar', '--gzip', '-xf', str(cache / 'toolchain.tar.gz'),
+        toolchain_archive.validate_archive(cache / 'toolchain.tar.gz', root)
+        subprocess.run(['tar', '--gzip', '--no-same-owner', '-xf', str(cache / 'toolchain.tar.gz'),
                         '-C', str(root)], check=True)
         print('exact toolchain restored')
     else:
@@ -184,6 +186,12 @@ def pack(root, cache, kind, expected):
     compressor = 'pigz -1' if shutil.which('pigz') else 'gzip -1'
     subprocess.run(['tar', '--format=posix', '-I', compressor, '-cf', str(archive),
                     '-C', str(base), *names], check=True)
+    if kind == 'toolchain':
+        try:
+            toolchain_archive.validate_archive(archive, root)
+        except Exception:
+            archive.unlink(missing_ok=True)
+            raise
     size = archive.stat().st_size
     print(f'{kind}: measured compressed bytes={size}, cap={LIMITS[kind]}')
     if size > LIMITS[kind]:

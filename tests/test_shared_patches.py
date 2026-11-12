@@ -27,6 +27,12 @@ class SharedPatchTests(unittest.TestCase):
         self.assertNotIn('912-mt76-mt7996-use-mcu-station-statistics.patch', custom)
         self.assertNotIn('CONFIG_WATCHDOG_SYSFS', custom)
 
+    def test_hostapd_dfs_uses_official_implementation(self):
+        from patch_source import PATCHES
+        custom = (ROOT / 'user/default/custom.sh').read_text()
+        self.assertNotIn('mtk-0015-hostapd-mtk-6G-band-does-not-require-DFS.patch', custom)
+        self.assertFalse(list((PATCHES / 'tree/package/network/services/hostapd').rglob('*.patch')))
+
     def test_no_duplicate_patch_payloads(self):
         self.assertFalse(list((ROOT / 'user/default').glob('patches/*.patch')))
         self.assertFalse(list((ROOT / 'user/default/tree').rglob('*.patch')))

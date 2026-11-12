@@ -20,7 +20,7 @@ class SharedPatchSource(unittest.TestCase):
     def test_complete_customization_and_invalid_payloads(self):
         source = Path(os.environ['TXPOWER_SOURCE'])
         payloads = sorted(p.relative_to(PATCHES) for p in PATCHES.rglob('*.patch'))
-        self.assertEqual(len(payloads), 14, 'update the full production payload matrix')
+        self.assertEqual(len(payloads), 13, 'update the full production payload matrix')
         cases = [(None, None)] + [(kind, name) for name in payloads
                                   for kind in ('missing', 'empty')]
         for kind, broken in cases:

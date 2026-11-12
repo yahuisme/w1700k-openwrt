@@ -117,7 +117,6 @@ class DualBuildTests(unittest.TestCase):
             for payload in (
                 'tree/package/kernel/mt76/patches/914-mt76-mt7996-free-rro-drop-buffers.patch',
                 'tree/package/network/utils/iwinfo/patches/998-fix-multi-radio-scan.patch',
-                'tree/package/network/services/hostapd/patches/mtk-0015-hostapd-mtk-6G-band-does-not-require-DFS.patch',
                 'tree/package/system/procd/patches/001-watchdog-reconcile-timeout.patch',
             ):
                 # The last preflight member owns the shell loop delimiter.

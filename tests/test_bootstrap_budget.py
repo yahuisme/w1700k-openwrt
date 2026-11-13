@@ -9,7 +9,7 @@ from unittest.mock import patch
 import test_cache_helper as safety
 
 h = safety.h
-TB = 'tb-v1-ubi2-'
+TB = h.BOOTSTRAP_PREFIX
 TC, CC, DL = safety.TC, safety.CC, safety.DL
 REF = safety.REF
 entry = safety.entry
@@ -58,7 +58,7 @@ class BootstrapBudgetTests(unittest.TestCase):
                 self.assertFalse(self.admit(size, TB), self.log)
                 self.assertEqual(self.snapshot()['calls'], [])
         for prefix, key in ((TB, TB), (TB, TC + 'new'),
-                            (TC, TB + 'new'), ('tb-v1-ubi2', TB + 'new')):
+                            (TC, TB + 'new'), (TB.rstrip('-'), TB + 'new')):
             with self.subTest(prefix=prefix, key=key):
                 self.reset([])
                 self.assertFalse(self.admit(1, prefix, key), self.log)
@@ -135,7 +135,7 @@ class BootstrapBudgetTests(unittest.TestCase):
             # Measured tc/cc plus a capped old download and bootstrap: the
             # next capped download no longer fits, even though its tier cap does.
             entries = [dict(e, size_in_bytes=4_000_000_000 + h.HEADROOM)
-                       if h.owner(e['key']) == DL else dict(e) for e in inventory]
+                       if e['key'].startswith('dl-v3.') else dict(e) for e in inventory]
             entries.append(entry(1, TB + 'old', 1_000_000_000 + h.HEADROOM))
             self.reset(entries)
             self.assertFalse(self.admit(4_000_000_000, DL), self.log)

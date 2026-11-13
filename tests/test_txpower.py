@@ -141,6 +141,8 @@ printf('%J',{before,commands,logs});
         self.assertTrue(any('Failed to set txpower' in log for log in result['logs']))
 
     def test_real_pending_state_machine_aborts_old_setup(self):
+        if not os.environ.get('TXPOWER_RUNTIME_ROOT'):
+            self.skipTest('set TXPOWER_RUNTIME_ROOT to extracted rootfs with native uloop')
         names = ('__iface_pending_next', 'iface_pending_next', 'iface_pending_abort',
                  'iface_pending_ubus_call', 'iface_pending_init')
         code = "import * as uloop from 'uloop';\n" + self.host_code() + '''

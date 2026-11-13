@@ -8,7 +8,7 @@ from test_cache_workflow import step, MATRIX
 
 h, entry = safety.h, safety.entry
 DL, TC, CC = safety.DL, safety.TC, safety.CC
-TB = 'tb-v1-ubi2-'
+TB = h.BOOTSTRAP_PREFIX
 
 
 class DownloadReplacementTests(unittest.TestCase):

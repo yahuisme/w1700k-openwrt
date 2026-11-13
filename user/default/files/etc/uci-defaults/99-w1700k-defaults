@@ -40,18 +40,24 @@ done
 # Boot commits even when a defaults script fails. Keep our deltas private until
 # every required operation succeeds; -P still reads earlier defaults' deltas.
 WORK="$(mktemp -d /tmp/w1700k-defaults.XXXXXX)" || exit 1
-PUBLISHED=0
+NEXT="$WORK/next"
 cleanup() {
+    STATUS=$?
     trap '' HUP INT TERM
-    # A rename may have completed even if mv failed or was interrupted.
-    # Never delete earlier defaults while publication is unconfirmed.
-    if [ "$PUBLISHED" = 0 ] && [ -d "$WORK/previous" ]; then
+    trap - EXIT
+    # The second rename is the commit point, even if mv reports failure or a
+    # signal arrives before the shell observes its result. Boot will commit the
+    # published deltas, so report success and let it remove this defaults script.
+    if [ -d "$WORK/previous" ] && [ ! -e "$NEXT" ] && [ -d /tmp/.uci ]; then
+        STATUS=0
+    elif [ -d "$WORK/previous" ]; then
         if [ -e /tmp/.uci ] || ! mv "$WORK/previous" /tmp/.uci; then
             echo "W1700K defaults: restore failed; previous deltas kept at $WORK/previous" >&2
-            return
+            exit "$STATUS"
         fi
     fi
     rm -rf "$WORK"
+    exit "$STATUS"
 }
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
@@ -104,41 +110,35 @@ wuci -q set firewall.@defaults[0].flow_offloading_hw='1'
 # 2.4 GHz
 # ------------------------------------------------------------
 
-if [ -n "$RADIO_2G" ]; then
-    wuci -q set wireless.${RADIO_2G}.disabled='0'
-    wuci -q set wireless.${RADIO_2G}.country='US'
-    wuci -q set wireless.${RADIO_2G}.channel='1'
-    wuci -q set wireless.${RADIO_2G}.htmode='EHT20'
-    wuci -q set wireless.${RADIO_2G}.txpower='23'
-fi
+wuci -q set wireless.${RADIO_2G}.disabled='0'
+wuci -q set wireless.${RADIO_2G}.country='US'
+wuci -q set wireless.${RADIO_2G}.channel='1'
+wuci -q set wireless.${RADIO_2G}.htmode='EHT20'
+wuci -q set wireless.${RADIO_2G}.txpower='23'
 
 
 # ------------------------------------------------------------
 # 5 GHz
 # ------------------------------------------------------------
 
-if [ -n "$RADIO_5G" ]; then
-    wuci -q set wireless.${RADIO_5G}.disabled='0'
-    wuci -q set wireless.${RADIO_5G}.country='US'
-    wuci -q set wireless.${RADIO_5G}.channel='36'
-    wuci -q set wireless.${RADIO_5G}.htmode='EHT160'
-    wuci -q set wireless.${RADIO_5G}.txpower='25'
-fi
+wuci -q set wireless.${RADIO_5G}.disabled='0'
+wuci -q set wireless.${RADIO_5G}.country='US'
+wuci -q set wireless.${RADIO_5G}.channel='36'
+wuci -q set wireless.${RADIO_5G}.htmode='EHT160'
+wuci -q set wireless.${RADIO_5G}.txpower='25'
 
 
 # ------------------------------------------------------------
 # 6 GHz
 # ------------------------------------------------------------
 
-if [ -n "$RADIO_6G" ]; then
-    # 6 GHz is configured but disabled by default.
-    # Enable it manually from LuCI when needed.
-    wuci -q set wireless.${RADIO_6G}.disabled='1'
-    wuci -q set wireless.${RADIO_6G}.country='US'
-    wuci -q set wireless.${RADIO_6G}.channel='37'
-    wuci -q set wireless.${RADIO_6G}.htmode='EHT320'
-    wuci -q set wireless.${RADIO_6G}.txpower='25'
-fi
+# 6 GHz is configured but disabled by default.
+# Enable it manually from LuCI when needed.
+wuci -q set wireless.${RADIO_6G}.disabled='1'
+wuci -q set wireless.${RADIO_6G}.country='US'
+wuci -q set wireless.${RADIO_6G}.channel='37'
+wuci -q set wireless.${RADIO_6G}.htmode='EHT320'
+wuci -q set wireless.${RADIO_6G}.txpower='25'
 
 
 # ------------------------------------------------------------
@@ -156,63 +156,50 @@ done
 # 2.4 GHz SSID
 # ------------------------------------------------------------
 
-if [ -n "$RADIO_2G" ]; then
+IFACE_2G="wifinet2g"
+wuci set wireless.${IFACE_2G}=wifi-iface
 
-    IFACE_2G="wifinet2g"
-    wuci set wireless.${IFACE_2G}=wifi-iface
-
-    wuci set wireless.${IFACE_2G}.device="${RADIO_2G}"
-    wuci set wireless.${IFACE_2G}.mode='ap'
-    wuci set wireless.${IFACE_2G}.network='lan'
-    wuci set wireless.${IFACE_2G}.ssid='W1700K'
-    wuci set wireless.${IFACE_2G}.encryption='psk2+ccmp'
-    wuci set wireless.${IFACE_2G}.key='12345678'
-
-fi
+wuci set wireless.${IFACE_2G}.device="${RADIO_2G}"
+wuci set wireless.${IFACE_2G}.mode='ap'
+wuci set wireless.${IFACE_2G}.network='lan'
+wuci set wireless.${IFACE_2G}.ssid='W1700K'
+wuci set wireless.${IFACE_2G}.encryption='psk2+ccmp'
+wuci set wireless.${IFACE_2G}.key='12345678'
 
 
 # ------------------------------------------------------------
 # 5 GHz SSID
 # ------------------------------------------------------------
 
-if [ -n "$RADIO_5G" ]; then
+IFACE_5G="wifinet5g"
+wuci set wireless.${IFACE_5G}=wifi-iface
 
-    IFACE_5G="wifinet5g"
-    wuci set wireless.${IFACE_5G}=wifi-iface
-
-    wuci set wireless.${IFACE_5G}.device="${RADIO_5G}"
-    wuci set wireless.${IFACE_5G}.mode='ap'
-    wuci set wireless.${IFACE_5G}.network='lan'
-    wuci set wireless.${IFACE_5G}.ssid='W1700K'
-    wuci set wireless.${IFACE_5G}.encryption='psk2+ccmp'
-    wuci set wireless.${IFACE_5G}.key='12345678'
-
-fi
+wuci set wireless.${IFACE_5G}.device="${RADIO_5G}"
+wuci set wireless.${IFACE_5G}.mode='ap'
+wuci set wireless.${IFACE_5G}.network='lan'
+wuci set wireless.${IFACE_5G}.ssid='W1700K'
+wuci set wireless.${IFACE_5G}.encryption='psk2+ccmp'
+wuci set wireless.${IFACE_5G}.key='12345678'
 
 
 # ------------------------------------------------------------
 # 6 GHz SSID
 # ------------------------------------------------------------
 
-if [ -n "$RADIO_6G" ]; then
+IFACE_6G="wifinet6g"
+wuci set wireless.${IFACE_6G}=wifi-iface
 
-    IFACE_6G="wifinet6g"
-    wuci set wireless.${IFACE_6G}=wifi-iface
-
-    wuci set wireless.${IFACE_6G}.device="${RADIO_6G}"
-    wuci set wireless.${IFACE_6G}.mode='ap'
-    wuci set wireless.${IFACE_6G}.network='lan'
-    wuci set wireless.${IFACE_6G}.ssid='W1700K-6G'
-    wuci set wireless.${IFACE_6G}.encryption='sae+ccmp'
-    wuci set wireless.${IFACE_6G}.key='12345678'
-
-fi
+wuci set wireless.${IFACE_6G}.device="${RADIO_6G}"
+wuci set wireless.${IFACE_6G}.mode='ap'
+wuci set wireless.${IFACE_6G}.network='lan'
+wuci set wireless.${IFACE_6G}.ssid='W1700K-6G'
+wuci set wireless.${IFACE_6G}.encryption='sae+ccmp'
+wuci set wireless.${IFACE_6G}.key='12345678'
 
 
 # Prepare a complete replacement of boot's delta directory, including earlier
 # defaults. Publish it with renames only after all fallible writes/copies pass.
 # Boot runs these scripts sequentially; no long-lived service is needed.
-NEXT="$WORK/next"
 cp -a /tmp/.uci "$NEXT" || exit 1
 for FILE in "$STAGE"/*; do
     [ -f "$FILE" ] || continue
@@ -220,6 +207,5 @@ for FILE in "$STAGE"/*; do
 done
 mv /tmp/.uci "$WORK/previous" || exit 1
 mv "$NEXT" /tmp/.uci || exit 1
-PUBLISHED=1
 # /etc/init.d/boot commits all UCI defaults together.
 exit 0

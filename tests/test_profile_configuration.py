@@ -1,5 +1,6 @@
 """Keep profile intent without obsolete symbols or inert negative records."""
 from pathlib import Path
+import json
 import os
 import re
 import subprocess
@@ -30,8 +31,10 @@ class ProfileConfigurationTests(unittest.TestCase):
             self.assertIn('CONFIG_' + symbol + '=y', lines)
         # OpenWrt's defaults can otherwise select apk-mbedtls=m and replace
         # full wpad-openssl=y with wpad-basic-mbedtls=y. Keep these exclusions.
-        for package in ('apk-mbedtls', 'wpad-basic-mbedtls'):
-            self.assertIn(f'# CONFIG_PACKAGE_{package} is not set', lines)
+        system = json.loads((ROOT / 'user/default/build.json').read_text())['system']
+        if system == 'openwrt':
+            for package in ('apk-mbedtls', 'wpad-basic-mbedtls'):
+                self.assertIn(f'# CONFIG_PACKAGE_{package} is not set', lines)
         self.assertIn('# CONFIG_SIGN_EACH_PACKAGE is not set', lines)
         self.assertIn('CONFIG_TARGET_ROOTFS_INITRAMFS=y', lines)
 

@@ -14,8 +14,30 @@ import installer_payload
 from installer_fit_fixture import make_fit
 
 
+def rewrite_newc(archive, edit):
+    """Edit explicit newc records without GNU cpio hardlink normalization."""
+    records, position = [], 0
+    while True:
+        header = archive[position:position + 110]
+        fields = [int(header[i:i + 8], 16) for i in range(6, 110, 8)]
+        name = archive[position + 110:position + 110 + fields[11] - 1].decode()
+        body = (position + 110 + fields[11] + 3) & ~3
+        records.append((fields, name, archive[body:body + fields[6]]))
+        position = (body + fields[6] + 3) & ~3
+        if name == 'TRAILER!!!': break
+    result = bytearray()
+    for fields, name, data in edit(records[:-1]) + records[-1:]:
+        fields = fields.copy()
+        encoded = name.encode() + b'\0'
+        fields[6], fields[11] = len(data), len(encoded)
+        result += b'070701' + ''.join(f'{value:08x}' for value in fields).encode() + encoded
+        result += bytes((-len(result)) % 4) + data
+        result += bytes((-len(result)) % 4)
+    return bytes(result)
+
+
 class EmbeddedInstaller(unittest.TestCase):
-    def fixture(self, work, fault='', paths=None):
+    def fixture(self, work, fault='', paths=None, archive=None):
         files = work / 'files'; files.mkdir()
         content = {'installer/install.sh': b'#!/bin/sh\nexit 0\n',
                    'lib/preinit/00_installer': b'/installer/install.sh\n',
@@ -73,6 +95,7 @@ class EmbeddedInstaller(unittest.TestCase):
             (files / 'installer/install.sh').write_bytes(b'wrong later overlay')
             cpio += subprocess.check_output(['cpio', '--quiet', '--absolute-filenames', '-o', '-H', 'newc'],
                                             input=b'installer/install.sh\n', cwd=files)
+        if archive is not None: cpio = rewrite_newc(cpio, archive)
         if fault == 'truncated': cpio = cpio[:-1024]
         kernel = b'fake arm64 kernel header\0' + b'070701 not an archive\0'
         kernel += bytes((-len(kernel)) % 4) + cpio
@@ -110,13 +133,136 @@ class EmbeddedInstaller(unittest.TestCase):
                                          'Invalid embedded newc path: ' + alias_name.removeprefix('./'))
 
     def test_native_root_and_single_dot_prefix(self):
-        for root in ('.', './'):
+        for root in (None, '.', './'):
             for prefix in ('', './'):
                 with self.subTest(root=root, prefix=prefix), tempfile.TemporaryDirectory() as tmp:
+                    def edit(records):
+                        fields = next(fields for fields, name, data in records
+                                      if name.removeprefix('./') == 'installer/recovery.itb').copy()
+                        fields[0] ^= 0x80000000
+                        return records + [(fields, prefix + 'root-input', b'root-level frozen input')]
                     image, expected = self.fixture(
-                        Path(tmp), paths=lambda names, content, files: [root] + [prefix + name for name in names])
+                        Path(tmp), paths=lambda names, content, files:
+                        ([] if root is None else [root]) + [prefix + name for name in names], archive=edit)
+                    expected['root-input'] = 'sha256:' + hashlib.sha256(b'root-level frozen input').hexdigest()
                     installer_payload.verify_fit(image)
                     installer_payload.verify_embedded(image, expected)
+
+    def test_frozen_inputs_require_single_link(self):
+        targets = ('installer/install.sh', 'lib/preinit/00_installer',
+                   'installer/sysupgrade.itb', 'installer/recovery.itb',
+                   'installer/payload.sha256')
+        for target in targets:
+            for nlink in (0, 2):
+                with self.subTest(target=target, nlink=nlink), tempfile.TemporaryDirectory() as tmp:
+                    def edit(records):
+                        for fields, name, data in records:
+                            if name == target: fields[4] = nlink
+                        return records
+                    image, expected = self.fixture(Path(tmp), archive=edit)
+                    installer_payload.verify_fit(image)
+                    with self.assertRaisesRegex(ValueError, 'Hardlinked embedded input: ' + target):
+                        installer_payload.verify_embedded(image, expected)
+
+    def test_frozen_identities_cannot_join_hardlink_groups(self):
+        targets = ('installer/install.sh', 'lib/preinit/00_installer',
+                   'installer/sysupgrade.itb', 'installer/recovery.itb',
+                   'installer/payload.sha256')
+        for target in targets:
+            for nlink in (1, 2):
+                for before in (True, False):
+                    for body in (b'', b'overwritten through another pathname\n'):
+                        with self.subTest(target=target, nlink=nlink, before=before, body=body), tempfile.TemporaryDirectory() as tmp:
+                            def edit(records):
+                                fields = next(fields for fields, name, data in records if name == target)
+                                fields[4] = nlink
+                                linked = fields.copy(); linked[4] = 2
+                                linked[1] ^= 0o077  # Permissions do not separate Linux hardlink groups.
+                                alias = (linked, 'installer/link-alias', body)
+                                return [alias] + records if before else records + [alias]
+                            image, expected = self.fixture(Path(tmp), archive=edit)
+                            installer_payload.verify_fit(image)
+                            with self.assertRaisesRegex(ValueError, 'Hardlink.*embedded input'):
+                                installer_payload.verify_embedded(image, expected)
+
+    def test_native_unrelated_hardlinks_and_distinct_identities(self):
+        # Kernel hardlink keys use device, inode and file type, not permissions.
+        for difference in ('unrelated', 'devmajor', 'devminor', 'type', 'single-link'):
+            with self.subTest(difference=difference), tempfile.TemporaryDirectory() as tmp:
+                def edit(records):
+                    fields = next(fields for fields, name, data in records if name == 'installer/install.sh').copy()
+                    fields[4] = 2
+                    if difference == 'unrelated': fields[0] ^= 0x80000000
+                    if difference == 'devmajor': fields[7] ^= 1
+                    if difference == 'devminor': fields[8] ^= 1
+                    if difference == 'type': fields[1] = 0o020600
+                    if difference == 'single-link': fields[4] = 1
+                    alias_body = b'' if difference == 'type' else b'native hardlink contents\n'
+                    return records + [(fields, 'installer/link-a', b''),
+                                      (fields.copy(), 'installer/link-b', alias_body)]
+                image, expected = self.fixture(Path(tmp), archive=edit)
+                installer_payload.verify_fit(image)
+                installer_payload.verify_embedded(image, expected)
+
+    def test_rejects_canonical_duplicate_paths(self):
+        targets = ('installer/install.sh', 'lib/preinit/00_installer',
+                   'installer/sysupgrade.itb', 'installer/recovery.itb',
+                   'installer/payload.sha256', 'installer', 'lib', 'lib/preinit')
+        for target in targets:
+            for prefix in ('', './'):
+                for mode in (0o100755, 0o040755, 0o120777):
+                    with self.subTest(target=target, prefix=prefix, mode=oct(mode)), tempfile.TemporaryDirectory() as tmp:
+                        def edit(records):
+                            fields = next(fields for fields, name, data in records if name == target).copy()
+                            fields[1], fields[4] = mode, 1
+                            return records + [(fields, prefix + target, b'')]
+                        image, expected = self.fixture(Path(tmp), archive=edit)
+                        installer_payload.verify_fit(image)
+                        with self.assertRaisesRegex(ValueError, 'Duplicate embedded newc path: ' + target):
+                            installer_payload.verify_embedded(image, expected)
+
+    def test_frozen_parent_entries_must_remain_directories(self):
+        for parent in ('installer', 'lib', 'lib/preinit'):
+            for before in (True, False):
+                for mode, body in ((0o100644, b''), (0o120777, b'elsewhere'),
+                                   (0o020600, b''), (0o040755, b'not a directory record')):
+                    with self.subTest(parent=parent, before=before, mode=oct(mode)), tempfile.TemporaryDirectory() as tmp:
+                        def edit(records):
+                            fields = next(fields for fields, name, data in records if name == parent).copy()
+                            fields[1], fields[4] = mode, 1
+                            records = [record for record in records if record[1] != parent]
+                            replacement = (fields, parent, body)
+                            return [replacement] + records if before else records + [replacement]
+                        image, expected = self.fixture(Path(tmp), archive=edit)
+                        installer_payload.verify_fit(image)
+                        diagnostic = ('Non-directory embedded input parent: ' + parent if before else
+                                      'Missing/late embedded input parent: ')
+                        with self.assertRaisesRegex(ValueError, diagnostic):
+                            installer_payload.verify_embedded(image, expected)
+
+    def test_frozen_parent_directories_must_precede_children(self):
+        for parent in ('installer', 'lib', 'lib/preinit'):
+            for fault in ('missing', 'late'):
+                with self.subTest(parent=parent, fault=fault), tempfile.TemporaryDirectory() as tmp:
+                    def edit(records):
+                        directory = next(record for record in records if record[1] == parent)
+                        remaining = [record for record in records if record[1] != parent]
+                        return remaining if fault == 'missing' else remaining + [directory]
+                    image, expected = self.fixture(Path(tmp), archive=edit)
+                    installer_payload.verify_fit(image)
+                    with self.assertRaisesRegex(ValueError, 'Missing/late embedded input parent: '):
+                        installer_payload.verify_embedded(image, expected)
+
+    def test_frozen_parent_directory_requires_its_own_parent_first(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            def edit(records):
+                preinit = next(record for record in records if record[1] == 'lib/preinit')
+                lib = next(record for record in records if record[1] == 'lib')
+                return [preinit, lib] + [record for record in records if record[1] not in ('lib', 'lib/preinit')]
+            image, expected = self.fixture(Path(tmp), archive=edit)
+            installer_payload.verify_fit(image)
+            with self.assertRaisesRegex(ValueError, 'Missing/late embedded input parent: lib/preinit'):
+                installer_payload.verify_embedded(image, expected)
 
     def test_final_fit_matches_every_frozen_input(self):
         verify = getattr(installer_payload, 'verify_embedded', None)

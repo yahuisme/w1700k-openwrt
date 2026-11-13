@@ -32,7 +32,8 @@ CALLER = '''uci_apply_defaults() {
 
 
 class DefaultsCleanup(unittest.TestCase):
-    def run_boot(self, bands=('2g', '5g', '6g'), fault='', marker=None, anonymous=False, reapply=False):
+    def run_boot(self, bands=('2g', '5g', '6g'), fault='', marker=None, anonymous=False,
+                 reapply=False, operator_reboot=False):
         self.assertEqual(os.geteuid(), 0, 'isolated chroot requires root')
         uci = os.environ.get('DEFAULTS_UCI') or shutil.which('uci')
         self.assertTrue(uci, 'source /opt/test-tools/env.sh (native UCI required)')
@@ -85,6 +86,21 @@ exec /sbin/uci-real "$@"
                     'cp': '[ "$FAULT" != copy ] || exit 1\n',
                     'cat': '[ "$FAULT" != append ] || exit 1\n',
                     'mv': '''case "$FAULT:$1" in
+ signal-before-publish-*:*/next)
+  echo "$FAULT" >> /fault-events
+  kill -"${FAULT##*-}" "$PPID"
+  exit 1;;
+ publish-missing-source:*/next)
+  # Real BusyBox rename fails with ENOENT, not merely an injected status.
+  /bin/busybox rm -rf "$1"
+  exec /bin/busybox mv "$@";;
+ signal-after-publish-*:*/next|nonzero-after-publish:*/next)
+  /bin/busybox mv "$@" || exit $?
+  echo "$FAULT" >> /fault-events
+  case "$FAULT" in
+   signal-after-publish-*) kill -"${FAULT##*-}" "$PPID"; exit 0;;
+   *) exit 1;;
+  esac;;
  signal-after-backup-*:/tmp/.uci)
   /bin/busybox mv "$@" || exit $?
   # PPID is the actual shell sourcing production defaults, not the boot shell.
@@ -131,6 +147,9 @@ esac
             before = sh('uci export').stdout
             (root / 'calls').write_text('')
             result = sh('. /boot-caller')
+            fault_events = (root / 'fault-events').read_text().splitlines() if (root / 'fault-events').exists() else []
+            if fault.startswith(('signal-before-publish-', 'signal-after-publish-')) or fault == 'nonzero-after-publish':
+                self.assertEqual(fault_events, [fault], 'the actual rename boundary must be reached')
             calls = (root / 'calls').read_text().splitlines()
             after = sh('uci export').stdout
             retained = script.exists()
@@ -140,6 +159,21 @@ esac
             backups = {str(p.relative_to(root)): (p / 'previous/system').read_text()
                        for p in leftovers if (p / 'previous/system').is_file()}
             pending = sh('uci changes').stdout
+            operator_after = None
+            if operator_reboot:
+                changed = sh("uci set network.lan.ipaddr='192.168.55.1'; "
+                             "uci set system.main.hostname='operator-after-boot'; uci commit")
+                self.assertEqual(changed.returncode, 0, changed.stderr)
+                operator_after = sh('uci export').stdout
+                self.assertIn("option ipaddr '192.168.55.1'", operator_after)
+                self.assertIn("option hostname 'operator-after-boot'", operator_after)
+                # Fault delivery is one-shot; the next boot must not reapply defaults.
+                env['FAULT'] = ''
+                again = sh('. /boot-caller')
+                self.assertEqual(again.returncode, 0, again.stderr)
+                self.assertEqual(sh('uci export').stdout, operator_after,
+                                 'published defaults must not overwrite later operator changes')
+                self.assertFalse(script.exists())
             if fault == 'publish-and-restore-fail':
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertTrue(retained, calls)
@@ -158,7 +192,7 @@ esac
             else:
                 self.assertEqual(leftovers, [])
             # Replaying a successful boot cannot reapply removed defaults.
-            if not retained:
+            if not retained and not operator_reboot:
                 if reapply:
                     script.write_text('( . /production-defaults )\nstatus=$?\necho "$status" > /defaults-status\nexit "$status"\n')
                 again = sh('. /boot-caller')
@@ -172,14 +206,47 @@ esac
                     evidence.write(json.dumps(dict(bands=bands, fault=fault, marker=marker,
                         anonymous=anonymous, defaults_status=status, boot_status=result.returncode,
                         script_retained=retained, before=before, after=after, calls=calls,
-                        pending=pending, stderr=result.stderr, backups=backups), ensure_ascii=False) + '\n')
+                        pending=pending, stderr=result.stderr, backups=backups,
+                        operator_after=operator_after, fault_events=fault_events), ensure_ascii=False) + '\n')
             return result, before, after, calls, retained, pending
 
     def test_failed_required_write_is_not_committed_by_boot(self):
-        for fault in ('ipaddr', 'ssid', 'copy', 'append', 'publish'):
+        for fault in ('ipaddr', 'ssid', 'copy', 'append', 'publish', 'publish-missing-source'):
             with self.subTest(fault=fault):
                 result, before, after, calls, retained, pending = self.run_boot(fault=fault)
+                if fault == 'publish-missing-source':
+                    self.assertIn('No such file or directory', result.stderr)
                 self.assertTrue(retained, (result.stderr, calls))
+                self.assertEqual(after, before, calls)
+                self.assertEqual(pending, '')
+
+    def test_signal_after_publish_is_success_and_preserves_operator_changes(self):
+        for signal in ('TERM', 'INT', 'HUP'):
+            with self.subTest(signal=signal):
+                result, _, after, calls, retained, pending = self.run_boot(
+                    fault=f'signal-after-publish-{signal}', operator_reboot=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse(retained, calls)
+                self.assertIn("option hostname 'W1700K'", after)
+                self.assertIn("list ipaddr '192.168.8.1/24'", after)
+                self.assertEqual(pending, '')
+
+    def test_nonzero_after_publish_is_success_and_preserves_operator_changes(self):
+        result, _, after, calls, retained, pending = self.run_boot(
+            fault='nonzero-after-publish', operator_reboot=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(retained, calls)
+        self.assertIn("option description 'earlier-default'", after)
+        self.assertIn("list ipaddr '192.168.8.1/24'", after)
+        self.assertEqual(pending, '')
+
+    def test_signal_before_publish_restores_earlier_defaults(self):
+        for signal in ('TERM', 'INT', 'HUP'):
+            with self.subTest(signal=signal):
+                result, before, after, calls, retained, pending = self.run_boot(
+                    fault=f'signal-before-publish-{signal}')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(retained, calls)
                 self.assertEqual(after, before, calls)
                 self.assertEqual(pending, '')
 

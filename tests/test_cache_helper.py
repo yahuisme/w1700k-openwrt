@@ -165,7 +165,8 @@ class HelperTests(unittest.TestCase):
                 inventory = [dict(e) for e in entries]
                 if maximal_old:
                     for e in inventory:
-                        if h.owner(e['key']) == DL:
+                        if e['key'].startswith('dl-v3.'):
+                            # These immutable snapshots predate distro namespaces.
                             # Conservatively reserve an outer wrapper for the old
                             # 3 GB inner archive as well as the new candidate.
                             e['size_in_bytes'] = 3_200_000_000 + h.HEADROOM
@@ -287,13 +288,13 @@ class HelperTests(unittest.TestCase):
         self.assertFalse(self.deletes())
 
     def caches(self):
-        return [entry(1, 'tc-v3-ubi2-new'), entry(2, 'tc-v3-ubi2-old'),
+        return [entry(1, TC + 'new'), entry(2, TC + 'old'),
                 entry(3, 'tc-v3-ubi2-oc-peer'), entry(4, 'cc-v3-ubi2.peer'),
-                entry(5, 'tc-v3-ubi2-older'), entry(6, 'legacy'),
-                entry(7, 'tc-v3-ubi2-other', ref='refs/heads/other'),
+                entry(5, TC + 'older'), entry(6, 'legacy'),
+                entry(7, TC + 'other', ref='refs/heads/other'),
                 entry(8, 'dl-v3.peer')]
 
-    def cleanup(self, key='tc-v3-ubi2-new', prefix=TC):
+    def cleanup(self, key=TC + 'new', prefix=TC):
         return self.run_helper('cleanup', prefix, key)
 
     def test_delayed_save_visibility_rechecks_before_deleting(self):
@@ -320,7 +321,7 @@ class HelperTests(unittest.TestCase):
 
     def test_visibility_retry_is_bounded_and_fails_closed(self):
         from unittest.mock import patch
-        prefix, keep = CC, 'cc-v3-ubi2.new'
+        prefix, keep = CC, CC + 'new'
         old = entry(2, prefix + 'old')
         for pending in ([old], [entry(1, keep, size=0), old],
                         [entry(1, keep, ref='refs/heads/other'), old]):
@@ -358,7 +359,7 @@ class HelperTests(unittest.TestCase):
             if mode == 'wrong_ref': entries[0]['ref'] = 'refs/heads/other'
             self.env['GITHUB_REF'] = 'refs/pull/1/merge' if mode == 'bad_ref' else REF
             self.reset(entries)
-            log = self.cleanup('tc-v3-ubi2-oc-peer' if mode == 'wrong_owner' else 'tc-v3-ubi2-new')
+            log = self.cleanup('tc-v3-ubi2-oc-peer' if mode == 'wrong_owner' else TC + 'new')
             self.assertIn('::warning::', log)
             self.assertFalse(self.deletes())
             self.assertEqual(self.snapshot()['entries'], entries)

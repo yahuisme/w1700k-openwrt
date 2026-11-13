@@ -144,6 +144,9 @@ def verify_embedded(path, expected):
     if start < 0:
         raise ValueError('Missing embedded installer archive')
     entries, position = {}, start
+    parents = {str(parent) for name in expected for parent in Path(name).parents}
+    ready_parents = {'.'}  # Linux starts with a root even without a newc root record.
+    frozen_identities, hardlinks, seen = {}, set(), set()
     while True:
         fields, name, position = header_at(position)
         mode, size = fields[1], fields[6]
@@ -153,12 +156,39 @@ def verify_embedded(path, expected):
         # not be skipped as a kernel string literal. Allow the native root
         # directory and one leading ./, but never filesystem path aliases.
         if name in ('', '.') and stat.S_ISDIR(mode):
-            pass
+            name = '.'
         elif any(part in ('', '.', '..') for part in name.split('/')):
             raise ValueError('Invalid embedded newc path: ' + name)
+        if name in seen:
+            raise ValueError('Duplicate embedded newc path: ' + name)
+        seen.add(name)
+        # A digest at the expected spelling proves nothing if its parent is a
+        # symlink/non-directory, or a directory body that Linux skips entirely.
+        if name in parents and (not stat.S_ISDIR(mode) or size):
+            raise ValueError('Non-directory embedded input parent: ' + name)
+        # Linux neither creates missing ancestors nor retries earlier children.
+        # Track only the frozen ancestor chain, not unrelated rootfs paths.
+        if name in parents or name in expected:
+            if any(str(parent) not in ready_parents for parent in Path(name).parents):
+                raise ValueError('Missing/late embedded input parent: ' + name)
+            if name in parents:
+                ready_parents.add(name)
+        # Linux groups hardlinks by device, inode and file type. Keep frozen
+        # identities disjoint even from inconsistent nlink declarations; do not
+        # reject normal hardlink groups elsewhere in the native rootfs.
+        identity = (fields[7], fields[8], fields[0], stat.S_IFMT(mode))
+        if fields[4] >= 2:
+            hardlinks.add(identity)
+            if identity in frozen_identities:
+                raise ValueError('Hardlink aliases embedded input: ' + frozen_identities[identity])
         if name in expected:
             if name in entries or not stat.S_ISREG(mode):
                 raise ValueError('Duplicate/nonregular embedded input: ' + name)
+            if fields[4] != 1:
+                raise ValueError('Hardlinked embedded input: ' + name)
+            if identity in hardlinks:
+                raise ValueError('Hardlink aliases embedded input: ' + name)
+            frozen_identities[identity] = name
             if name in ('installer/install.sh', 'lib/preinit/00_installer') and not mode & 0o111:
                 raise ValueError('Nonexecutable embedded installer: ' + name)
             entries[name] = 'sha256:' + hashlib.sha256(memoryview(data)[position:position + size]).hexdigest()

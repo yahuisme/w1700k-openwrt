@@ -6,6 +6,8 @@
 
 先构建并封存完整 sysupgrade 与 Chainloader，再复用同次源码、工具链和包，通过原生打包流程生成精简 Recovery 与 Installer。临时环境沿用本仓硬件兼容修复，保留驱动、有线网络、SSH、UBI 与刷写工具，不包含 LuCI、Aurora、项目应用和日常设置。
 
+此步骤位于构建末尾：结束时恢复正式配置、配方、overlay 与输出，随后只收集和发布封存产物，不复用临时 package/rootfs 状态继续构建正式固件。
+
 Installer 自动写入同次完整 sysupgrade，安装完成重启后就是完整系统，无需后台再升级。内部 Recovery 不含自动安装入口，仅用于手动恢复；默认管理地址沿用原生 `192.168.1.1`。
 
 `installer.json` 记录本次内嵌镜像与 Installer 的大小和 SHA-256，随构建记录保存，不作为 Release 附件。下载区仅发布三个 ITB。

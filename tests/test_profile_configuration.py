@@ -13,6 +13,12 @@ USTEER = ('usteer', 'luci-app-usteer', 'luci-i18n-usteer-zh-cn')
 
 
 class ProfileConfigurationTests(unittest.TestCase):
+    def test_nft_tproxy_is_builtin_for_both_distributions(self):
+        for profile in ('default', 'immortalwrt'):
+            with self.subTest(profile=profile):
+                lines = (ROOT / 'user' / profile / 'config.diff').read_text().splitlines()
+                self.assertEqual(lines.count('CONFIG_PACKAGE_kmod-nft-tproxy=y'), 1)
+
     def test_no_obsolete_or_ineffective_profile_entries(self):
         symbols = set(re.findall(r'^(?:# )?CONFIG_([^= ]+)', PROFILE.read_text(), re.M))
         # NO_SMB has no definition or recipe reader; GDB's prompt is hidden

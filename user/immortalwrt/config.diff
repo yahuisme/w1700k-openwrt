@@ -36,6 +36,7 @@ CONFIG_OPENSSL_WITH_TLS13=y
 CONFIG_OPENSSL_WITH_WHIRLPOOL=y
 CONFIG_PACKAGE_kmod-crypto-hw-eip93=y
 CONFIG_PACKAGE_kmod-br-netfilter=y
+CONFIG_PACKAGE_kmod-nft-tproxy=y
 CONFIG_PACKAGE_kmod-tcp-bbr=y
 CONFIG_PACKAGE_apk-openssl=y
 CONFIG_PACKAGE_ca-certificates=y

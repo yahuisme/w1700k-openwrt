@@ -33,6 +33,11 @@ def select(system, root):
     commands = commands.replace(marker, marker +
         '# Shared 610 replaces the upstream CN/US customization.\n'
         'rm -f package/firmware/wireless-regdb/patches/600-custom-change-txpower-and-dfs.patch\n')
+    commands += (
+        '\n# Refresh the ImmortalWrt FullCone patch for firewall4 3722eadc.\n'
+        'cp -f "$DK_USER/immortalwrt/firewall4-fullcone.patch" '
+        'package/network/config/firewall4/patches/001-firewall4-add-support-for-fullcone-nat.patch\n'
+        '# End firewall4 patch refresh.\n')
     custom.write_text(commands)
     installer.write_text(script.replace('/openwrt-airoha-an7581-', '/immortalwrt-airoha-an7581-'))
     # Publish the selected identity last; interrupted writes cannot look selected.

@@ -111,6 +111,14 @@ class DualBuildTests(unittest.TestCase):
             subprocess.run(['/usr/bin/python3', 'scripts/select_distribution.py', 'immortalwrt'],
                            cwd=root, check=True)
             script = (root / 'user/default/custom.sh').read_text()
+            # Exclude only the reviewed distro-local FullCone context refresh.
+            refresh = (
+                '\n# Refresh the ImmortalWrt FullCone patch for firewall4 3722eadc.\n'
+                'cp -f "$DK_USER/immortalwrt/firewall4-fullcone.patch" '
+                'package/network/config/firewall4/patches/001-firewall4-add-support-for-fullcone-nat.patch\n'
+                '# End firewall4 patch refresh.\n')
+            self.assertEqual(script.count(refresh), 1)
+            script = script.replace(refresh, '', 1)
             script = script.replace('# Shared 610 replaces the upstream CN/US customization.',
                                     '# Shared 610 covers the CN/US customization previously provided by 600.')
             # Normalize only explicitly reviewed post-migration additions.

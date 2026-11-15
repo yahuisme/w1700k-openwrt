@@ -13,11 +13,15 @@ USTEER = ('usteer', 'luci-app-usteer', 'luci-i18n-usteer-zh-cn')
 
 
 class ProfileConfigurationTests(unittest.TestCase):
-    def test_nft_tproxy_is_builtin_for_both_distributions(self):
+    def test_network_support_modules_are_builtin_for_both_distributions(self):
         for profile in ('default', 'immortalwrt'):
-            with self.subTest(profile=profile):
-                lines = (ROOT / 'user' / profile / 'config.diff').read_text().splitlines()
-                self.assertEqual(lines.count('CONFIG_PACKAGE_kmod-nft-tproxy=y'), 1)
+            lines = (ROOT / 'user' / profile / 'config.diff').read_text().splitlines()
+            for package in ('kmod-inet-diag', 'kmod-nft-tproxy', 'kmod-tun'):
+                with self.subTest(profile=profile, package=package):
+                    entries = [line for line in lines
+                               if line.startswith(f'CONFIG_PACKAGE_{package}=') or
+                               line == f'# CONFIG_PACKAGE_{package} is not set']
+                    self.assertEqual(entries, [f'CONFIG_PACKAGE_{package}=y'])
 
     def test_no_obsolete_or_ineffective_profile_entries(self):
         symbols = set(re.findall(r'^(?:# )?CONFIG_([^= ]+)', PROFILE.read_text(), re.M))

@@ -16,7 +16,7 @@ class ProfileConfigurationTests(unittest.TestCase):
     def test_network_support_modules_are_builtin_for_both_distributions(self):
         for profile in ('default', 'immortalwrt'):
             lines = (ROOT / 'user' / profile / 'config.diff').read_text().splitlines()
-            for package in ('kmod-inet-diag', 'kmod-nft-tproxy', 'kmod-tun'):
+            for package in ('kmod-inet-diag', 'kmod-netlink-diag', 'kmod-nft-tproxy', 'kmod-tun'):
                 with self.subTest(profile=profile, package=package):
                     entries = [line for line in lines
                                if line.startswith(f'CONFIG_PACKAGE_{package}=') or

@@ -395,7 +395,7 @@ export -f make docker_exec sudo git
                     self.assertEqual(outcomes['Check toolchain cache budget'], 'skipped', log)
 
     def test_missing_network_modules_never_stage_or_publish(self):
-        for package in ('kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag'):
+        for package in ('kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag', 'kmod-netlink-diag'):
             with self.subTest(package=package):
                 outcomes, _, inventory, log = self.replay('missing-' + package)
                 self.assertEqual(outcomes['Validate formal firmware'], 'failure', log)

@@ -28,7 +28,7 @@ def validate(config, targets, distro):
             if lines.count('CONFIG_PACKAGE_' + package + '=y') != 1:
                 raise ValueError('missing/duplicate required application: ' + package)
     for package in ('etherwake', 'ttyd', 'wpad-openssl',
-                    'kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag'):
+                    'kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag', 'kmod-netlink-diag'):
         symbol = 'CONFIG_PACKAGE_' + package
         selections = [line for line in lines if line.startswith(symbol + '=')
                       or line == '# ' + symbol + ' is not set']

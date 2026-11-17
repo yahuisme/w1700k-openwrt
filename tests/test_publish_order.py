@@ -194,6 +194,9 @@ class CachePublicationIntegrationTests(unittest.TestCase):
                 (base / '.external-packages/provenance.json').write_text('{')
             if fault == 'validation':
                 (base / '.config').write_text('CONFIG_TARGET_wrong=y\n')
+            if fault.startswith('missing-kmod-'):
+                config = base / '.config'
+                config.write_text(config.read_text().replace('CONFIG_PACKAGE_' + fault[8:] + '=y\n', ''))
             if fault == 'pre-stage-corruption':
                 image = next((base / 'openwrt_bin').rglob('*sysupgrade.itb'))
                 raw = image.read_bytes()
@@ -390,6 +393,18 @@ export -f make docker_exec sudo git
                     self.assertTrue({1, 2, 3} <= {item['id'] for item in inventory['entries']}, log)
                 if fault in ('save', 'readback'):
                     self.assertEqual(outcomes['Check toolchain cache budget'], 'skipped', log)
+
+    def test_missing_network_modules_never_stage_or_publish(self):
+        for package in ('kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag'):
+            with self.subTest(package=package):
+                outcomes, _, inventory, log = self.replay('missing-' + package)
+                self.assertEqual(outcomes['Validate formal firmware'], 'failure', log)
+                self.assertIn('required dependency: ' + package, log)
+                self.assertEqual(outcomes['Build installer'], 'skipped', log)
+                self.assertEqual(outcomes['Validate and stage firmware'], 'skipped', log)
+                self.assertEqual(outcomes['Publish firmware and prune releases'], 'skipped', log)
+                self.assertFalse(any(call[:2] in (['release', 'create'], ['release', 'delete'])
+                                     for call in inventory['calls']), log)
 
     def test_native_and_staged_corruption_never_mutate_releases(self):
         for fault in ('pre-stage-corruption', 'post-stage-corruption', 'record-and-image-corruption'):

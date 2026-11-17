@@ -27,8 +27,12 @@ def validate(config, targets, distro):
         for package in ('luci-app-' + app, 'luci-i18n-' + app + '-zh-cn'):
             if lines.count('CONFIG_PACKAGE_' + package + '=y') != 1:
                 raise ValueError('missing/duplicate required application: ' + package)
-    for package in ('etherwake', 'ttyd', 'wpad-openssl'):
-        if lines.count('CONFIG_PACKAGE_' + package + '=y') != 1:
+    for package in ('etherwake', 'ttyd', 'wpad-openssl',
+                    'kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag'):
+        symbol = 'CONFIG_PACKAGE_' + package
+        selections = [line for line in lines if line.startswith(symbol + '=')
+                      or line == '# ' + symbol + ' is not set']
+        if selections != [symbol + '=y']:
             raise ValueError('missing/duplicate required dependency: ' + package)
     for package in ('usteer', 'luci-app-usteer', 'luci-i18n-usteer-zh-cn'):
         if any('CONFIG_PACKAGE_' + package + '=' + state in lines for state in ('y', 'm')):

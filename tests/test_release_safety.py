@@ -29,7 +29,8 @@ for app in ('airoha-fancontrol', 'airoha-flowsense', 'airoha-npu', 'wifi7', 'wol
     CONFIG += f'CONFIG_PACKAGE_luci-app-{app}=y\nCONFIG_PACKAGE_luci-i18n-{app}-zh-cn=y\n'
 
 
-CONFIG += ''.join(f'CONFIG_PACKAGE_{pkg}=y\n' for pkg in ('etherwake', 'ttyd', 'wpad-openssl'))
+CONFIG += ''.join(f'CONFIG_PACKAGE_{pkg}=y\n' for pkg in (
+    'etherwake', 'ttyd', 'wpad-openssl', 'kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag'))
 
 
 class ReleaseTests(unittest.TestCase):
@@ -71,6 +72,42 @@ class ReleaseTests(unittest.TestCase):
                         self.assertFalse((base / 'firmware').exists())
                     else:
                         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_network_modules_are_required_at_formal_and_stage_gates(self):
+        from scripts.validate_firmware import validate, finalize
+        modules = ('kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag')
+        for package in modules:
+            symbol = 'CONFIG_PACKAGE_' + package
+            selected = symbol + '=y\n'
+            states = {
+                'y': selected,
+                'absent': '',
+                'm': symbol + '=m\n',
+                'n': symbol + '=n\n',
+                'unset': '# ' + symbol + ' is not set\n',
+                'duplicate': selected * 2,
+                'conflicting-m': selected + symbol + '=m\n',
+                'conflicting-n': selected + symbol + '=n\n',
+                'conflicting-unset': selected + '# ' + symbol + ' is not set\n',
+            }
+            for state, replacement in states.items():
+                with self.subTest(package=package, state=state), tempfile.TemporaryDirectory() as tmp:
+                    base = Path(tmp)
+                    self.fixture(base)
+                    self.assertEqual(CONFIG.count(selected), 1)
+                    config = base / '.config'
+                    config.write_text(CONFIG.replace(selected, replacement))
+                    for checker in (validate, finalize):
+                        if state == 'y':
+                            self.assertTrue(checker(config, base / 'openwrt_bin/targets', MATRIX['system'])['images'])
+                        else:
+                            with self.assertRaisesRegex(ValueError, 'required dependency: ' + package):
+                                checker(config, base / 'openwrt_bin/targets', MATRIX['system'])
+                    result = self.stage(base)
+                    self.assertEqual(result.returncode == 0, state == 'y', result.stdout + result.stderr)
+                    if state != 'y':
+                        self.assertIn('required dependency: ' + package, result.stderr)
+                        self.assertFalse((base / 'firmware').exists())
 
     def test_required_user_packages_cannot_be_omitted(self):
         packages = ['etherwake', 'ttyd', 'wpad-openssl']

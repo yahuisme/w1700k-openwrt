@@ -13,11 +13,13 @@ USTEER = ('usteer', 'luci-app-usteer', 'luci-i18n-usteer-zh-cn')
 
 
 class ProfileConfigurationTests(unittest.TestCase):
-    def test_curl_is_not_explicitly_preinstalled_for_either_distribution(self):
+    def test_curl_is_explicitly_preinstalled_for_both_distributions(self):
         for profile in ('default', 'immortalwrt'):
             with self.subTest(profile=profile):
-                text = (ROOT / 'user' / profile / 'config.diff').read_text()
-                self.assertNotRegex(text, r'(?m)^CONFIG_PACKAGE_curl=[ym]$')
+                lines = (ROOT / 'user' / profile / 'config.diff').read_text().splitlines()
+                entries = [line for line in lines if line.startswith('CONFIG_PACKAGE_curl=')
+                           or line == '# CONFIG_PACKAGE_curl is not set']
+                self.assertEqual(entries, ['CONFIG_PACKAGE_curl=y'])
 
     def test_network_support_modules_are_builtin_for_both_distributions(self):
         for profile in ('default', 'immortalwrt'):

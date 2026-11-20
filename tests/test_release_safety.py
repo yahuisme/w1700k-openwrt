@@ -30,7 +30,7 @@ for app in ('airoha-fancontrol', 'airoha-flowsense', 'airoha-npu', 'wifi7', 'wol
 
 
 CONFIG += ''.join(f'CONFIG_PACKAGE_{pkg}=y\n' for pkg in (
-    'etherwake', 'ttyd', 'wpad-openssl', 'kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag',
+    'curl', 'etherwake', 'ttyd', 'wpad-openssl', 'kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag',
     'kmod-netlink-diag'))
 
 
@@ -74,10 +74,10 @@ class ReleaseTests(unittest.TestCase):
                     else:
                         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_network_modules_are_required_at_formal_and_stage_gates(self):
+    def test_required_dependencies_are_enforced_at_formal_and_stage_gates(self):
         from scripts.validate_firmware import validate, finalize
-        modules = ('kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag', 'kmod-netlink-diag')
-        for package in modules:
+        packages = ('curl', 'kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag', 'kmod-netlink-diag')
+        for package in packages:
             symbol = 'CONFIG_PACKAGE_' + package
             selected = symbol + '=y\n'
             states = {

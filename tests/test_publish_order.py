@@ -194,7 +194,7 @@ class CachePublicationIntegrationTests(unittest.TestCase):
                 (base / '.external-packages/provenance.json').write_text('{')
             if fault == 'validation':
                 (base / '.config').write_text('CONFIG_TARGET_wrong=y\n')
-            if fault.startswith('missing-kmod-'):
+            if fault == 'missing-curl' or fault.startswith('missing-kmod-'):
                 config = base / '.config'
                 config.write_text(config.read_text().replace('CONFIG_PACKAGE_' + fault[8:] + '=y\n', ''))
             if fault == 'pre-stage-corruption':
@@ -394,8 +394,8 @@ export -f make docker_exec sudo git
                 if fault in ('save', 'readback'):
                     self.assertEqual(outcomes['Check toolchain cache budget'], 'skipped', log)
 
-    def test_missing_network_modules_never_stage_or_publish(self):
-        for package in ('kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag', 'kmod-netlink-diag'):
+    def test_missing_required_dependencies_never_stage_or_publish(self):
+        for package in ('curl', 'kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag', 'kmod-netlink-diag'):
             with self.subTest(package=package):
                 outcomes, _, inventory, log = self.replay('missing-' + package)
                 self.assertEqual(outcomes['Validate formal firmware'], 'failure', log)

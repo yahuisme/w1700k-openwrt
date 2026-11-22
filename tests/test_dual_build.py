@@ -143,6 +143,17 @@ class DualBuildTests(unittest.TestCase):
             script = script.replace(anchor, retired + anchor, 1)
             self.assertEqual(hashlib.sha256(script.encode()).hexdigest(), '91a1f09c268b6e0dfbb29c7cb8528a73dfdd9acc985ef82fce3f9776e1207247')
             installer = (root / 'installer/files/installer/install.sh').read_text()
+            # Reverse only the independently tested erase-size overflow repair.
+            bounded = (
+                '  ebs="$(cat "/sys/class/mtd/$(basename /dev/mtd0)/erasesize")" || die "Invalid erase size"\n'
+                '  # Bound canonical decimal before multiplication; ash arithmetic can wrap.\n'
+                '  case "$ebs" in ""|0*|*[!0-9]*|????????*) die "Invalid erase size";; esac\n'
+                '  [ "$ebs" -le $((0x600000)) ] || die "Invalid erase size"\n')
+            self.assertEqual(installer.count(bounded), 1)
+            installer = installer.replace(bounded,
+                '  ebs="$(cat "/sys/class/mtd/$(basename /dev/mtd0)/erasesize")"\n'
+                '  case "$ebs" in ""|*[!0-9]*) die "Invalid erase size";; esac\n'
+                '  [ "$ebs" -gt 0 ] || die "Invalid erase size"\n', 1)
             installer = installer.replace('  # No pipeline: preserve the digest tool failure even if it prints output.\n', '')
             self.assertEqual(hashlib.sha256(installer.encode()).hexdigest(), '053bd7f7079aae75bd35ea6e339724ccc10ba42645775a18eaf26142c9d280ff')
 

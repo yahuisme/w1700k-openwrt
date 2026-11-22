@@ -243,8 +243,13 @@ def _strings(tree, node, name, *, single=False):
 
 
 def _children(tree, parent):
+    seen = set()
     node = tree.first_subnode(parent, quiet=(libfdt.NOTFOUND,))
     while node >= 0:
+        name = tree.get_name(node)
+        if name in seen:
+            raise ValueError('Duplicate FIT node: ' + name)
+        seen.add(name)
         yield node
         node = tree.next_subnode(node, quiet=(libfdt.NOTFOUND,))
 

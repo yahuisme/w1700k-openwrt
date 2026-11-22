@@ -172,9 +172,10 @@ get_factory_eeprom() {
 
   [ -d "$FACTORY_TMP" ] || mkdir -p "$FACTORY_TMP"
 
-  ebs="$(cat "/sys/class/mtd/$(basename /dev/mtd0)/erasesize")"
-  case "$ebs" in ""|*[!0-9]*) die "Invalid erase size";; esac
-  [ "$ebs" -gt 0 ] || die "Invalid erase size"
+  ebs="$(cat "/sys/class/mtd/$(basename /dev/mtd0)/erasesize")" || die "Invalid erase size"
+  # Bound canonical decimal before multiplication; ash arithmetic can wrap.
+  case "$ebs" in ""|0*|*[!0-9]*|????????*) die "Invalid erase size";; esac
+  [ "$ebs" -le $((0x600000)) ] || die "Invalid erase size"
   [ $((init_off + 3 * ebs + eeprom_len)) -le $((0x600000)) ] || die "EEPROM search exceeds vendor boundary"
   off="$init_off"
 

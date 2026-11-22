@@ -349,6 +349,31 @@ exec /bin/busybox sh "$@"
         self.assertIn("DIAGNOSTIC_SHELL", p.stdout)
         self.assertNotIn("NORMAL_BOOT", p.stdout)
 
+    def test_erase_size_is_bounded_before_shell_arithmetic(self):
+        path = 'sys/class/mtd/mtd0/erasesize'
+        for value in (None, '', 'invalid', '0', '010', '9999999',
+                      '9223372036854775807', '6148914691236517205', '9' * 100):
+            with self.subTest(value=value):
+                self.put('calls', '')
+                (self.root / 'installer/factory.bin').unlink(missing_ok=True)
+                if value is None:
+                    (self.root / path).unlink()
+                else:
+                    self.put(path, value + '\n')
+                result = self.run_installer()
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn('Invalid erase size', result.stdout)
+                self.assertIn('stage=read factory data', result.stdout)
+                self.assertEqual(self.calls, '', result.stdout)
+                self.assertFalse((self.root / 'installer/factory.bin').exists())
+        self.put(path, '131072\n')
+        for _ in range(2):
+            self.put('calls', '')
+            result = self.run_installer()
+            self.assertIn('Sync complete', result.stdout)
+            self.assertIn('reboot returned', result.stdout)
+            self.assertIn('ubiformat /dev/mtd2 -y', self.calls)
+
     def test_erase_geometry_bounds(self):
         self.put("sys/class/mtd/mtd0/erasesize", str(0x200000))
         p = self.run_installer()

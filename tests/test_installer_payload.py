@@ -29,6 +29,33 @@ class PayloadTests(unittest.TestCase):
                 path.write_bytes(data)
                 verify_fit(path)
 
+    def test_duplicate_fit_siblings_cannot_hide_the_native_first_node(self):
+            # libfdt's structural check permits duplicate sibling names and
+            # native path lookup selects the first, not Python dict's last.
+            self.check_fit(self.inline)
+            for parent, name in (('/images', 'kernel-1'),
+                                 ('/configurations', 'config-1'),
+                                 ('/images/kernel-1', 'hash-1')):
+                with self.subTest(parent=parent):
+                    tree = libfdt.Fdt(self.inline)
+                    tree.resize(len(self.inline) + 1024)
+                    alias = name[:-1] + 'x'
+                    added = tree.add_subnode(tree.path_offset(parent), alias)
+                    tree.setprop(added, 'data', b'unhashed duplicate')
+                    raw = tree.as_bytearray()
+                    self.assertEqual(raw.count(alias.encode() + b'\0'), 1)
+                    raw = raw.replace(alias.encode() + b'\0', name.encode() + b'\0')
+                    self.assertEqual(libfdt.fdt_check_full(raw, len(raw)), 0)
+                    native = libfdt.Fdt(raw)
+                    self.assertEqual(bytes(native.getprop(native.path_offset(parent + '/' + name), 'data')),
+                                     b'unhashed duplicate')
+                    for kind in ('sysupgrade', 'recovery', 'chainloader'):
+                        with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                            path = Path(directory) / 'duplicate.itb'
+                            path.write_bytes(raw)
+                            with self.assertRaisesRegex(ValueError, 'Duplicate FIT node'):
+                                verify_fit(path, kind=kind)
+
     def test_all_component_bytes_are_hashed(self):
             tree = libfdt.Fdt(self.fit)
             for name in ['kernel-1', 'fdt-1', 'rootfs-1']:

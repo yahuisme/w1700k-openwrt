@@ -1,10 +1,10 @@
 # W1700K OpenWrt U-Boot 与首次安装教程
 
-- **首次安装**：按以下四步操作。
-- **重装系统**：若已有 `4. Boot installer via TFTP` 菜单，跳过“写入 Chainloader”。
+- **首次安装**：从原厂 U-Boot 开始，按以下四步操作。
+- **重装系统**：若已有 `4. Boot installer via TFTP` 菜单，只下载 Installer，跳过“写入 Chainloader”。
 - **日常升级**：已有兼容 UBI2 系统时，使用 [sysupgrade 固件](https://github.com/yahuisme/w1700k-openwrt/releases?q=W1700K-OpenWrt-)，不要运行 Installer。
 
-> 安装会清除原有系统与配置。确认设备型号并保存本机原厂数据备份，刷写期间不要断电。
+> 仅适用于 Quantum Fiber / Gemtek W1700K。安装或重装会清除原有系统与配置。刷写前确认型号，并将本机原厂数据备份保存到电脑；刷写期间不要断电。
 
 ## 1. 准备
 
@@ -12,14 +12,14 @@
 - [PuTTY 中文版](https://github.com/larryli/putty)：串口终端
 - [Tftpd64 官方下载](https://github.com/PJO2/tftpd64/releases/)：TFTP 服务
 
-从 [Release](https://github.com/yahuisme/w1700k-openwrt/releases?q=W1700K-OpenWrt-) 下载同一次发布的以下两个文件，放入 `C:\tftp`：
+从 [OpenWrt Releases](https://github.com/yahuisme/w1700k-openwrt/releases?q=W1700K-OpenWrt-) 下载固件并放入 `C:\tftp`。首次安装需下载同一次发布的两个文件；已有 Installer 菜单时只下载第二个：
 
 ```text
 openwrt-airoha-an7581-gemtek_w1700k-ubi-chainload-uboot.itb
 openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb
 ```
 
-另一个文件 `openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb` 用于日常升级，不要替代 Installer。首次安装的两个文件不要混用发行版或版本。
+`openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb` 只用于同发行版日常升级，不能替代 Installer。
 
 ## 2. 连接与设置
 

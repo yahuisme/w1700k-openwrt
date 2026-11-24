@@ -18,7 +18,7 @@
 
 | 文件后缀 | 用途 |
 | --- | --- |
-| `chainload-uboot.itb` | 从原厂 U-Boot 首次写入 Chainloader；已有 Installer 菜单可跳过 |
+| `chainload-uboot.itb` | 从原厂 U-Boot 写入修正版 Chainloader；重装仅在确认已是兼容版本 2.0 布局时可跳过 |
 | `initramfs-installer.itb` | 初始化或重建 UBI2，并安装同次构建的完整系统 |
 | `squashfs-sysupgrade.itb` | 已有兼容 UBI2 系统的同发行版升级 |
 
@@ -74,7 +74,7 @@
 2. 进入 **系统 → 备份 / 升级**，上传固件。建议取消勾选“保留配置”；这样会清除现有设置。
 3. 校验通过后再升级，等待设备重启，期间不要断电。校验失败时不要强制刷写。
 
-已有兼容 UBI2 系统时，不要运行 `initramfs-installer.itb`，也无需重新初始化 UBI2。
+已安装修正版 Chainloader 和兼容版本 2.0 系统时，日常升级无需 Installer。旧版或布局不明时，先按对应教程核对并迁移，不要强制升级；出现 Installer 菜单不代表布局已修正。
 
 ## 构建与发布
 

@@ -1,5 +1,6 @@
 """Exact TC member boundaries through the production cache recovery CLI."""
 import io
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -9,6 +10,10 @@ import unittest
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / 'scripts/cache_recovery.py'
+NATIVE = (
+    'toolchain-aarch64_cortex-a53_gcc-15.3.0_musl',  # OpenWrt run 45333395480
+    'toolchain-aarch64_cortex-a53_gcc-14.4.0_musl',  # ImmortalWrt, same run
+)
 
 
 class ToolchainArchiveTests(unittest.TestCase):
@@ -27,10 +32,10 @@ class ToolchainArchiveTests(unittest.TestCase):
                                '--restored', 'matched', '--outcome', 'success'],
                               text=True, capture_output=True)
 
-    def archive_entries(self, extra=()):
+    def archive_entries(self, extra=(), pair=('toolchain-test', 'toolchain-test')):
         with tarfile.open(self.archive / 'toolchain.tar.gz', 'w:gz') as tf:
             for name in ('build_dir/host', 'staging_dir/host',
-                         'build_dir/toolchain-test', 'staging_dir/toolchain-test'):
+                         'build_dir/' + pair[0], 'staging_dir/' + pair[1]):
                 item = tarfile.TarInfo(name)
                 item.type = tarfile.DIRTYPE
                 tf.addfile(item)
@@ -41,6 +46,68 @@ class ToolchainArchiveTests(unittest.TestCase):
             for item in extra:
                 tf.addfile(item, io.BytesIO(b'x' * item.size) if item.isfile() else None)
         (self.archive / 'key').write_text('matched\n')
+
+    def pack(self):
+        return subprocess.run([sys.executable, str(SCRIPT.with_name('cache.py')),
+                               'toolchain', str(self.root), str(self.archive), 'matched'],
+                              text=True, capture_output=True)
+
+    def test_native_toolchain_pairs_round_trip(self):
+        for name in NATIVE:
+            with self.subTest(name=name):
+                self.archive_entries(pair=(name, name))
+                self.assertIn('hit=true\n', self.cli().stdout)
+                packed = self.pack()
+                self.assertEqual(packed.returncode, 0, packed.stdout + packed.stderr)
+                restored = self.cli()
+                self.assertEqual(restored.stdout, 'hit=true\nmatched-key=matched\npoisoned=false\n', restored.stderr)
+                self.assertTrue((self.root / 'build_dir' / name).is_dir())
+                self.assertTrue((self.root / 'staging_dir' / name).is_dir())
+
+    def test_mismatched_roots_are_rejected_before_extraction(self):
+        (self.root / '.config').write_text('original')
+        for pair, extra in ((NATIVE, ()), ((NATIVE[0],) * 2,
+                              (self.member('staging_dir/' + NATIVE[1], tarfile.DIRTYPE, mode=0o755),))):
+            with self.subTest(pair=pair, extra=extra):
+                self.archive_entries(extra, pair=pair)
+                result = self.cli()
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, 'hit=false\nmatched-key=\npoisoned=true\n')
+                self.assertIn('mismatched toolchain artifact roots', result.stderr)
+                self.assertEqual((self.root / '.config').read_text(), 'original')
+                self.assertFalse((self.root / 'build_dir').exists())
+                self.assertFalse((self.root / 'staging_dir').exists())
+                self.assertEqual(list(self.archive.iterdir()), [])
+
+    def test_pack_rejects_mismatched_roots_without_upload_candidate(self):
+        self.archive_entries(pair=(NATIVE[0], NATIVE[0]))
+        self.assertIn('hit=true\n', self.cli().stdout)
+        (self.root / 'staging_dir' / NATIVE[0]).rename(self.root / 'staging_dir' / NATIVE[1])
+        result = self.pack()
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('mismatched toolchain artifact roots', result.stderr)
+        self.assertEqual(list(self.archive.iterdir()), [])
+
+    def test_failed_tar_does_not_leave_a_partial_candidate(self):
+        self.archive_entries()
+        self.assertIn('hit=true\n', self.cli().stdout)
+        tar = self.base / 'tar'
+        tar.write_text('''#!/bin/sh
+while [ "$1" != -cf ]; do shift; done
+printf partial > "$2"
+printf 'fixture tar failure' >&2
+exit 17
+''')
+        tar.chmod(0o755)
+        for kind in ('toolchain', 'dl', 'ccache'):
+            with self.subTest(kind=kind):
+                result = subprocess.run([sys.executable, str(SCRIPT.with_name('cache.py')),
+                                         kind, str(self.root), str(self.archive), 'matched'],
+                                        text=True, capture_output=True,
+                                        env=dict(os.environ, PATH=f'{self.base}:{os.environ["PATH"]}'))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('fixture tar failure', result.stderr)
+                self.assertEqual(list(self.archive.iterdir()), [])
 
     def test_source_member_is_rejected_before_extraction(self):
         (self.root / '.config').write_text('original')

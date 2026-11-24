@@ -22,7 +22,7 @@ class BuildRecordTests(unittest.TestCase):
                 output, _ = safety.ReleaseTests().fixture(base)
                 prepare(base)
                 if missing == 'manifest':
-                    (output / 'fixture.manifest').unlink()
+                    (output / (IMAGE.removesuffix('-squashfs-sysupgrade.itb') + '.manifest')).unlink()
                 elif missing == 'feed':
                     (base / 'feeds/packages/.git').rename(base / 'feed-git-hidden')
                 elif missing:

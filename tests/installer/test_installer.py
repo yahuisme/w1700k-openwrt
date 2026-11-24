@@ -245,12 +245,13 @@ read -r answer
 
     def test_cancel_and_eof_never_write(self):
         self.stub("ubinfo", "exit 0\n")
-        for answer in ["no\n", ""]:
+        for answer in ["no\n", "", "yes"]:
             with self.subTest(answer=answer):
                 p = self.run_installer(answer)
                 self.assertEqual(p.returncode, 0, p.stdout)
                 self.assertIn("User aborted", p.stdout)
                 self.assertEqual(self.calls, "")
+                self.assertFalse((self.root / "installer/factory.bin").exists())
 
     def test_reboot_failure_stage(self):
         self.stub("reboot", "exit 9\n")
@@ -259,10 +260,13 @@ read -r answer
         self.assertIn("stage=reboot", p.stdout)
 
     def test_dynamic_volume_padding_is_ignored(self):
+        # Padding is valid, but copying each volume into tmpfs is not needed.
+        self.stub("head", "exit 77\n")
         self.stub("ubiupdatevol", 'cp "$2" "$1"\nprintf "\\377\\377" >> "$1"\n')
         p = self.run_installer()
         self.assertIn("Install complete", p.stdout)
-        self.assertNotIn("readback mismatch", p.stdout)
+        self.assertNotIn("readback failed", p.stdout)
+        self.assertFalse((self.root / 'tmp/factory-build/readback.bin').exists())
         factory = (self.root / "installer/factory.bin").read_bytes()
         self.assertEqual(len(factory), 0x10000)
         self.assertEqual(factory[:0x1e00], b"\x90\x79"+b"E"*(0x1e00-2))
@@ -424,10 +428,31 @@ esac
                 self.assertIn("Unsupported MTD layout: mtd2", p.stdout)
 
     def test_recovery_readback(self):
-        self.stub("ubiupdatevol", 'cp "$2" "$1"\n[ "$1" != /dev/ubi0_3 ] || printf bad > "$1"\nexit 0\n')
-        p = self.run_installer()
-        self.assertNotEqual(p.returncode, 0, p.stdout)
-        self.assertIn("readback mismatch: /dev/ubi0_3", p.stdout)
+        for damage, command in (
+            ('mismatch', 'printf X | dd of="$1" bs=1 conv=notrunc'),
+            ('short', 'head -c $(($(wc -c < "$2") - 1)) "$2" > "$1"'),
+            ('io', 'rm "$1" && mkdir "$1"'),  # cmp can open it, but read() fails.
+        ):
+            with self.subTest(damage=damage):
+                volume = self.root / 'dev/ubi0_3'
+                if volume.is_dir():
+                    volume.rmdir()
+                self.put('dev/ubi0_3', b'')
+                self.put('calls', '')
+                self.stub('ubiupdatevol', f'''echo "ubiupdatevol $1" >> /calls
+cp "$2" "$1" || exit $?
+[ "$1" = /dev/ubi0_3 ] || exit 0
+{command}
+''')
+                p = self.run_installer()
+                self.assertNotEqual(p.returncode, 0, p.stdout)
+                self.assertIn('UBI readback failed: /dev/ubi0_3', p.stdout)
+                self.assertRegex(p.stdout, {'mismatch': 'differ', 'short': 'EOF',
+                                             'io': 'I/O error|Is a directory'}[damage])
+                self.assertIn('stage=write recovery', p.stdout)
+                self.assertIn('ubiupdatevol /dev/ubi0_3', self.calls)
+                self.assertNotIn('nand_upgrade_fit', self.calls)
+                self.assertNotIn('reboot', self.calls)
 
     def test_fit_readback_uses_discovered_volume(self):
         self.put("lib/upgrade/nand.sh", '''nand_upgrade_fit() { printf bad > /dev/ubi0_7; }
@@ -436,13 +461,13 @@ nand_find_volume() { echo ubi0_7; }
 ''')
         p = self.run_installer()
         self.assertNotEqual(p.returncode, 0, p.stdout)
-        self.assertIn("readback mismatch: /dev/ubi0_7", p.stdout)
+        self.assertIn("UBI readback failed: /dev/ubi0_7", p.stdout)
 
     def test_corrupt_readback_stops(self):
         self.stub("ubiupdatevol", 'echo update >> /calls\nprintf bad > "$1"\n')
         p = self.run_installer()
         self.assertNotEqual(p.returncode, 0, p.stdout)
-        self.assertIn("readback mismatch", p.stdout)
+        self.assertIn("UBI readback failed: /dev/ubi0_2", p.stdout)
         self.assertNotIn("nand_upgrade_fit", self.calls)
 
     def test_write_failure_reports_stage(self):

@@ -93,6 +93,8 @@ def finalize(config, targets, distro):
         'squashfs-sysupgrade', 'initramfs-installer', 'chainload-uboot')]
     entries = collect(targets, dict(target='airoha/an7581', device='W1700K', images=names))
     accepted = {row['name']: row for row in entries}
+    if accepted[names[0]] != upgrade:
+        raise ValueError('staged sysupgrade differs from native acceptance')
     directory = targets / 'airoha/an7581'
     data = json.loads((directory / 'profiles.json').read_text())
     chains = [row for row in data['profiles'][DEVICE]['images']

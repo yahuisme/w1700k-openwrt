@@ -149,7 +149,21 @@ class DualBuildTests(unittest.TestCase):
             script = script.replace(anchor, retired + anchor, 1)
             self.assertEqual(hashlib.sha256(script.encode()).hexdigest(), '91a1f09c268b6e0dfbb29c7cb8528a73dfdd9acc985ef82fce3f9776e1207247')
             installer = (root / 'installer/files/installer/install.sh').read_text()
-            # Reverse only the independently tested erase-size overflow repair.
+            # Compare the migrated script to the current canonical overlay
+            # after exactly the distro-specific filename substitution.
+            canonical = (ROOT / 'installer/files/installer/install.sh').read_text()
+            self.assertEqual(installer, canonical.replace('/openwrt-airoha-an7581-', '/immortalwrt-airoha-an7581-'))
+            # Reverse independently tested changes before the historical digest check.
+            for current, historical in (
+                ('  local answer\n', ''),
+                ('  IFS= read -r answer || return 1\n', '  read -r answer\n'),
+                ('  cmp -n "$length" "$image" "$dev" || die "UBI readback failed: $dev"\n',
+                 '  head -c "$length" "$dev" > "$FACTORY_TMP/readback.bin"\n'
+                 '  cmp -s "$image" "$FACTORY_TMP/readback.bin" || die "UBI readback mismatch: $dev"\n'
+                 '  rm -f "$FACTORY_TMP/readback.bin"\n'),
+            ):
+                self.assertEqual(installer.count(current), 1)
+                installer = installer.replace(current, historical, 1)
             bounded = (
                 '  ebs="$(cat "/sys/class/mtd/$(basename /dev/mtd0)/erasesize")" || die "Invalid erase size"\n'
                 '  # Bound canonical decimal before multiplication; ash arithmetic can wrap.\n'

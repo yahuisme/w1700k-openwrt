@@ -284,7 +284,7 @@ class WorkflowTests(unittest.TestCase):
             result = subprocess.run(['bash', '-e', '-c', stub + block], cwd=tmp,
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('dlcache.py snapshot', result.stdout)
+            self.assertIn('dlcache.py prepare dlcache', result.stdout)
 
     def test_cache_save_cleanup_order_and_failure_gates(self):
         workflow = yaml.safe_load(ENTRY.read_text())

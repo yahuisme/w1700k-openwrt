@@ -142,15 +142,16 @@ def artifacts(root):
 
 
 def validate_artifacts(root):
-    if (not (root / 'build_dir/host').is_dir()
-            or not (root / 'staging_dir/host').is_dir()
-            or not list(root.glob('build_dir/toolchain-*'))
-            or not list(root.glob('staging_dir/toolchain-*'))):
-        raise ValueError('incomplete toolchain artifact set')
+    paths = artifacts(root)
+    roots = {'build_dir': {}, 'staging_dir': {}}
+    for path in paths:
+        roots[path.parent.name][path.name] = not path.is_symlink() and path.is_dir()
+    toolchain_archive.validate_roots(roots)
     binary = root / 'staging_dir/host/bin/ccache'
     if (binary.is_symlink() or not binary.is_file() or not binary.stat().st_size
             or not os.access(binary, os.X_OK)):
         raise ValueError('missing, empty or nonexecutable host ccache')
+    return paths
 
 
 def restore(root, cache, expected):
@@ -176,30 +177,31 @@ def pack(root, cache, kind, expected):
     cache.mkdir(parents=True, exist_ok=True)
     archive = cache / (kind + '.tar.gz')
     archive.unlink(missing_ok=True)
-    paths = artifacts(root) if kind == 'toolchain' else [root]
-    if kind == 'toolchain':
-        validate_artifacts(root)
-        names = [str(p.relative_to(root)) for p in paths]
-        base = root
+    exact = kind == 'toolchain'
+    keyfile = cache / 'key'
+    if exact:
+        keyfile.unlink(missing_ok=True)
+        names = [str(p.relative_to(root)) for p in validate_artifacts(root)]
     else:
-        names, base = ['.'], root
+        names = ['.']
     compressor = 'pigz -1' if shutil.which('pigz') else 'gzip -1'
-    subprocess.run(['tar', '--format=posix', '-I', compressor, '-cf', str(archive),
-                    '-C', str(base), *names], check=True)
-    if kind == 'toolchain':
-        try:
+    try:
+        subprocess.run(['tar', '--format=posix', '-I', compressor, '-cf', str(archive),
+                        '-C', str(root), *names], check=True)
+        if exact:
             toolchain_archive.validate_archive(archive, root)
-        except Exception:
-            archive.unlink(missing_ok=True)
-            raise
-    size = archive.stat().st_size
-    print(f'{kind}: measured compressed bytes={size}, cap={LIMITS[kind]}')
-    if size > LIMITS[kind]:
-        archive.unlink()
-        print('cache upload declined: over per-entry budget')
-        return
-    if kind == 'toolchain':
-        (cache / 'key').write_text(expected + '\n')
+        size = archive.stat().st_size
+        print(f'{kind}: measured compressed bytes={size}, cap={LIMITS[kind]}')
+        if size > LIMITS[kind]:
+            archive.unlink()
+            print('cache upload declined: over per-entry budget')
+        elif exact:
+            keyfile.write_text(expected + '\n')
+    except Exception:
+        archive.unlink(missing_ok=True)
+        if exact:
+            keyfile.unlink(missing_ok=True)
+        raise
 
 
 if __name__ == '__main__':

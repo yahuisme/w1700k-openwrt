@@ -24,5 +24,6 @@ class InstallerWorkflow(unittest.TestCase):
         prepare = next(s['run'] for s in steps if s['name'] == 'Prepare build environment')
         self.assertIn('$PWD/installer:/installer:ro', prepare)
         publish = next(s['run'] for s in steps if s['name'] == 'Publish firmware and prune releases')
-        self.assertIn('firmware/*.itb', publish)
-        self.assertNotIn('firmware/*sysupgrade.itb', publish)
+        self.assertIn('mapfile -t images <<< "$verified"', publish)
+        self.assertIn('gh release create "$VERSION" "${images[@]}"', publish)
+        self.assertNotIn('firmware/*', publish)

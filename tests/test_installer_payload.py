@@ -32,26 +32,37 @@ class PayloadTests(unittest.TestCase):
     def test_duplicate_fit_siblings_cannot_hide_the_native_first_node(self):
             # libfdt's structural check permits duplicate sibling names and
             # native path lookup selects the first, not Python dict's last.
-            self.check_fit(self.inline)
-            for parent, name in (('/images', 'kernel-1'),
-                                 ('/configurations', 'config-1'),
-                                 ('/images/kernel-1', 'hash-1')):
-                with self.subTest(parent=parent):
+            for kind in ('sysupgrade', 'recovery', 'chainloader'):
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / 'duplicate.itb'
                     tree = libfdt.Fdt(self.inline)
                     tree.resize(len(self.inline) + 1024)
-                    alias = name[:-1] + 'x'
-                    added = tree.add_subnode(tree.path_offset(parent), alias)
-                    tree.setprop(added, 'data', b'unhashed duplicate')
-                    raw = tree.as_bytearray()
-                    self.assertEqual(raw.count(alias.encode() + b'\0'), 1)
-                    raw = raw.replace(alias.encode() + b'\0', name.encode() + b'\0')
-                    self.assertEqual(libfdt.fdt_check_full(raw, len(raw)), 0)
-                    native = libfdt.Fdt(raw)
-                    self.assertEqual(bytes(native.getprop(native.path_offset(parent + '/' + name), 'data')),
-                                     b'unhashed duplicate')
-                    for kind in ('sysupgrade', 'recovery', 'chainloader'):
-                        with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
-                            path = Path(directory) / 'duplicate.itb'
+                    config = 'config-1'
+                    if kind != 'sysupgrade':
+                        tree.delprop(tree.path_offset('/configurations/config-1'), 'loadables')
+                        tree.del_node(tree.path_offset('/images/rootfs-1'))
+                    if kind == 'chainloader':
+                        config = 'conf-uboot'
+                        tree.setprop_str(tree.path_offset('/configurations'), 'default', config)
+                        tree.set_name(tree.path_offset('/configurations/config-1'), config)
+                    good = bytes(tree.as_bytearray())
+                    path.write_bytes(good)
+                    verify_fit(path, kind=kind)
+                    for parent, name in (('/images', 'kernel-1'),
+                                         ('/configurations', config),
+                                         ('/images/kernel-1', 'hash-1')):
+                        with self.subTest(kind=kind, parent=parent):
+                            tree = libfdt.Fdt(good)
+                            alias = name[:-1] + 'x'
+                            added = tree.add_subnode(tree.path_offset(parent), alias)
+                            tree.setprop(added, 'data', b'unhashed duplicate')
+                            raw = tree.as_bytearray()
+                            self.assertEqual(raw.count(alias.encode() + b'\0'), 1)
+                            raw = raw.replace(alias.encode() + b'\0', name.encode() + b'\0')
+                            self.assertEqual(libfdt.fdt_check_full(raw, len(raw)), 0)
+                            native = libfdt.Fdt(raw)
+                            self.assertEqual(bytes(native.getprop(native.path_offset(parent + '/' + name), 'data')),
+                                             b'unhashed duplicate')
                             path.write_bytes(raw)
                             with self.assertRaisesRegex(ValueError, 'Duplicate FIT node'):
                                 verify_fit(path, kind=kind)
@@ -169,8 +180,7 @@ class PayloadTests(unittest.TestCase):
                     'version': {'target': 'airoha/an7581', 'board': 'gemtek_w1700k-ubi'}}
 
     def test_metadata_rejects_wrong_container_types_and_near_device_names(self):
-            verifier = getattr(payload, 'verify_metadata', None)
-            self.assertTrue(callable(verifier), 'Missing shared metadata validator')
+            verifier = payload.verify_metadata
             verifier(self.metadata())
             for key in ['new_supported_devices', 'supported_devices']:
                 for value in ['gemtek,w1700k-ubi', {'gemtek,w1700k-ubi': True}, None, [None],
@@ -199,7 +209,8 @@ class PayloadTests(unittest.TestCase):
                         verifier(metadata)
             metadata = self.metadata(); metadata.pop('new_supported_devices')
             metadata['supported_devices'] = ['gemtek,w1700k-ubi']
-            verifier(metadata)
+            with self.assertRaisesRegex(ValueError, 'new_supported_devices'):
+                verifier(metadata)
 
     def test_cli_validates_both_inputs_even_with_python_optimization(self):
             with tempfile.TemporaryDirectory() as directory:

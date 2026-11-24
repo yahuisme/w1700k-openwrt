@@ -18,6 +18,11 @@ class InstallerFit(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             image = Path(tmp) / 'image.itb'
             data = make_fit(Path(tmp), external=False)
+            image.write_bytes(data)
+            helper.verify_fit(image)
+            for role in ('chainloader', 'recovery'):
+                with self.subTest(role=role), self.assertRaisesRegex(ValueError, 'FIT.*configuration|FIT.*loadables'):
+                    helper.verify_fit(image, kind=role)
             tree = libfdt.Fdt(data)
             tree.resize(len(data) + 1024)
             config = tree.path_offset('/configurations/config-1')
@@ -31,8 +36,39 @@ class InstallerFit(unittest.TestCase):
             tree.delprop(tree.path_offset('/configurations/config-1'), 'ramdisk')
             tree.del_node(tree.path_offset('/images/rootfs-1'))
             image.write_bytes(tree.as_bytearray())
-            helper.verify_fit(image, kind='chainloader')
             helper.verify_fit(image, kind='recovery')
+            # The first-stage vendor U-Boot uses the Chainloader's default,
+            # but the Chainloader asks for config-1 on both Linux initramfs FITs.
+            configs = tree.path_offset('/configurations')
+            tree.setprop_str(configs, 'default', 'conf-uboot')
+            tree.set_name(tree.path_offset('/configurations/config-1'), 'conf-uboot')
+            image.write_bytes(tree.as_bytearray())
+            helper.verify_fit(image, kind='chainloader')
+            with self.assertRaisesRegex(ValueError, 'FIT.*configuration'):
+                helper.verify_fit(image, kind='recovery')
+            tree.setprop_str(tree.path_offset('/configurations/conf-uboot'), 'ramdisk', 'kernel-1')
+            image.write_bytes(tree.as_bytearray())
+            with self.assertRaisesRegex(ValueError, 'FIT.*ramdisk'):
+                helper.verify_fit(image, kind='chainloader')
+
+    def test_linux_fit_defaults_match_the_chainloader_requested_config(self):
+        from installer_payload import verify_fit
+        from installer_fit_fixture import make_fit
+        import libfdt
+        with tempfile.TemporaryDirectory() as tmp:
+            image = Path(tmp) / 'image.itb'
+            data = make_fit(Path(tmp), external=False)
+            tree = libfdt.Fdt(data)
+            tree.resize(len(data) + 1024)
+            tree.setprop_str(tree.path_offset('/configurations'), 'default', 'other')
+            tree.set_name(tree.path_offset('/configurations/config-1'), 'other')
+            image.write_bytes(tree.as_bytearray())
+            with self.assertRaisesRegex(ValueError, 'FIT.*configuration'):
+                verify_fit(image)
+            tree.delprop(tree.path_offset('/configurations/other'), 'loadables')
+            image.write_bytes(tree.as_bytearray())
+            with self.assertRaisesRegex(ValueError, 'FIT.*configuration'):
+                verify_fit(image, kind='recovery')
 
     def test_existing_payload_validator_is_locally_owned(self):
         self.assertTrue((ROOT / 'scripts/installer_payload.py').is_file())

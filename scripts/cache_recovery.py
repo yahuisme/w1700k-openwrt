@@ -3,6 +3,7 @@
 import argparse
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -18,10 +19,14 @@ except ImportError:
 
 
 def clear(path):
-    if path.is_symlink():
-        path.unlink()
-    elif path.exists():
+    try:
+        mode = path.lstat().st_mode
+    except FileNotFoundError:
+        return
+    if stat.S_ISDIR(mode):
         shutil.rmtree(path)
+    else:
+        path.unlink()
 
 
 def clear_restored(kind, root):
@@ -66,10 +71,7 @@ def restore(kind, root, archive, expected, restored, outcome):
         archive.mkdir(parents=True, exist_ok=True)
         # Cache folders are bind mounts; clear their contents, not the mount point.
         for path in archive.iterdir():
-            if path.is_symlink() or path.is_file():
-                path.unlink()
-            else:
-                clear(path)
+            clear(path)
     print('hit=' + str(hit).lower())
     print('matched-key=' + (restored if hit else ''))
     print('poisoned=' + str(exact and not hit and bool(restored or outcome != 'success')).lower())

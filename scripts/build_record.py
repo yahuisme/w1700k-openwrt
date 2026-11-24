@@ -167,13 +167,22 @@ def collect(source, destination):
     entries = []
     if profile:
         directory = targets / profile['target']
-        manifests = sorted(directory.glob('*.manifest'))
-        if not manifests:
-            errors.append('No package manifest')
+        suffix = '-squashfs-sysupgrade.itb'
+        formal = [name for name in profile['images'] if name.endswith(suffix)]
+        # Native image.mk writes the per-device manifest using the same image
+        # prefix as the formal sysupgrade, without its filesystem/image suffix.
+        if len(formal) != 1:
+            errors.append('Cannot identify the expected device package manifest')
+        else:
+            manifest = directory / (formal[0].removesuffix(suffix) + '.manifest')
+            if manifest.is_symlink():
+                errors.append('Linked device package manifest: ' + str(manifest))
+            else:
+                copy(manifest, str(Path('targets') / manifest.relative_to(targets)))
         metadata = [directory / 'profiles.json']
         if (directory / 'installer.json').exists():
             metadata.append(directory / 'installer.json')
-        for path in manifests + metadata:
+        for path in metadata:
             copy(path, str(Path('targets') / path.relative_to(targets)))
         try:
             entries = collect_images(targets, profile)

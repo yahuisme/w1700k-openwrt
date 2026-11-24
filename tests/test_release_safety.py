@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from test_cache_workflow import ROOT, render, step, MATRIX
 import test_cache_key as cache_tests
@@ -134,6 +135,8 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn('## 默认设置\n', (ROOT / 'README.md').read_text())
             self.assertIn('/w1700k-openwrt#默认设置', notes)
             self.assertIn('/blob/main/w1700k-' + MATRIX['system'] + '-first-flash.md)', notes)
+            self.assertIn('确认 Chainloader 已采用修正后的 UBI2（兼容版本 2.0）布局', notes)
+            self.assertNotIn('已有 Installer 菜单时，只需后者', notes)
             self.assertNotIn('#默认访问', notes)
 
     def test_stage_contract(self):
@@ -212,6 +215,29 @@ class ReleaseTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse((base / 'firmware').exists())
 
+    def test_final_inventory_matches_the_frozen_native_payload(self):
+        from scripts import firmware_images
+        from scripts.validate_firmware import finalize
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            output, _ = self.fixture(base)
+            paths = (base / '.config', base / 'openwrt_bin/targets', MATRIX['system'])
+            images = finalize(*paths)['images']
+            assert isinstance(images, list)
+            self.assertEqual(len(images), 3)
+            collect = firmware_images.collect
+
+            def collect_after_change(*args, **kwargs):
+                image = output / IMAGE
+                original = image.read_bytes()
+                image.write_bytes(bytes([original[0] ^ 1]) + original[1:])
+                return collect(*args, **kwargs)
+
+            with patch.object(firmware_images, 'collect', side_effect=collect_after_change):
+                with self.assertRaisesRegex(ValueError, 'sysupgrade differs from native acceptance'):
+                    finalize(*paths)
+
     def test_staged_digest_gate_precedes_release_create(self):
         for corrupt in (False, True):
             with self.subTest(corrupt=corrupt), tempfile.TemporaryDirectory() as tmp:
@@ -229,12 +255,14 @@ class ReleaseTests(unittest.TestCase):
                 self.assertEqual(result.returncode == 0, not corrupt, result.stderr)
 
     def test_publish_freshness_and_retired_oc_release_retention(self):
-        for case in ('fresh', 'stale', 'error', 'empty', 'malformed', 'advance', 'recheck-error', 'create-error'):
+        for case in ('fresh', 'extra-itb', 'stale', 'error', 'empty', 'malformed', 'advance', 'recheck-error', 'create-error'):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
                 base = Path(tmp)
                 self.fixture(base)
                 result = self.stage(base)
                 self.assertEqual(result.returncode, 0, result.stderr)
+                if case == 'extra-itb':
+                    (base / 'firmware/unexpected-recovery.itb').write_bytes(b'extra image')
                 gh = base / 'gh'
                 gh.write_text('''#!/usr/bin/env python3
 import os,json,sys
@@ -276,6 +304,8 @@ elif args[:2]!=['release','delete']: sys.exit(99)
                 deletes = [c[2] for c in calls if c[:2] == ['release', 'delete']]
                 self.assertEqual(result.returncode == 0, case in ('fresh', 'stale', 'advance'), result.stderr)
                 self.assertEqual(bool(creates), case in ('fresh', 'advance', 'recheck-error', 'create-error'))
+                if case == 'extra-itb':
+                    self.assertIn('unexpected staged ITB inventory', result.stderr)
                 if creates: self.assertEqual(creates[0][creates[0].index('--target') + 1], 'a'*40)
                 self.assertEqual(set(deletes), set(standard) if case == 'fresh' else set())
                 self.assertEqual(calls[0], ['api', 'repos/fixture/repo/git/ref/heads/main', '--jq', '.object.sha'])

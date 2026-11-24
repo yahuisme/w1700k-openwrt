@@ -59,7 +59,7 @@ jobs:
       run: |
         mkdir -p build-record openwrt_bin ghcache dlcache tcarchive ccarchive dlarchive tbarchive
 
-        sudo python3 scripts/dlcache.py snapshot dlcache "$RUNNER_TEMP/dlcache-before.json"
+        sudo python3 scripts/dlcache.py prepare dlcache "$RUNNER_TEMP/dlcache-before.json"
         [ -f "user/default/config.diff" ] || { echo "::error::config.diff not found"; exit 1; }
 
         IMAGE=w1700k-builder:local
@@ -320,7 +320,7 @@ jobs:
 
         - 上游源码：[${DISTRO_TITLE} ${SOURCE_BRANCH}](https://github.com/${SYSTEM}/${SYSTEM}/tree/${SOURCE_BRANCH})
         - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
-        - [首次安装或重装](https://github.com/yahuisme/w1700k-openwrt/blob/main/w1700k-${SYSTEM}-first-flash.md)：从原厂 U-Boot 开始，使用同次发布的 \`chainload-uboot.itb\` 和 \`initramfs-installer.itb\`。已有 Installer 菜单时，只需后者。Installer 内置完整固件，不用再刷升级包。
+        - [首次安装或重装](https://github.com/yahuisme/w1700k-openwrt/blob/main/w1700k-${SYSTEM}-first-flash.md)：首次安装使用同次发布的 \`chainload-uboot.itb\` 和 \`initramfs-installer.itb\`。仅在确认 Chainloader 已采用修正后的 UBI2（兼容版本 2.0）布局时，重装才可只用 Installer。Installer 内置完整固件，不用再刷升级包。
         - 日常升级：已有兼容 UBI2 系统，用同发行版的 \`squashfs-sysupgrade.itb\`，无需重新初始化 UBI2。
 
         > 安装或重装会清除原有系统与配置。先备份本机原厂数据，刷写期间勿断电。
@@ -369,12 +369,14 @@ jobs:
         }
         current_main
         # Independent native acceptance remains mandatory even if record upload failed.
-        python3 scripts/verify_staged.py firmware firmware/accepted-images.json '${{ steps.stage.outputs.acceptance }}'
+        acceptance='${{ steps.stage.outputs.acceptance }}'
+        verified=$(python3 scripts/verify_staged.py firmware firmware/accepted-images.json "$acceptance")
+        mapfile -t images <<< "$verified"
         VERSION="$(cat firmware/version.txt)"
         RELEASE_TITLE="$VERSION"
-        gh release create "$VERSION" firmware/*.itb --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file firmware/release-notes.md
-        python3 scripts/verify_release.py "$VERSION" firmware/*.itb
-        python3 scripts/verify_staged.py firmware firmware/accepted-images.json '${{ steps.stage.outputs.acceptance }}'
+        gh release create "$VERSION" "${images[@]}" --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file firmware/release-notes.md
+        python3 scripts/verify_release.py "$VERSION" "${images[@]}"
+        python3 scripts/verify_staged.py firmware firmware/accepted-images.json "$acceptance" >/dev/null
         # Recheck before pruning, before removing older standard releases.
         current_main
         PREFIX="W1700K-${DISTRO_TITLE}-"

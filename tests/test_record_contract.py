@@ -38,12 +38,45 @@ class RecordContract(unittest.TestCase):
         external_provenance(base)
         target = base / 'bin/targets' / profile['target']
         target.mkdir(parents=True)
-        (target / 'fixture.manifest').write_text('fixture - 1\n')
+        manifest = next(name for name in profile['images'] if name.endswith('-squashfs-sysupgrade.itb'))
+        (target / (manifest.removesuffix('-squashfs-sysupgrade.itb') + '.manifest')).write_text('fixture - 1\n')
         (target / 'profiles.json').write_text('{}\n')
         paths = [target / name for name in profile['images']]
         for path in paths:
             path.write_bytes(b'fixture image')
         return profile, paths
+
+    def test_only_the_expected_device_manifest_satisfies_record(self):
+        for state in ('valid', 'missing', 'empty', 'symlink'):
+            with self.subTest(state=state), tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                profile, paths = self.fixture(base)
+                directory = paths[0].parent
+                manifest, = directory.glob('*.manifest')
+                peer = directory / manifest.name.replace('gemtek_w1700k-ubi', 'other_device')
+                peer.write_text('other device - 1\n')
+                if state == 'missing':
+                    manifest.unlink()
+                elif state == 'empty':
+                    manifest.write_text('')
+                elif state == 'symlink':
+                    manifest.unlink()
+                    manifest.symlink_to(peer.name)
+
+                result = self.run_record(base)
+                record = base / 'record'
+                errors = json.loads((record / 'diagnostics.json').read_text())['errors']
+                self.assertEqual(result.returncode == 0, state == 'valid', result.stderr)
+                recorded = record / 'targets' / profile['target']
+                if state == 'valid':
+                    self.assertEqual(errors, [])
+                    self.assertEqual((recorded / manifest.name).read_bytes(), manifest.read_bytes())
+                else:
+                    self.assertTrue(any(manifest.name in error for error in errors), errors)
+                    self.assertFalse((recorded / manifest.name).exists())
+                self.assertFalse((recorded / peer.name).exists())
+                self.assertTrue((recorded / 'profiles.json').is_file())
+                self.assertTrue(json.loads((record / 'build.json').read_text())['images'])
 
     def run_record(self, base):
         return subprocess.run(['python3', str(ROOT / 'scripts/build_record.py'), str(base),

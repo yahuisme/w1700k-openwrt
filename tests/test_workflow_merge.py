@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-from test_cache_workflow import STEPS, step, render, MATRIX
+from test_cache_workflow import ROOT, STEPS, step, render, MATRIX
 
 
 ENV_STUB = r'''
@@ -99,6 +99,28 @@ class WorkflowMergeTests(unittest.TestCase):
                     self.assertEqual((base/'env').read_text(),
                                      f'IMAGE_ID=sha256:{1:064d}\nBUILDER_FINGERPRINT={2:064d}\n')
                     self.assertIn('exec docker exec', (base/'docker_exec').read_text())
+
+    def test_complete_environment_recovers_bad_download_cache_before_docker(self):
+        for broken in (False, True):
+            with self.subTest(broken=broken), tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                (base / 'scripts').symlink_to(ROOT / 'scripts', target_is_directory=True)
+                profile = base / 'user/default'
+                profile.mkdir(parents=True)
+                (profile / 'config.diff').touch()
+                cache = base / 'dlcache'
+                cache.mkdir()
+                (cache / 'source.tar').write_bytes(b'restored')
+                if broken:
+                    (cache / 'bad').symlink_to('missing')
+                env = dict(os.environ, FAIL='', LOG=str(base / 'calls'), RUNNER_TEMP=tmp,
+                           GITHUB_ENV=str(base / 'env'), DK_USER='/bld/user', DK_BIN='/bld/bin')
+                block = ENV_STUB + '\nsudo() { "$@"; };\n' + step('Prepare build environment')['run']
+                result = subprocess.run(['bash', '-eo', 'pipefail', '-c', block], cwd=base,
+                                        env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('build\nimage\nrun\nexec\ninstall\n', (base / 'calls').read_text())
+                self.assertEqual([p.name for p in cache.iterdir()], [] if broken else ['source.tar'])
 
     def test_cache_stub_rejects_wrong_admission_arguments(self):
         arguments = ['scripts/cache_helper.py', 'admit', MATRIX['cc'],

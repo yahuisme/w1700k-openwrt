@@ -38,26 +38,31 @@ def verify_fit(path, *, kind='sysupgrade'):
         configurations = tree.path_offset('/configurations')
         default = _strings(tree, configurations, 'default', single=True)[0]
         configs = {tree.get_name(node): node for node in _children(tree, configurations)}
-        if default not in configs:
+        # The vendor loader boots the Chainloader's default, while the
+        # Chainloader uses bootm ...#config-1 for every Linux image.
+        expected_default = 'conf-uboot' if kind == 'chainloader' else 'config-1'
+        if default != expected_default or default not in configs:
             raise ValueError('Invalid FIT default configuration')
         for config in configs.values():
             for property_name, expected_type in [('kernel', 'kernel'), ('fdt', 'flat_dt')]:
                 reference = _strings(tree, config, property_name, single=True)[0]
                 if reference not in image_nodes or _strings(tree, image_nodes[reference], 'type', single=True)[0] != expected_type:
                     raise ValueError(f'Invalid FIT {property_name} reference')
+            if tree.getprop(config, 'ramdisk', quiet=(libfdt.NOTFOUND,)) != -libfdt.NOTFOUND:
+                # Native Airoha recovery embeds initramfs into the kernel;
+                # also validate any explicit recovery ramdisk reference.
+                ramdisk = _strings(tree, config, 'ramdisk', single=True)[0]
+                if (kind != 'recovery' or ramdisk not in image_nodes or
+                        _strings(tree, image_nodes[ramdisk], 'type', single=True)[0] != 'ramdisk'):
+                    raise ValueError('Invalid FIT ramdisk reference')
             if kind == 'sysupgrade':
                 loadables = _strings(tree, config, 'loadables')
                 if any(reference not in image_nodes for reference in loadables):
                     raise ValueError('Invalid FIT loadables reference')
                 if not any(_strings(tree, image_nodes[reference], 'type', single=True)[0] == 'filesystem' for reference in loadables):
                     raise ValueError('Missing FIT rootfs loadable')
-            elif kind == 'recovery' and tree.getprop(config, 'ramdisk', quiet=(libfdt.NOTFOUND,)) != -libfdt.NOTFOUND:
-                # Airoha's native recovery embeds initramfs into the kernel.
-                # Separate-initramfs targets additionally carry a ramdisk node.
-                ramdisk = _strings(tree, config, 'ramdisk', single=True)[0]
-                if (ramdisk not in image_nodes or
-                        _strings(tree, image_nodes[ramdisk], 'type', single=True)[0] != 'ramdisk'):
-                    raise ValueError('Invalid FIT ramdisk reference')
+            elif tree.getprop(config, 'loadables', quiet=(libfdt.NOTFOUND,)) != -libfdt.NOTFOUND:
+                raise ValueError('Unexpected FIT loadables for ' + kind)
         for image in image_nodes.values():
             # getprop's NOTFOUND sentinel also supports older runner libfdt versions.
             inline = tree.getprop(image, 'data', quiet=(libfdt.NOTFOUND,)) != -libfdt.NOTFOUND
@@ -216,11 +221,11 @@ def verify_metadata(metadata):
             value = metadata[name]
             if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
                 raise ValueError(f'Invalid metadata {name}: expected device list of strings')
-    devices = metadata.get('new_supported_devices', metadata.get('supported_devices', []))
-    if 'gemtek,w1700k-ubi' not in devices:
-        raise ValueError('Metadata device mismatch')
     if metadata.get('compat_version') != '2.0':
         raise ValueError('Metadata compat_version mismatch')
+    # Native fwtool consumers select this list for compatibility versions >1.0.
+    if 'gemtek,w1700k-ubi' not in metadata.get('new_supported_devices', []):
+        raise ValueError('Metadata new_supported_devices device mismatch')
     version = metadata.get('version')
     if not isinstance(version, dict):
         raise ValueError('Invalid metadata version object')

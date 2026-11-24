@@ -7,9 +7,36 @@
 # Do not create or reset an unknown schema; retry once Aurora is initialized.
 [ "$(uci -q get aurora.theme)" = 'aurora' ] || exit 1
 
-# Only these two first-install preferences differ from the official template.
-# Native boot commits the changes and removes this script after success.
-uci -q set aurora.theme.nav_type='sidebar' || exit 1
-uci -q set aurora.theme.struct_radius_base='0.125rem' || exit 1
+# Boot commits even when a defaults script fails. Like the main defaults,
+# stage changes privately with -P, which still reads earlier defaults' deltas.
+WORK="$(mktemp -d /tmp/w1700k-aurora.XXXXXX)" || exit 1
+LIVE=/tmp/.uci/aurora
+cleanup() {
+    STATUS=$?
+    trap '' HUP INT TERM
+    trap - EXIT
+    # Check the published inode, not the mv status or absence of its source.
+    # A signal after rename must not leave this script queued for another boot.
+    if [ "$WORK/receipt" -ef "$LIVE" ]; then
+        STATUS=0
+    fi
+    rm -rf "$WORK"
+    exit "$STATUS"
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+STAGE="$WORK/delta"
+mkdir -p "$STAGE" /tmp/.uci || exit 1
+uci -P "$STAGE" -q set aurora.theme.nav_type='sidebar' || exit 1
+uci -P "$STAGE" -q set aurora.theme.struct_radius_base='0.125rem' || exit 1
+# UCI emits no delta when both values already match.
+[ -s "$STAGE/aurora" ] || exit 0
 
-exit 0
+# Only one UCI package is touched, so a single rename publishes both changes
+# together. Keep earlier Aurora deltas ahead of ours and leave others alone.
+if [ -f "$LIVE" ]; then
+    cat "$LIVE" > "$WORK/aurora" || exit 1
+fi
+cat "$STAGE/aurora" >> "$WORK/aurora" || exit 1
+ln "$WORK/aurora" "$WORK/receipt" || exit 1
+mv -fT "$WORK/aurora" "$LIVE"

@@ -104,6 +104,7 @@ validate_layout() {
 }
 
 prompt_confirm() {
+  local answer
   # A failed ubinfo probe cannot distinguish first install from damaged UBI.
   if ubinfo /dev/ubi0 >/dev/null 2>&1; then
     log "Existing UBI layout detected."
@@ -111,7 +112,7 @@ prompt_confirm() {
     log "UBI is absent, unattached or unreadable; existing data may remain."
   fi
   printf 'Initialize/reinstall UBI2 on mtd2 and erase its contents? (yes/no)\n'
-  read -r answer
+  IFS= read -r answer || return 1
   [ "$answer" = "yes" ]
 }
 
@@ -296,9 +297,7 @@ verify_volume() {
   [ "$length" -gt 0 ] || die "Empty image: $image"
   log "Readback verification: $dev ($length bytes)"
   # Dynamic UBI volumes are LEB-rounded; compare only the written bytes.
-  head -c "$length" "$dev" > "$FACTORY_TMP/readback.bin"
-  cmp -s "$image" "$FACTORY_TMP/readback.bin" || die "UBI readback mismatch: $dev"
-  rm -f "$FACTORY_TMP/readback.bin"
+  cmp -n "$length" "$image" "$dev" || die "UBI readback failed: $dev"
 }
 
 install_write_factory() {

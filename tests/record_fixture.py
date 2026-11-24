@@ -78,7 +78,9 @@ def prepare(base):
     (base / 'bin').mkdir(exist_ok=True)
     (base / 'bin/targets').symlink_to(base / 'openwrt_bin/targets')
     target = base / 'openwrt_bin/targets/airoha/an7581'
-    (target / 'fixture.manifest').write_text('fixture-package - 1\n')
+    image, = target.glob('*-squashfs-sysupgrade.itb')
+    manifest = image.name.removesuffix('-squashfs-sysupgrade.itb') + '.manifest'
+    (target / manifest).write_text('fixture-package - 1\n')
     metadata = target / 'installer.json'
     if metadata.exists():
         record = json.loads(metadata.read_text())

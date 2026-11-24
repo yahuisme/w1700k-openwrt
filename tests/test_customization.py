@@ -1,127 +1,200 @@
-"""Source native Aurora defaults with BusyBox ash and a private UCI fixture."""
-import json
+"""Exercise Aurora defaults through native boot and UCI in a private chroot."""
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
 
+from test_defaults_cleanup import CALLER
+
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULTS = ROOT / 'user/default/files/etc/uci-defaults/99-w1700k-aurora'
+DEFAULTS = ROOT / 'user/default/files/etc/uci-defaults'
+AURORA = '99-w1700k-aurora'
+MAIN = '99-w1700k-defaults'
+NAV = 'aurora.theme.nav_type'
+RADIUS = 'aurora.theme.struct_radius_base'
 
 
 class AuroraDefaultsTests(unittest.TestCase):
-    def run_defaults(self, retained='', section='aurora', fail=''):
-        self.assertTrue(DEFAULTS.is_file(), 'native post-Aurora defaults script is missing')
-        initial = {
-            'aurora.theme.nav_type': 'mega-menu',
-            'aurora.theme.struct_radius_base': '0.5rem',
-            'aurora.theme.light_brand': '#0086bf',
-            'aurora.theme.config_version': '7',
-            'aurora.theme.toolbar_enabled': '1',
-            'luci.main.mediaurlbase': '/luci-static/aurora',
-        }
-        if section:
-            initial['aurora.theme'] = section
+    def run_boot(self, *, retained=None, section='aurora', fault='', main=False, already=False):
+        self.assertEqual(os.geteuid(), 0, 'isolated chroot requires root')
+        uci = os.environ.get('DEFAULTS_UCI') or shutil.which('uci')
+        if not uci:
+            self.fail('source /opt/test-tools/env.sh (native UCI required)')
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            script = root / DEFAULTS.name
-            text = DEFAULTS.read_text()
-            for name in ('/sysupgrade.tgz', '/tmp/sysupgrade.tar'):
-                private = root / Path(name).name
-                if retained == name:
-                    private.touch()
-                text = text.replace(name, str(private))
-            script.write_text(text)
-            state = root / 'state.json'
-            state.write_text(json.dumps(initial))
-            fixture = root / 'uci_fixture.py'
-            fixture.write_text('''import json, os, sys
-from pathlib import Path
-root = Path(os.environ['FIXTURE_ROOT'])
-args = sys.argv[1:]
-with (root / 'calls').open('a') as log:
-    log.write(json.dumps(args) + '\\n')
-assert args[0] == '-q', args
-state = json.loads((root / 'state.json').read_text())
-if args[1] == 'get':
-    if args[2] not in state: sys.exit(1)
-    print(state[args[2]])
-elif args[1] == 'set':
-    key, value = args[2].split('=', 1)
-    if key == os.environ['FAIL']: sys.exit(1)
-    state[key] = value
-    (root / 'state.json').write_text(json.dumps(state))
-else:
-    sys.exit(99)
-''')
-            # Real boot sources scripts on the left of &&, commits at the caller,
-            # and removes successful scripts. Only the fixture can receive UCI.
-            boundary = '''
-uci() { python3 "$UCI_FIXTURE" "$@"; }
-[ -f "$SCRIPT" ] || exit 0
-( . "$SCRIPT" ) && { rm "$SCRIPT"; exit 0; }
-exit 1
-'''
-            env = dict(os.environ, FIXTURE_ROOT=str(root), SCRIPT=str(script),
-                       UCI_FIXTURE=str(fixture), FAIL=fail)
-            result = subprocess.run(['/usr/bin/busybox', 'ash', '-c', boundary],
-                                    env=env, capture_output=True, text=True)
-            calls = [json.loads(x) for x in (root / 'calls').read_text().splitlines()] if (root / 'calls').exists() else []
-            final = json.loads(state.read_text())
-            exists = script.exists()
-            # A successful native default never runs again on later boots or
-            # package upgrades; simulate the next boot with the same caller.
-            if result.returncode == 0:
-                second = subprocess.run(['/usr/bin/busybox', 'ash', '-c', boundary],
-                                        env=env, capture_output=True, text=True)
-                self.assertEqual(second.returncode, 0, second.stderr)
-                self.assertEqual(json.loads(state.read_text()), final)
-                self.assertEqual([json.loads(x) for x in (root / 'calls').read_text().splitlines()]
-                                 if (root / 'calls').exists() else [], calls)
-            return result, initial, final, calls, exists
+            for name in ('bin', 'sbin', 'etc/config', 'etc/uci-defaults', 'lib/functions',
+                         'tmp/.uci', 'var/run/uci', 'dev'):
+                (root / name).mkdir(parents=True)
+            for binary, destination in (('/usr/bin/busybox', 'bin/busybox'), (uci, 'sbin/uci-real')):
+                shutil.copy2(binary, root / destination)
+                for token in subprocess.check_output(['ldd', binary], text=True).split():
+                    if token.startswith('/') and Path(token).is_file():
+                        target = root / token.lstrip('/')
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(token, target)
+            for applet in ('sh', 'ls', 'basename', 'rm', 'sed', 'mktemp', 'mkdir', 'cp', 'cat', 'ln'):
+                (root / 'bin' / applet).symlink_to('busybox')
+            for name in ('dev/null', 'lib/functions/system.sh'):
+                (root / name).touch()
+            for name, text in {
+                'bin/sync': '#!/bin/sh\nexit 0\n',
+                'bin/mv': '''#!/bin/sh
+if [ "$3" = /tmp/.uci/aurora ]; then
+    case "$FAULT" in
+        publish|missing-source)
+            echo "$FAULT" >> /faults
+            [ "$FAULT" = missing-source ] || exit 1
+            rm "$2" || exit 1;;
+        before-*)
+            echo "$FAULT" >> /faults
+            kill -"${FAULT#before-}" "$PPID"
+            exit 1;;
+        after-*|nonzero-after)
+            /bin/busybox mv "$@" || exit $?
+            echo "$FAULT" >> /faults
+            [ "$FAULT" != nonzero-after ] || exit 1
+            kill -"${FAULT#after-}" "$PPID"
+            exit 0;;
+    esac
+fi
+exec /bin/busybox mv "$@"
+''',
+                'sbin/uci': '''#!/bin/sh
+printf '%s\\n' "$*" >> /calls
+# Fail just the targeted set; all real changes (and native boot's commit)
+# otherwise go through the installed UCI binary and its delta directories.
+for arg; do
+    if [ -n "$FAULT" ] && [ "${arg%%=*}" = "$FAULT" ]; then
+        printf '%s\\n' "$FAULT" >> /faults
+        exit 1
+    fi
+done
+exec /sbin/uci-real "$@"
+''',
+            }.items():
+                path = root / name
+                path.write_text(text)
+                path.chmod(0o755)
+            configs = {
+                'aurora': (f"config {section} 'theme'\n"
+                           "option nav_type 'mega-menu'\noption struct_radius_base '0.5rem'\n"
+                           "option light_brand '#0086bf'\noption toolbar_enabled '1'\n") if section else '',
+                'system': "config system 'main'\noption hostname 'operator'\n",
+                'network': "config interface 'lan'\noption ipaddr '192.168.1.1'\n",
+                'wireless': ''.join(f"config wifi-device 'radio{n}'\noption band '{band}'\n"
+                                    for n, band in enumerate(('2g', '5g', '6g'))),
+                'dhcp': "config dhcp 'lan'\n", 'luci': "config core 'main'\n",
+                'firewall': "config defaults\noption flow_offloading_hw '0'\n",
+            }
+            if already:
+                configs['aurora'] = (configs['aurora'].replace("'mega-menu'", "'sidebar'")
+                                     .replace("'0.5rem'", "'0.125rem'"))
+            for name, text in configs.items():
+                (root / 'etc/config' / name).write_text(text)
+            if section:
+                (root / 'tmp/.uci/aurora').write_text("aurora.theme.toolbar_enabled='0'\n")
+            (root / 'tmp/.uci/system').write_text("system.main.description='earlier-default'\n")
+            scripts = root / 'etc/uci-defaults'
+            shutil.copy2(DEFAULTS / AURORA, scripts)
+            if main:
+                shutil.copy2(DEFAULTS / MAIN, scripts)
+            if retained:
+                (root / retained.lstrip('/')).touch()
+            caller = CALLER
+            if os.environ.get('DEFAULTS_BOOT_SOURCE'):
+                source = Path(os.environ['DEFAULTS_BOOT_SOURCE']).read_text()
+                caller = source[source.index('uci_apply_defaults() {'):source.index('\nboot() {')]
+            (root / 'boot-caller').write_text(caller + '\nuci_apply_defaults\n')
+            env = dict(os.environ, PATH='/sbin:/bin', FAULT=fault)
+
+            def sh(code):
+                return subprocess.run(['/usr/sbin/chroot', str(root), '/bin/sh', '-c', code],
+                                      env=env, capture_output=True, text=True, check=True).stdout
+
+            before = sh('/sbin/uci-real show')
+            sh('. /boot-caller')
+            after = sh('/sbin/uci-real show')
+            calls = (root / 'calls').read_text().splitlines()
+            exists = (scripts / AURORA).exists()
+            self.assertEqual(sh('/sbin/uci-real changes'), '')
+            self.assertEqual(list((root / 'tmp').glob('w1700k-aurora.*')), [])
+            if fault:
+                faults = root / 'faults'
+                self.assertTrue(faults.exists(), f'fault not reached: {fault}')
+                self.assertEqual(faults.read_text().splitlines(), [fault])
+            if not exists:
+                # An already applied script must not run again on later boots.
+                sh('. /boot-caller')
+                self.assertEqual(sh('/sbin/uci-real show'), after)
+                self.assertEqual((root / 'calls').read_text().splitlines(), calls)
+            return before, after, calls, exists
 
     def test_after_package_initialization_only_two_defaults_change(self):
-        self.assertGreater(DEFAULTS.name, '80_aurora')
-        result, initial, final, calls, exists = self.run_defaults()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(final, initial | {
-            'aurora.theme.nav_type': 'sidebar',
-            'aurora.theme.struct_radius_base': '0.125rem',
-        })
+        self.assertGreater(AURORA, '80_aurora')
+        before, after, _, exists = self.run_boot()
+        self.assertEqual(after, before.replace("nav_type='mega-menu'", "nav_type='sidebar'")
+                         .replace("struct_radius_base='0.5rem'", "struct_radius_base='0.125rem'"))
+        self.assertIn("aurora.theme.toolbar_enabled='0'", after)
+        self.assertIn("system.main.description='earlier-default'", after)
         self.assertFalse(exists)
-        self.assertEqual([c for c in calls if c[1] != 'get'], [
-            ['-q', 'set', 'aurora.theme.nav_type=sidebar'],
-            ['-q', 'set', 'aurora.theme.struct_radius_base=0.125rem'],
-        ])
 
     def test_retained_upgrade_is_untouched_before_any_uci_access(self):
-        for retained in ('/sysupgrade.tgz', '/tmp/sysupgrade.tar'):
-            with self.subTest(retained=retained):
-                result, initial, final, calls, exists = self.run_defaults(retained=retained)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(final, initial)
-                self.assertEqual(calls, [])
+        for marker in ('/sysupgrade.tgz', '/tmp/sysupgrade.tar'):
+            with self.subTest(marker=marker):
+                before, after, calls, exists = self.run_boot(retained=marker, main=True)
+                self.assertEqual(after, before)
+                self.assertEqual(calls, ['commit'])
                 self.assertFalse(exists)
 
     def test_missing_or_unknown_section_is_not_created_or_overwritten(self):
         for section in ('', 'unknown'):
             with self.subTest(section=section):
-                result, initial, final, calls, exists = self.run_defaults(section=section)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual(final, initial)
+                before, after, calls, exists = self.run_boot(section=section)
+                self.assertEqual(after, before)
                 self.assertTrue(exists)
-                self.assertFalse(any(c[1] == 'set' for c in calls))
+                self.assertFalse(any(' set ' in call for call in calls))
 
-    def test_each_failed_write_retains_script_and_stops(self):
-        for index, key in enumerate(('aurora.theme.nav_type', 'aurora.theme.struct_radius_base')):
+    def test_failed_writes_are_not_committed_and_script_is_retained(self):
+        for key in (NAV, RADIUS):
             with self.subTest(key=key):
-                result, initial, final, calls, exists = self.run_defaults(fail=key)
-                self.assertNotEqual(result.returncode, 0)
+                before, after, _, exists = self.run_boot(fault=key)
+                self.assertEqual(after, before)
                 self.assertTrue(exists)
-                writes = [c for c in calls if c[1] == 'set']
-                self.assertEqual(len(writes), index + 1)
-                self.assertEqual(final[key], initial[key])
+
+    def test_main_defaults_preserve_aurora_publication_or_failed_transaction(self):
+        for fault in ('', RADIUS):
+            with self.subTest(fault=fault):
+                _, after, _, exists = self.run_boot(fault=fault, main=True)
+                self.assertIn("system.main.hostname='W1700K'", after)
+                self.assertIn("network.lan.ipaddr='192.168.8.1/24'", after)
+                self.assertIn("aurora.theme.toolbar_enabled='0'", after)
+                self.assertIn("system.main.description='earlier-default'", after)
+                self.assertIn(f"{NAV}='{'mega-menu' if fault else 'sidebar'}'", after)
+                self.assertIn(f"{RADIUS}='{'0.5rem' if fault else '0.125rem'}'", after)
+                self.assertEqual(exists, bool(fault))
+
+    def test_failed_publication_keeps_earlier_deltas_and_script(self):
+        for fault in ('publish', 'missing-source', 'before-HUP', 'before-INT', 'before-TERM'):
+            with self.subTest(fault=fault):
+                before, after, _, exists = self.run_boot(fault=fault)
+                self.assertEqual(after, before)
+                self.assertTrue(exists)
+
+    def test_report_success_if_publication_happened_before_signal_or_mv_error(self):
+        for fault in ('after-HUP', 'after-INT', 'after-TERM', 'nonzero-after'):
+            with self.subTest(fault=fault):
+                _, after, _, exists = self.run_boot(fault=fault)
+                self.assertIn(f"{NAV}='sidebar'", after)
+                self.assertIn(f"{RADIUS}='0.125rem'", after)
+                self.assertIn("aurora.theme.toolbar_enabled='0'", after)
+                self.assertFalse(exists)
+
+    def test_already_correct_settings_do_not_require_a_delta_file(self):
+        before, after, _, exists = self.run_boot(already=True)
+        self.assertEqual(after, before)
+        self.assertFalse(exists)
 
 
 if __name__ == '__main__':

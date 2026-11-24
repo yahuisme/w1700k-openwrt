@@ -3,39 +3,111 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+import re
+import stat
+import sys
+import tempfile
+
+if __package__:
+    from .cache_recovery import clear_restored
+else:
+    from cache_recovery import clear_restored
 
 
 def fingerprint(root):
     digest = hashlib.sha256()
     count = 0
-    for path in sorted(root.rglob('*')):
-        if path.is_symlink():
+    if not stat.S_ISDIR(root.lstat().st_mode):
+        raise ValueError('not a download directory: ' + str(root))
+
+    def onerror(exc):
+        raise exc
+
+    paths = (Path(base) / name for base, dirs, files in os.walk(root, onerror=onerror)
+             for name in dirs + files)
+    for path in sorted(paths):
+        mode = path.lstat().st_mode
+        if stat.S_ISLNK(mode):
             raise ValueError('unsupported linked download: ' + str(path))
-        if path.is_file():
-            content = hashlib.sha256()
-            with path.open('rb') as source:
-                for chunk in iter(lambda: source.read(1024 * 1024), b''):
-                    content.update(chunk)
-            digest.update(json.dumps([str(path.relative_to(root)), content.hexdigest()]).encode())
-            count += 1
+        if stat.S_ISDIR(mode):
+            continue
+        if not stat.S_ISREG(mode):
+            raise ValueError('unsupported download item: ' + str(path))
+        with path.open('rb') as source:
+            content = hashlib.file_digest(source, 'sha256')
+        digest.update(json.dumps([str(path.relative_to(root)), content.hexdigest()]).encode())
+        count += 1
     return {'digest': digest.hexdigest(), 'files': count}
+
+
+def snapshot(root, state):
+    current = fingerprint(root)
+    with tempfile.NamedTemporaryFile(mode='w', dir=state.parent, delete=False) as stream:
+        pending = Path(stream.name)
+        try:
+            stream.write(json.dumps(current) + '\n')
+            stream.close()
+            pending.replace(state)
+        finally:
+            pending.unlink(missing_ok=True)
+
+
+def prepare(root, state):
+    # Never let a failed snapshot leave usable state from a previous attempt.
+    try:
+        mode = state.lstat().st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        pass
+    else:
+        if stat.S_ISREG(mode):
+            state.unlink()
+    try:
+        snapshot(root, state)
+        return
+    except (OSError, ValueError) as exc:
+        print(f'::warning::Download cache snapshot unavailable; starting cold: {exc}', file=sys.stderr)
+    # A cleanup failure must stop preparation; the build would otherwise use
+    # the rejected input. This runs before the directory is mounted in Docker.
+    clear_restored('dl', root)
+    try:
+        snapshot(root, state)
+    except (OSError, ValueError) as exc:
+        print(f'::warning::Cold download cache snapshot unavailable; save disabled: {exc}', file=sys.stderr)
+
+
+def changed(root, state, restored):
+    try:
+        if not stat.S_ISREG(state.lstat().st_mode):
+            raise ValueError('not a regular snapshot file')
+        before = json.loads(state.read_text())
+        if (not isinstance(before, dict) or set(before) != {'digest', 'files'}
+                or not isinstance(before['digest'], str)
+                or not re.fullmatch(r'[0-9a-f]{64}', before['digest'])
+                or type(before['files']) is not int or before['files'] < 0):
+            raise ValueError('invalid download cache snapshot')
+    except (OSError, ValueError) as exc:
+        print(f'::warning::Download cache comparison unavailable; save disabled: {exc}', file=sys.stderr)
+        return False
+    current = fingerprint(root)
+    # A populated legacy/cold cache must seed the current archive format.
+    return current['files'] > 0 and (not restored or current != before)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=('snapshot', 'check'))
+    parser.add_argument('mode', choices=('snapshot', 'prepare', 'check'))
     parser.add_argument('root', type=Path)
     parser.add_argument('state', type=Path)
     parser.add_argument('--restored', default='')
     args = parser.parse_args()
-    current = fingerprint(args.root)
     if args.mode == 'snapshot':
-        args.state.write_text(json.dumps(current) + '\n')
+        snapshot(args.root, args.state)
+    elif args.mode == 'prepare':
+        prepare(args.root, args.state)
     else:
-        before = json.loads(args.state.read_text())
-        # A populated legacy/cold cache must seed the current archive format.
-        save = current['files'] > 0 and (not args.restored or current != before)
+        save = changed(args.root, args.state, args.restored)
         print('save=' + str(save).lower())
 
 

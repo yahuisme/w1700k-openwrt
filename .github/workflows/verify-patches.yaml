@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/patch-tests.yaml'
+      - '.github/workflows/verify-patches.yaml'
       - '.gitattributes'
       - 'tests/patch_source.py'
       - 'tests/test_mt76_payloads.py'
@@ -12,7 +12,7 @@ on:
       - 'user/default/custom.sh'
   pull_request:
     paths:
-      - '.github/workflows/patch-tests.yaml'
+      - '.github/workflows/verify-patches.yaml'
       - '.gitattributes'
       - 'tests/patch_source.py'
       - 'tests/test_mt76_payloads.py'
@@ -30,6 +30,8 @@ jobs:
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
@@ -39,6 +41,7 @@ jobs:
           repository: openwrt/luci
           ref: a8c110bed82375b69eb3881b2e54e617520e8c7d
           path: .luci
+          persist-credentials: false
       - name: Run patch regressions
         env:
           LUCI_CHANNEL_SOURCE: ${{ github.workspace }}/.luci/modules/luci-mod-status

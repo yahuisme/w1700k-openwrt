@@ -430,6 +430,7 @@ export -f make docker_exec sudo git
         outcomes, _, inventory, log = self.replay('fingerprint')
         self.assertEqual(outcomes['Validate and stage firmware'], 'success', log)
         self.assertEqual(outcomes['Check download cache changes'], 'failure', log)
+        self.assertIn('unsupported linked download', log)
         self.assertEqual(outcomes['Save download cache'], 'skipped', log)
         self.assertEqual(outcomes['Publish firmware and prune releases'], 'success', log)
         self.assertTrue(any(call[:2] == ['release', 'create'] for call in inventory['calls']), log)

@@ -320,7 +320,7 @@ jobs:
 
         - 上游源码：[${DISTRO_TITLE} ${SOURCE_BRANCH}](https://github.com/${SYSTEM}/${SYSTEM}/tree/${SOURCE_BRANCH})
         - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
-        - [首次安装或重装](https://github.com/yahuisme/w1700k-openwrt/blob/main/w1700k-${SYSTEM}-first-flash.md)：首次安装使用同次发布的 \`chainload-uboot.itb\` 和 \`initramfs-installer.itb\`。仅在确认 Chainloader 已采用修正后的 UBI2（兼容版本 2.0）布局时，重装才可只用 Installer。Installer 内置完整固件，不用再刷升级包。
+        - [首次安装或重装](https://github.com/yahuisme/w1700k-openwrt/blob/main/w1700k-${SYSTEM}-first-flash.md)：均按完整教程操作，使用同次发布的 \`chainload-uboot.itb\` 和 \`initramfs-installer.itb\`。安装会清除原有系统与配置，完成后无需再刷升级包。
         - 日常升级：已有兼容 UBI2 系统，用同发行版的 \`squashfs-sysupgrade.itb\`，无需重新初始化 UBI2。
 
         > 安装或重装会清除原有系统与配置。先备份本机原厂数据，刷写期间勿断电。

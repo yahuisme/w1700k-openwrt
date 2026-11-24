@@ -1,4 +1,5 @@
 # Unified-diff context prefixes and immutable reference bytes are intentional.
+user/w1700k-patches/patches/110-run-libuv-loop.patch text eol=lf whitespace=-blank-at-eol
 user/w1700k-patches/patches/002-w1700k-cpufreq-resources.patch whitespace=-space-before-tab
 user/w1700k-patches/patches/610-w1700k-power-30.patch whitespace=-space-before-tab
 user/w1700k-patches/patches/920-wifi-non-mlo-ap-txpower.patch whitespace=-blank-at-eol,-space-before-tab

@@ -18,11 +18,11 @@
 
 | 文件后缀 | 用途 |
 | --- | --- |
-| `chainload-uboot.itb` | 从原厂 U-Boot 写入修正版 Chainloader；重装仅在确认已是兼容版本 2.0 布局时可跳过 |
+| `chainload-uboot.itb` | 首次安装和重装均从原厂 U-Boot 写入 Chainloader |
 | `initramfs-installer.itb` | 初始化或重建 UBI2，并安装同次构建的完整系统 |
 | `squashfs-sysupgrade.itb` | 已有兼容 UBI2 系统的同发行版升级 |
 
-**首次安装或重建 UBI2 布局：**
+**首次安装和重装均按完整教程操作，会清除原有系统与配置：**
 
 - [OpenWrt 刷机教程](w1700k-openwrt-first-flash.md)
 - [ImmortalWrt 刷机教程](w1700k-immortalwrt-first-flash.md)
@@ -74,7 +74,7 @@
 2. 进入 **系统 → 备份 / 升级**，上传固件。建议取消勾选“保留配置”；这样会清除现有设置。
 3. 校验通过后再升级，等待设备重启，期间不要断电。校验失败时不要强制刷写。
 
-已安装修正版 Chainloader 和兼容版本 2.0 系统时，日常升级无需 Installer。旧版或布局不明时，先按对应教程核对并迁移，不要强制升级；出现 Installer 菜单不代表布局已修正。
+日常升级只适用于已安装修正版 Chainloader 和兼容版本 2.0 的同发行版系统。旧版或布局不明时，按对应教程完整重装，不要强制升级。
 
 ## 构建与发布
 

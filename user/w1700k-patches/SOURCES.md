@@ -18,6 +18,7 @@
 | `tree/package/system/procd/patches/001-*` | watchdog 超时协商后约束喂狗周期 | 本项目修复；沿用官方 ioctl 路径，仅修改 setter 及 last-confirmed 状态 |
 | `patches/920-*` | 非 MLO AP 按 BSS 设置功率 | 本项目实现，适用范围见下文 |
 | `patches/998-*` | single-wiphy 多射频信道分析适配 | 作者 Gilly1970；恢复原生 radio scan/info（扫描沿用 `nobatch`），校验本机频率、清理失效缓存并限定 tab 频段，保留停用 AP 扫描 |
+| `patches/110-*` | 修复 libwebsockets 5.1 下 ttyd 启动即退出 | 回移植 [ttyd #1589](https://github.com/tsl0922/ttyd/pull/1589)，保留官方绑定、认证与日志配置 |
 
 ### 来源
 
@@ -33,6 +34,7 @@
 - `002`、`920`：在固件源码根目录应用。
 - `610`：复制到 wireless-regdb 补丁目录，在官方 `500` 后应用；ImmortalWrt 仅移除被覆盖的 `600-custom-change-txpower-and-dfs.patch`。
 - `998`：复制到 LuCI 的 luci-mod-status 补丁目录，由 LuCI 构建流程应用。
+- `110`：复制到 ttyd 软件包补丁目录，在官方日志补丁后应用。
 - `tree/`：按源码目录结构复制，由内核与软件包构建流程应用。
 
 ## 多射频扫描

@@ -31,7 +31,7 @@ class InstallerDocsTest(unittest.TestCase):
                 self.assertNotIn(f'{other}-airoha-an7581-', text)
                 for value in ('192.168.8.1', '`root`', '初始密码：留空', '不接 VCC',
                               '必须使用 3.3V TTL', '0x100000', '下载失败时不要擦写',
-                              'Boot installer via TFTP.', '同一次发布', '请求名',
+                              'Boot installer via TFTP.', '同一次发布',
                               'flash erase 0x600000 0x100000',
                               'flash write 0x600000 0x100000 0x89000000'):
                     self.assertIn(value, text)
@@ -39,18 +39,33 @@ class InstallerDocsTest(unittest.TestCase):
                 self.assertNotIn('/releases/latest', text)
                 self.assertNotIn('w1700k-ubi2-installer', text)
                 self.assertNotRegex(text, r'(?:0\. Exit|\d+\. Boot installer via TFTP)')
-                verify, flash = text.split('### 写入 Chainloader', 1)
-                for value in ('兼容版本 2.0', '`mtd list`', '`0x00700000`–`0x1be00000`',
-                              '`0x1be00000`–`0x20000000`', '在旧版也存在',
-                              '无法进入控制台', '先不要运行 Installer 或强制 sysupgrade',
-                              'ee771d3dd01c811d2a28eab09a700cefdafd05af'):
-                    self.assertIn(value, verify)
+                self.assertIn('首次安装和重装都走同一套流程', text)
+                self.assertIn('安装或重装会清除原有系统与配置', text)
+                self.assertNotRegex(text, r'跳过|只执行|只需第二个|mtd list')
+                flash, _ = text.split('### 写入 Chainloader', 1)[1].split('### 启动 Installer', 1)
                 self.assertIn('不能在替换版 U-Boot 中执行', flash.split('```', 1)[0])
+                self.assertIn('已有 `bootcmd_orig` 就保留原值', flash)
+                blocks = re.findall(r'```text\n(.*?)\n```', flash, re.S)
+                self.assertEqual(len(blocks), 2)
+                self.assertIn(f'tftpboot 0x89000000 {system}-airoha-an7581-gemtek_w1700k-ubi-chainload-uboot.itb', blocks[0])
+                self.assertEqual(blocks[1].splitlines(), [
+                    r'setenv one flash read 0x600000 0x100000 \$loadaddr',
+                    'setenv two "; bootm"', 'setenv bootcmd "$one$two"', 'saveenv',
+                    'flash erase 0x600000 0x100000', 'flash write 0x600000 0x100000 0x89000000', 'reset',
+                ])
+                self.assertIn('无论以前是否刷过，均逐行执行', flash)
+                installer = text.split('### 启动 Installer', 1)[1].split('## 4.', 1)[0]
+                self.assertIn('只放这次下载的两个文件', text)
+                filename = f'{system}-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb'
+                self.assertIn(f'`{filename}`', installer)
+                self.assertIn('不要使用之前下载的文件', installer)
+                self.assertLess(installer.index('确认加载的是本次下载的 Installer'),
+                                installer.index('`yes` 并按 Enter'))
                 for value in ('`yes` 并按 Enter', 'DHCP 获得的 IPv4 默认网关', 'TTL 串口启动日志'):
                     self.assertIn(value, text)
         self.assertIn('两个独立 Release', readme)
         self.assertIn('各自只保留最新一版', readme)
-        self.assertIn('重装仅在确认已是兼容版本 2.0 布局时可跳过', readme)
+        self.assertIn('首次安装和重装均按完整教程操作', readme)
 
     def test_release_notes_link_to_the_selected_guide(self):
         workflow = WORKFLOW.read_text()

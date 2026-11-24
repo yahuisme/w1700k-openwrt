@@ -135,8 +135,9 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn('## 默认设置\n', (ROOT / 'README.md').read_text())
             self.assertIn('/w1700k-openwrt#默认设置', notes)
             self.assertIn('/blob/main/w1700k-' + MATRIX['system'] + '-first-flash.md)', notes)
-            self.assertIn('确认 Chainloader 已采用修正后的 UBI2（兼容版本 2.0）布局', notes)
-            self.assertNotIn('已有 Installer 菜单时，只需后者', notes)
+            self.assertIn('均按完整教程操作，使用同次发布的 `chainload-uboot.itb` 和 `initramfs-installer.itb`', notes)
+            self.assertIn('安装会清除原有系统与配置', notes)
+            self.assertNotIn('只用 Installer', notes)
             self.assertNotIn('#默认访问', notes)
 
     def test_stage_contract(self):

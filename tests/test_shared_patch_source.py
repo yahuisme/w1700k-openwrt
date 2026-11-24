@@ -9,6 +9,7 @@ import unittest
 from patch_source import PATCHES
 from scripts.select_distribution import select
 from test_device_runtime import FLASH_RUN, node
+from test_ttyd_compat import PAYLOAD, SOURCE_HASH
 
 ROOT = Path(__file__).resolve().parents[1]
 APPS = ('luci-app-wifi7', 'luci-app-airoha-npu', 'luci-app-airoha-flowsense', 'luci-app-airoha-fancontrol')
@@ -22,7 +23,7 @@ class SharedPatchSource(unittest.TestCase):
     def test_complete_customization_and_invalid_payloads(self):
         source = Path(os.environ['TXPOWER_SOURCE'])
         payloads = sorted(p.relative_to(PATCHES) for p in PATCHES.rglob('*.patch'))
-        self.assertEqual(len(payloads), 13, 'update the full production payload matrix')
+        self.assertEqual(len(payloads), 14, 'update the full production payload matrix')
         cases = [(None, None)] + [(kind, name) for name in payloads
                                   for kind in ('missing', 'empty')]
         for kind, broken in cases:
@@ -57,6 +58,7 @@ class SharedPatchSource(unittest.TestCase):
                     shutil.copyfile(source / name, destination)
                 for name, text in {
                     **{name: (source / name).read_text() for name in TEMPLATES},
+                    'feeds/packages/utils/ttyd/Makefile': f'PKG_VERSION:=1.7.7\nPKG_HASH:={SOURCE_HASH}\n',
                     'feeds/luci/modules/luci-base/po/zh_Hans/base.po': Path(os.environ['DEVICE_BASE_PO']).read_text()
                         if os.environ.get('DEVICE_BASE_PO') else 'msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n',
                 }.items():
@@ -133,6 +135,8 @@ export -f git python3
                                      (work / 'package/firmware/wireless-regdb/patches/610-w1700k-power-30.patch').read_bytes())
                     self.assertEqual((PATCHES / 'patches/998-single-wiphy.patch').read_bytes(),
                                      (work / 'feeds/luci/modules/luci-mod-status/patches/998-single-wiphy.patch').read_bytes())
+                    self.assertEqual((PATCHES / 'patches' / PAYLOAD).read_bytes(),
+                                     (work / 'feeds/packages/utils/ttyd/patches' / PAYLOAD).read_bytes())
                     self.assertIn('per_interface_txpower', (work / 'package/network/config/wifi-scripts/files-ucode/lib/netifd/wireless/mac80211.sh').read_text())
                     self.assertIn('123'.zfill(40), (work / '.custom-revisions.tsv').read_text())
                     if distro == 'immortalwrt':

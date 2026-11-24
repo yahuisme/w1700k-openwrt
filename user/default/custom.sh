@@ -51,6 +51,7 @@ for file in \
     patches/920-wifi-non-mlo-ap-txpower.patch \
     patches/610-w1700k-power-30.patch \
     patches/998-single-wiphy.patch \
+    patches/110-run-libuv-loop.patch \
     tree/target/linux/airoha/patches-6.18/745-net-pcs-airoha-extend-manual-rx-calib-to-E2-silicon.patch \
     tree/target/linux/airoha/patches-6.18/746-net-dsa-mt7530-pre-deassert-phy-reset-gpios-before-mdio-scan.patch \
     tree/target/linux/airoha/patches-6.18/940-pmdomain-airoha-cpu-pll-fallback.patch \
@@ -62,6 +63,22 @@ for file in \
     tree/package/system/procd/patches/001-watchdog-reconcile-timeout.patch; do
     [ -s "$PATCH_DIR/$file" ] || { echo "ERROR: Required patch missing or empty: $file" >&2; exit 1; }
 done
+# Backport the reviewed ttyd event loop fix.
+TTYD_RECIPE=feeds/packages/utils/ttyd
+TTYD_PATCH=110-run-libuv-loop.patch
+TTYD_TARGET="$TTYD_RECIPE/patches/$TTYD_PATCH"
+if ! grep -Fxq 'PKG_VERSION:=1.7.7' "$TTYD_RECIPE/Makefile" ||
+   ! grep -Fxq 'PKG_HASH:=039dd995229377caee919898b7bd54484accec3bba49c118e2d5cd6ec51e3650' "$TTYD_RECIPE/Makefile"; then
+    echo 'ERROR: unreviewed ttyd source; check libwebsockets compatibility' >&2
+    exit 1
+fi
+if [ -L "$TTYD_TARGET" ] || { [ -e "$TTYD_TARGET" ] && ! cmp -s "$PATCH_DIR/patches/$TTYD_PATCH" "$TTYD_TARGET"; }; then
+    echo 'ERROR: conflicting ttyd compatibility patch in package feed' >&2
+    exit 1
+fi
+if [ ! -e "$TTYD_TARGET" ]; then
+    install -D -m 644 "$PATCH_DIR/patches/$TTYD_PATCH" "$TTYD_TARGET"
+fi
 # Preserve buildroot ownership when copying the patch overlay.
 cp -a --no-preserve=ownership "$PATCH_DIR/tree/." .
 patch -p1 --fuzz=0 --no-backup-if-mismatch < "$PATCH_DIR/patches/002-w1700k-cpufreq-resources.patch"

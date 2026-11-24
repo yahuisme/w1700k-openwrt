@@ -1,9 +1,6 @@
 # W1700K OpenWrt U-Boot 与首次安装教程
 
-- **首次安装**：从原厂 U-Boot 开始，按以下四步操作。
-- **重装系统**：仅确认已安装修正版 Chainloader（兼容版本 2.0）时，才可直接启动 Installer。
-- **旧版或布局不明**：先按下文核对 Chainloader；旧布局必须先更换 Chainloader，再用 Installer 重建 UBI2。
-- **日常升级**：已有修正版 Chainloader 和兼容版本 2.0 系统时，使用 [sysupgrade 固件](https://github.com/yahuisme/w1700k-openwrt/releases?q=W1700K-OpenWrt-)，不要运行 Installer。
+**首次安装和重装都走同一套流程：写入 Chainloader → 启动 Installer → 登录后台。** 已安装兼容 UBI2 系统的日常升级不在本教程范围内，使用同发行版的 `sysupgrade` 镜像。
 
 > 仅适用于 Quantum Fiber / Gemtek W1700K。安装或重装会清除原有系统与配置。刷写前确认型号，并将本机原厂数据备份保存到电脑；刷写期间不要断电。
 
@@ -13,7 +10,7 @@
 - [PuTTY 中文版](https://github.com/larryli/putty)：串口终端
 - [Tftpd64 官方下载](https://github.com/PJO2/tftpd64/releases/)：TFTP 服务
 
-从 [OpenWrt Releases](https://github.com/yahuisme/w1700k-openwrt/releases?q=W1700K-OpenWrt-) 下载固件并放入 `C:\tftp`。首次安装或更换 Chainloader 时，下载同一次发布的两个文件；确认现有 Chainloader 已修正时，只需第二个：
+从 [OpenWrt Releases](https://github.com/yahuisme/w1700k-openwrt/releases?q=W1700K-OpenWrt-) 下载同一次发布的两个文件。`C:\tftp` 只放这次下载的两个文件：
 
 ```text
 openwrt-airoha-an7581-gemtek_w1700k-ubi-chainload-uboot.itb
@@ -80,23 +77,11 @@ DNS：      留空
 
 ## 3. 刷入系统
 
-### 核对已安装的 Chainloader
-
-首次安装请直接看下一节。重装时先通电，从串口的 Chainloader 菜单进入控制台，执行只读命令 `mtd list`。未自定义分区时，确认 `ubi` 范围是 `0x00700000`–`0x1be00000`，且 `reserved_bmt` 范围是 `0x1be00000`–`0x20000000`，才可跳到“启动 Installer”。无法进入控制台就按布局不明处理，不要继续重装。
-
-菜单项 `Boot installer via TFTP.` 在旧版也存在；系统或 Installer 的分区表不能证明 Chainloader 已修正。
-
-若范围不符或无法确认，**先不要运行 Installer 或强制 sysupgrade**。[上游分区修正 `ee771d3`](https://github.com/openwrt/openwrt/commit/ee771d3dd01c811d2a28eab09a700cefdafd05af) 要求更换旧 Chainloader 并重装。用串口重新通电，在进入替换版菜单前中断第一阶段的原厂 AXON U-Boot，再按下一节更换；若进不了或认不出原厂提示符，停止并保存完整串口日志，参考 [OpenWrt 设备资料](https://openwrt.org/toh/gemtek/mxf-w1700k#install_the_u-boot_chainloader)。
-
 ### 写入 Chainloader
 
-**仅在确认 Chainloader 已修正时跳过本节。以下命令仅适用于原厂 AXON U-Boot，不能在替换版 U-Boot 中执行。**
+**以下命令只在原厂 AXON U-Boot 中执行，不能在替换版 U-Boot 中执行。认不出原厂提示符就停止。**
 
-1. 给路由器通电。
-2. 看到 `Hit any key to stop autoboot` 时，按 Enter 或空格中断启动。
-3. 停在 U-Boot 命令行后，保存串口日志和原始 `bootcmd`。
-
-先下载 Chainloader：
+通电，看到第一处 `Hit any key to stop autoboot` 时按 Enter 或空格，停在原厂 U-Boot 后立即下载 Chainloader：
 
 ```text
 setenv serverip 192.168.1.10 ; setenv ipaddr 192.168.1.1 ; tftpboot 0x89000000 openwrt-airoha-an7581-gemtek_w1700k-ubi-chainload-uboot.itb
@@ -107,13 +92,11 @@ setenv serverip 192.168.1.10 ; setenv ipaddr 192.168.1.1 ; tftpboot 0x89000000 o
 - TFTP 下载成功，文件完整加载到 `0x89000000`。
 - 文件大小不超过 `0x100000` 字节。
 
-**下载失败时不要擦写。确认无误后，逐行执行：**
+**下载失败时不要擦写。** 下载成功后，用 `printenv bootcmd bootcmd_orig` 查看并保存启动参数。已有 `bootcmd_orig` 就保留原值；只有确认 `bootcmd` 仍是原厂值且没有备份时，才用 `setenv bootcmd_orig "$bootcmd"` 备份。
 
-- 首次安装：执行以下全部命令。
-- 已安装过 Chainloader：在原厂 U-Boot 确认现有 `bootcmd` 已从 `0x600000` 读取 `0x100000` 字节到 `$loadaddr` 后执行 `bootm`，只执行从 `flash erase` 开始的三行，保留原来的 `bootcmd_orig`。不确定时停止，不要覆盖原厂环境。
+无论以前是否刷过，均逐行执行：
 
 ```text
-setenv bootcmd_orig "$bootcmd"
 setenv one flash read 0x600000 0x100000 \$loadaddr
 setenv two "; bootm"
 setenv bootcmd "$one$two"
@@ -125,7 +108,7 @@ reset
 
 ### 启动 Installer
 
-重启后进入 U-Boot 菜单。若跳过了 Chainloader 写入，此时通电进入菜单。
+重启后进入 Chainloader 菜单。
 
 保持 Tftpd64 运行、Installer 文件在目录中，选择：
 
@@ -133,11 +116,9 @@ reset
 Boot installer via TFTP.
 ```
 
-本仓库 Chainloader 默认请求 `openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb`。
+在 Tftpd64 核对请求名，默认是 `openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb`。如仍请求旧名称，把本次下载的 Installer 复制一份并改成请求名，再选一次菜单；不要使用之前下载的文件。
 
-若已有 Chainloader 请求的文件名不同，以 Tftpd64 显示的请求名为准：将本次下载的 Installer 复制一份并改为该名称，再选择菜单，不要换用其他发行版或版本的文件。
-
-下载并启动后，串口会提示：
+确认加载的是本次下载的 Installer 后，再操作串口提示：
 
 ```text
 Initialize/reinstall UBI2 on mtd2 and erase its contents? (yes/no)

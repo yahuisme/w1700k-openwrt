@@ -128,7 +128,13 @@ class DualBuildTests(unittest.TestCase):
             script = script.replace('# Shared 610 replaces the upstream CN/US customization.',
                                     '# Shared 610 covers the CN/US customization previously provided by 600.')
             # Normalize only explicitly reviewed post-migration additions.
+            ttyd_start = '# Backport the reviewed ttyd event loop fix.\n'
+            overlay_start = '# Preserve buildroot ownership when copying the patch overlay.\n'
+            self.assertEqual(script.count(ttyd_start), 1)
+            hook = script.split(ttyd_start, 1)[1].split(overlay_start, 1)[0]
+            script = script.replace(ttyd_start + hook + overlay_start, overlay_start, 1)
             for payload in (
+                'patches/110-run-libuv-loop.patch',
                 'tree/package/kernel/mt76/patches/914-mt76-mt7996-free-rro-drop-buffers.patch',
                 'tree/package/network/utils/iwinfo/patches/998-fix-multi-radio-scan.patch',
                 'tree/package/system/procd/patches/001-watchdog-reconcile-timeout.patch',

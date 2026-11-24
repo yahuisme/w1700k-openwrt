@@ -95,18 +95,39 @@ cp -f "$PATCH_DIR/patches/998-single-wiphy.patch" \
 
 # Status LED colors: upgrade green, running white; keep native boot/failsafe.
 DTS=target/linux/airoha/dts/an7581-w1700k-ubi.dts
-for alias in 'boot red' 'failsafe blue' 'upgrade green' 'running white'; do
-    read -r state color <<< "$alias"
-    if [ "$state" = upgrade ]; then
-        sed -i 's/led-upgrade = &led_status_blue;/led-upgrade = \&led_status_green;/' "$DTS"
-    elif [ "$state" = running ]; then
-        sed -i 's/led-running = &led_status_green;/led-running = \&led_status_white;/' "$DTS"
-    fi
-    grep -qF "led-$state = &led_status_$color;" "$DTS" || {
+LED_SOURCE=$DTS
+if grep -Fxq '#include "an7581-gemtek-common.dtsi"' "$DTS"; then
+    LED_SOURCE=${DTS%/*}/an7581-gemtek-common.dtsi
+fi
+[ -f "$LED_SOURCE" ] || { echo "ERROR: LED alias source missing: $LED_SOURCE" >&2; exit 1; }
+for alias in 'boot red red' 'failsafe blue blue' 'upgrade blue green' 'running green white'; do
+    read -r state native preset <<< "$alias"
+    property="^[[:space:]]*led-${state}[[:space:]]*="
+    colors=$native
+    [ "$LED_SOURCE" != "$DTS" ] || colors="$native|$preset"
+    if [ "$(grep -Ec "$property" "$LED_SOURCE")" -ne 1 ] ||
+       ! grep -Eq "${property}[[:space:]]*&led_status_($colors);[[:space:]]*$" "$LED_SOURCE"; then
         echo "ERROR: LED alias mismatch: $state" >&2
         exit 1
-    }
+    fi
 done
+if [ "$LED_SOURCE" = "$DTS" ]; then
+    sed -Ei 's/^([[:space:]]*led-upgrade[[:space:]]*=[[:space:]]*&led_status_)blue;/\1green;/;
+             s/^([[:space:]]*led-running[[:space:]]*=[[:space:]]*&led_status_)green;/\1white;/' "$DTS"
+else
+    # The common DTSI also serves other boards. Override only on W1700K.
+    # Match property names regardless of line breaks or inline overrides.
+    properties='led-(boot|failsafe|upgrade|running)'
+    local_aliases=$(grep -Eow "$properties" "$DTS" || [ "$?" -eq 1 ])
+    override=$'\n&{/aliases} {\n\tled-upgrade = &led_status_green;\n\tled-running = &led_status_white;\n};'
+    if [ -z "$local_aliases" ]; then
+        printf '%s\n' "$override" >> "$DTS"
+    elif [ "$(tail -n 5 "$DTS")" != "$override" ] ||
+         [ "$local_aliases" != "$(grep -Eow "$properties" <<< "$override")" ]; then
+        echo 'ERROR: LED alias mismatch: W1700K override' >&2
+        exit 1
+    fi
+fi
 # End status LED colors
 
 # -------------------------------------------------

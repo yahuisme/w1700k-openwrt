@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from patch_source import PATCHES
+from test_native_leds import BOARD, COMMON, DTS_DIR, INCLUDE, expected_status_dts
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -34,11 +35,15 @@ class ConvergenceTests(unittest.TestCase):
         for package in ('usteer', 'luci-app-usteer', 'luci-i18n-usteer-zh-cn'):
             for state in ('y', 'm'):
                 self.assertNotIn(f'CONFIG_PACKAGE_{package}={state}', config)
+
+    @unittest.skipUnless(os.environ.get('OPENWRT_SOURCE'), 'requires prepared official source')
+    def test_prepared_dts(self):
+        source = Path(os.environ['OPENWRT_SOURCE'])
         path = 'target/linux/airoha/dts/an7581.dtsi'
         self.assertEqual((source / path).read_bytes(), subprocess.check_output(
             ['git', 'show', 'HEAD:' + path], cwd=source))
-        path = 'target/linux/airoha/dts/an7581-w1700k-ubi.dts'
-        official = subprocess.check_output(['git', 'show', 'HEAD:' + path], cwd=source)
+        path = DTS_DIR / BOARD
+        official = subprocess.check_output(['git', 'show', f'HEAD:{path}'], cwd=source)
         # Compare the entire DTS, allowing only the actual required CPUFreq
         # payload and two LED aliases, not an inferred/duplicated resource block.
         payload = PATCHES / 'patches/002-w1700k-cpufreq-resources.patch'
@@ -55,9 +60,10 @@ class ConvergenceTests(unittest.TestCase):
             patched = target.read_bytes()
             self.assertNotEqual(official, patched)
             self.assertEqual(list(work.rglob('*.orig')), [])
-        expected = patched.replace(b'led-upgrade = &led_status_blue;',
-                                    b'led-upgrade = &led_status_green;').replace(
-                                    b'led-running = &led_status_green;',
-                                    b'led-running = &led_status_white;')
+        expected = expected_status_dts(patched)
         self.assertNotEqual(patched, expected)
         self.assertEqual((source / path).read_bytes(), expected)
+        if INCLUDE.encode() in official.splitlines():
+            shared = DTS_DIR / COMMON
+            self.assertEqual((source / shared).read_bytes(), subprocess.check_output(
+                ['git', 'show', f'HEAD:{shared}'], cwd=source))

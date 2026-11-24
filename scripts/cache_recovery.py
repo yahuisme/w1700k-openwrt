@@ -47,7 +47,9 @@ def restore(kind, root, archive, expected, restored, outcome):
     hit = False
     try:
         if outcome == 'success' and restored and (not exact or restored == expected):
-            if candidate.is_symlink() or not candidate.is_file():
+            if kind == 'toolchain':
+                candidate = toolchain.toolchain_archive.candidate(archive)
+            if candidate is None or candidate.is_symlink() or not candidate.is_file():
                 raise ValueError('missing/linked cache archive')
             if exact:
                 keyfile = archive / 'key'

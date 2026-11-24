@@ -55,8 +55,8 @@ def record_input_group(groups, name, record):
 
 def key(root, builder):
     # Final defconfig; ignore only hash-only canonical unselected-package noise.
-    # Archive/upload edits do not participate in the compatibility policy.
-    digest = hashlib.sha256(json.dumps(['tc-inputs-v10', builder, os.uname().machine,
+    # Separate zstd writers from old gzip-only workflow revisions.
+    digest = hashlib.sha256(json.dumps(['tc-inputs-v11', builder, os.uname().machine,
                                       str(root), EPOCH, INPUTS,
                                       key_policy_source(),
                                       hashlib.sha256(cache_config.policy_bytes()).hexdigest()]).encode())
@@ -162,12 +162,11 @@ def restore(root, cache, expected):
             p.unlink()
         elif p.exists():
             shutil.rmtree(p)
-    if (cache / 'toolchain.tar.gz').exists():
+    archive = toolchain_archive.candidate(cache)
+    if archive is not None:
         if (cache / 'key').read_text().strip() != expected:
             raise ValueError('toolchain key mismatch')
-        toolchain_archive.validate_archive(cache / 'toolchain.tar.gz', root)
-        subprocess.run(['tar', '--gzip', '--no-same-owner', '-xf', str(cache / 'toolchain.tar.gz'),
-                        '-C', str(root)], check=True)
+        toolchain_archive.extract(archive, root)
         print('exact toolchain restored')
     else:
         print('cold toolchain')
@@ -175,8 +174,10 @@ def restore(root, cache, expected):
 
 def pack(root, cache, kind, expected):
     cache.mkdir(parents=True, exist_ok=True)
-    archive = cache / (kind + '.tar.gz')
+    archive = cache / (toolchain_archive.PACKED if kind == 'toolchain' else kind + '.tar.gz')
     archive.unlink(missing_ok=True)
+    if kind == 'toolchain':
+        (cache / toolchain_archive.LEGACY).unlink(missing_ok=True)
     exact = kind == 'toolchain'
     keyfile = cache / 'key'
     if exact:
@@ -184,7 +185,8 @@ def pack(root, cache, kind, expected):
         names = [str(p.relative_to(root)) for p in validate_artifacts(root)]
     else:
         names = ['.']
-    compressor = 'pigz -1' if shutil.which('pigz') else 'gzip -1'
+    compressor = ('zstd -6 -T2' if kind == 'toolchain' else
+                  ('pigz -1' if shutil.which('pigz') else 'gzip -1'))
     try:
         subprocess.run(['tar', '--format=posix', '-I', compressor, '-cf', str(archive),
                         '-C', str(root), *names], check=True)

@@ -32,6 +32,8 @@ REVIEWED = {
     'd1626e1990166f86d6b16ba56574ea845f9c576a6b01f99d147fac03fcb6b2b6',
     '2e582bd48d919973449f163be0cf428af13c3258480a7cf0d4019706d52a1a58',
     '8a2797e8f5f18c8445724784e756eb756825c9d1681a2634acfb3de347663a57',
+    'fb3b70ae51e158cb7a9aaa3ad243ced388c87387616eb85e8c54e0e6851c987e',
+    '5e6b287bf568615dc34641241c824aa49f32cc4ef827afcb4e41ebe8219971fb',
 }
 FIXED_INPUTS = ('Makefile', 'rules.mk', 'package/Makefile', 'target/Makefile',
                 'toolchain/Makefile', *('include/' + name for name in (

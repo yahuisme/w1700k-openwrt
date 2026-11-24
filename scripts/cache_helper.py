@@ -28,6 +28,11 @@ BOOTSTRAP_PREFIX = 'tb-v1-' + ('immortalwrt-' if PROFILE['system'] == 'immortalw
 SLOTS[BOOTSTRAP_PREFIX] = 1_000_000_000
 BUDGET = 10_000_000_000
 HEADROOM = 64 * 1024 * 1024
+TOOLCHAIN_PREFIXES = ('tc-v3-ubi2-', 'tc-v3-immortalwrt-')
+
+
+def archive_reserve(size):
+    return size + max(HEADROOM, (size + 99) // 100)
 
 
 class InventoryChanged(ValueError):
@@ -94,6 +99,24 @@ def validate(prefix, key):
     return ref
 
 
+def preserve_toolchain_room(entries, prefix, key, ref, reserve):
+    # Budget for one more TC of the largest observed size: writers serialize.
+    toolchains = [e for e in entries if e['ref'] == ref
+                  and e['key'].startswith(TOOLCHAIN_PREFIXES)
+                  and not e['key'].startswith(tuple(p + 'oc-' for p in TOOLCHAIN_PREFIXES))
+                  and e['size_in_bytes'] > 0]
+    if not all(any(e['key'].startswith(p) for e in toolchains) for p in TOOLCHAIN_PREFIXES):
+        return
+    used = sum(e['size_in_bytes'] for e in entries)
+    old = sum(e['size_in_bytes'] for e in entries if e['ref'] == ref
+              and e['key'] != key and owner(e['key']) == prefix)
+    next_tc = archive_reserve(max(e['size_in_bytes'] for e in toolchains))
+    # This is the post-prune projection only; admission also requires actual
+    # upload coexistence below. At a pre-existing deficit, only allow recovery.
+    if used - old + reserve > max(used, BUDGET - next_tc):
+        raise ValueError('rolling replacement would consume toolchain replacement reserve')
+
+
 def replace_download(entries, prefix, key, ref, reserve):
     """Free only this branch's old download seeds, after a complete preflight."""
     used = sum(e['size_in_bytes'] for e in entries)
@@ -140,8 +163,11 @@ def admit(prefix, archive, key, replace=False):
             raise ValueError('replacement archive empty or oversized')
         entries = inv()
         # Include wrapper tar/compression expansion and metadata, not just the
-        # inner gzip. Never subtract an old generation before it is deleted.
-        reserve = size + max(HEADROOM, (size + 99) // 100)
+        # inner archive. Never deduct an old generation from upload occupancy
+        # before it is deleted; the reserve check only projects steady state.
+        reserve = archive_reserve(size)
+        if prefix in (PROFILE['cache_prefix']['cc'], PROFILE['cache_prefix']['dl']):
+            preserve_toolchain_room(entries, prefix, key, ref, reserve)
         if replace:
             entries = replace_download(entries, prefix, key, ref, reserve)
         used = sum(e['size_in_bytes'] for e in entries)

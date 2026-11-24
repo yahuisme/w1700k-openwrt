@@ -188,7 +188,7 @@ class KeyTests(unittest.TestCase):
         alternate.write_text(SCRIPT.read_text().replace('def pack(root, cache, kind, expected):',
                             'def pack(root, cache, kind, expected):\n    # unrelated upload edit'))
         self.assertEqual(before, load(alternate).key(self.root, 'image-sha'))
-        alternate.write_text(SCRIPT.read_text().replace('tc-inputs-v10', 'tc-inputs-test'))
+        alternate.write_text(SCRIPT.read_text().replace('tc-inputs-v11', 'tc-inputs-test'))
         self.assertNotEqual(before, load(alternate).key(self.root, 'image-sha'))
 
     def test_nonnoise_config_values_and_comments_participate(self):
@@ -221,7 +221,7 @@ class KeyTests(unittest.TestCase):
         generated.write_text('different generated output')
         self.assertEqual(before, self.key())
 
-    def test_archive_pairing_pax_and_gzip_fallback(self):
+    def test_zstd_archive_pairing_and_pax_mtime(self):
         for name in ('build_dir/host/.built', 'staging_dir/host/bin/tool',
                      'build_dir/toolchain-test/.built', 'staging_dir/toolchain-test/lib/test'):
             p = self.put(name, 'layout fixture, not GCC')
@@ -230,8 +230,7 @@ class KeyTests(unittest.TestCase):
         ccache.chmod(0o755)
         archive = Path(self.tmp.name) / 'archive'
         expected = self.key()
-        with patch.object(self.cache.shutil, 'which', return_value=None):
-            self.cache.pack(self.root, archive, 'toolchain', expected)
+        self.cache.pack(self.root, archive, 'toolchain', expected)
         self.put('build_dir/stale-target/object', 'must disappear')
         self.cache.restore(self.root, archive, expected)
         self.assertFalse((self.root / 'build_dir/stale-target').exists())

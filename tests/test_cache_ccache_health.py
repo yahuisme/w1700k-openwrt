@@ -132,7 +132,8 @@ export -f docker_exec make nproc
                                              str(root), str(archive), 'exact'],
                                             capture_output=True, text=True)
                     self.assertEqual(result.returncode == 0, state == 'valid', result.stdout + result.stderr)
-                    self.assertEqual((archive / (tier + '.tar.gz')).exists(), state == 'valid')
+                    name = 'toolchain.tar.zst' if tier == 'toolchain' else 'bootstrap.tar.gz'
+                    self.assertEqual({p.name for p in archive.glob('*')}, {name, 'key'} if state == 'valid' else set())
                     self.assertEqual((archive / 'key').exists(), state == 'valid')
 
 

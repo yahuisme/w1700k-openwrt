@@ -21,6 +21,43 @@ REAL = [entry(1, TC + 'a8b702', 1564072318),
 
 
 class CacheOrderTests(unittest.TestCase):
+    def test_merged_inventory_admits_compact_tc_and_preserves_peer(self):
+        # 2026-11-24 inventory (API outer sizes). Candidate 1.45 GB is an
+        # admission target, not a claimed measured production zstd size.
+        sizes = {'tc-v3-ubi2-': 1_609_000_717, 'tc-v3-immortalwrt-': 1_568_135_145,
+                 'cc-v3-ubi2.': 961_532_048, 'cc-v3-immortalwrt.': 733_206_924,
+                 'dl-v3.': 1_683_659_384, 'dl-v3-immortalwrt.': 1_429_370_102,
+                 'tb-v1-ubi2-': 217_072_858, 'tb-v1-immortalwrt-': 217_061_499}
+        inventory = [entry(i, prefix + 'old', size)
+                     for i, (prefix, size) in enumerate(sizes.items(), 1)]
+        for size, expected in ((sizes[TC], []), (1_450_000_000, ['tc'])):
+            with self.subTest(size=size):
+                saves, state, log = self.run_tail(inventory, cc=None, tc=size, dl=0)
+                self.assertEqual(saves, expected, log)
+                self.assertEqual({e['key'] for e in state['entries']},
+                                 {e['key'] for e in inventory if not expected or e['key'] != TC + 'old'}
+                                 | ({TC + 'new'} if expected else set()))
+
+    def test_merged_rolling_updates_do_not_consume_toolchain_reserve(self):
+        other = 'immortalwrt' if TC == 'tc-v3-ubi2-' else 'ubi2'
+        for tier, prefix in (('cc', CC), ('dl', DL)):
+            entries = [entry(1, TC + 'old', 1_450_000_000),
+                       entry(2, 'tc-v3-' + other + '-old', 1_565_000_000),
+                       entry(3, prefix + 'old', 1_500_000_000),
+                       entry(4, 'tc-v3-' + other + '-oc-protected', 3_600_000_000)]
+            for size, expected in ((2_000_000_000, []), (1_250_000_000, [tier]),
+                                   (1_500_000_000, [tier])):
+                with self.subTest(tier=tier, size=size):
+                    saves, state, log = self.run_tail(entries, warm=True,
+                        cc=size if tier == 'cc' else None, dl=size if tier == 'dl' else 0)
+                    self.assertEqual(saves, expected, log)
+                    if expected:
+                        self.assertTrue({1, 2, 4} <= {e['id'] for e in state['entries']})
+                    else:
+                        self.assertIn('toolchain replacement reserve', log)
+                        self.assertEqual(state['entries'], entries)
+                        self.assertFalse(any(c[:2] == ['cache', 'delete'] for c in state['calls']))
+
     def run_tail(self, entries, warm=False, cc: int | None = 535453831,
                  tc: int | None = 1575367741, fault='', fail_reads=(), delay=0, dl=100, tb=None):
         with tempfile.TemporaryDirectory() as tmp:
@@ -36,7 +73,7 @@ class CacheOrderTests(unittest.TestCase):
     entries = s['entries']""")
             (base / 'gh').write_text(gh)
             (base / 'gh').chmod(0o755)
-            paths = {'cc': 'ccarchive/ccache.tar.gz', 'tc': 'tcarchive/toolchain.tar.gz',
+            paths = {'cc': 'ccarchive/ccache.tar.gz', 'tc': 'tcarchive/toolchain.tar.zst',
                      'dl': 'dlarchive/dl.tar.gz', 'tb': 'tbarchive/bootstrap.tar.gz'}
             for kind, size in [('cc', cc), ('tc', tc), ('dl', dl), ('tb', tb)]:
                 p = base / paths[kind]

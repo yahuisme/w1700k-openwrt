@@ -1,4 +1,5 @@
 """Exact TC member boundaries through the production cache recovery CLI."""
+import gzip
 import io
 import os
 from pathlib import Path
@@ -7,6 +8,9 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
+
+from scripts import toolchain_archive
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / 'scripts/cache_recovery.py'
@@ -33,6 +37,7 @@ class ToolchainArchiveTests(unittest.TestCase):
                               text=True, capture_output=True)
 
     def archive_entries(self, extra=(), pair=('toolchain-test', 'toolchain-test')):
+        (self.archive / 'toolchain.tar.zst').unlink(missing_ok=True)
         with tarfile.open(self.archive / 'toolchain.tar.gz', 'w:gz') as tf:
             for name in ('build_dir/host', 'staging_dir/host',
                          'build_dir/' + pair[0], 'staging_dir/' + pair[1]):
@@ -63,6 +68,52 @@ class ToolchainArchiveTests(unittest.TestCase):
                 self.assertEqual(restored.stdout, 'hit=true\nmatched-key=matched\npoisoned=false\n', restored.stderr)
                 self.assertTrue((self.root / 'build_dir' / name).is_dir())
                 self.assertTrue((self.root / 'staging_dir' / name).is_dir())
+
+    def test_restore_reports_distinct_archive_phases(self):
+        self.archive_entries()
+        result = self.cli()
+        self.assertEqual(result.stdout, 'hit=true\nmatched-key=matched\npoisoned=false\n', result.stderr)
+        self.assertRegex(result.stderr, r'Toolchain archive timing: format=gzip validate=\d+\.\d+s extract=\d+\.\d+s')
+
+    def test_gzip_trailer_rejected_before_native_extraction(self):
+        archive = self.archive / 'toolchain.tar.gz'
+        for failure in ('checksum', 'truncated'):
+            with self.subTest(failure=failure):
+                self.archive_entries()
+                data = archive.read_bytes()
+                archive.write_bytes(data[:-8] + bytes([data[-8] ^ 1]) + data[-7:]
+                                    if failure == 'checksum' else data[:-4])
+                with patch.object(toolchain_archive.subprocess, 'run') as extract:
+                    with self.assertRaises((gzip.BadGzipFile, EOFError)):
+                        toolchain_archive.extract(archive, self.root)
+                    extract.assert_not_called()
+                result = self.cli()
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, 'hit=false\nmatched-key=\npoisoned=true\n')
+                self.assertEqual(list(self.root.iterdir()), [])
+                self.assertEqual(list(self.archive.iterdir()), [])
+
+    def test_zstd_round_trip_and_late_checksum_failure(self):
+        self.archive_entries()
+        self.assertIn('hit=true\n', self.cli().stdout)
+        path = self.root / 'build_dir/host/stamp'
+        path.write_bytes(b'cached stamp')
+        stamp = 1_700_000_000_123_456_789
+        os.utime(path, ns=(stamp, stamp))
+        packed = self.pack()
+        self.assertEqual(packed.returncode, 0, packed.stdout + packed.stderr)
+        archive = self.archive / 'toolchain.tar.zst'
+        self.assertEqual({p.name for p in self.archive.iterdir()}, {archive.name, 'key'})
+        restored = self.cli()
+        self.assertIn('hit=true\n', restored.stdout)
+        self.assertIn('format=zstd', restored.stderr)
+        self.assertEqual(path.read_bytes(), b'cached stamp')
+        self.assertEqual(path.stat().st_mtime_ns, stamp)
+        contents = archive.read_bytes()
+        archive.write_bytes(contents[:-1] + bytes([contents[-1] ^ 1]))
+        self.assertIn('poisoned=true\n', self.cli().stdout)
+        self.assertFalse(path.exists())
+        self.assertEqual(list(self.archive.iterdir()), [])
 
     def test_mismatched_roots_are_rejected_before_extraction(self):
         (self.root / '.config').write_text('original')
@@ -202,7 +253,8 @@ exit 17
                                'toolchain', str(self.root), str(self.archive), 'matched'],
                               text=True, capture_output=True)
         self.assertEqual(pack.returncode, 0, pack.stdout + pack.stderr)
-        with tarfile.open(self.archive / 'toolchain.tar.gz', 'r:gz') as tf:
+        raw = subprocess.check_output(['zstd', '-dc', '--', str(self.archive / 'toolchain.tar.zst')])
+        with tarfile.open(fileobj=io.BytesIO(raw), mode='r:') as tf:
             member = tf.getmember(link.relative_to(self.root).as_posix())
             self.assertTrue(member.issym())
             self.assertEqual(member.linkname, str(script))
@@ -253,7 +305,7 @@ exit 17
                                 text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('archive link escapes host pair', result.stderr)
-        self.assertFalse((self.archive / 'toolchain.tar.gz').exists())
+        self.assertEqual(list(self.archive.iterdir()), [])
         self.assertEqual((self.root / '.config').read_text(), 'original')
 
     def test_valid_toolchain_graph_restores_and_hits(self):

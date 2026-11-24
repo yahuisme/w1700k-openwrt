@@ -186,10 +186,27 @@ first/steady replacement, cap/cap+1, minimum deletion, protected peers, malforme
 inventory, insufficient space, delete/readback and upload failures. These are
 control-flow/capacity checks, not compression or CI speed benchmarks.
 
-## Compression choice
+## Current toolchain archive and replacement reserve
 
-Packing uses `pigz -1` when already installed, otherwise `gzip -1`; extraction
-continues to use gzip-compatible tar. No installation is performed by this helper.
+TC writes PAX `toolchain.tar.zst` (`zstd -6 -T2`). The restore helper reads
+both gzip and zstd and logs separate validation and extraction times. The TC
+digest generation is bumped so older gzip-only workflows cannot request a
+zstd result. No rolling prefixes change. Validation still completes before
+native tar extraction, and zstd decoding must finish successfully even after
+the tar end marker. The existing exact-match and cold-recovery rules remain.
+
+Once both current-branch TC namespaces have seeds, rolling CC/DL updates
+preserve room for one more TC of the largest observed size, including margin.
+Evaluate the steady-state projection after retiring the writer's old rolling
+entries separately from the real upload coexistence check. If room is already
+short, admit only updates that do not increase the projected occupancy. Never
+pre-delete a TC for room. The merged-inventory regression uses API outer sizes
+and a size-only candidate; production zstd size and timing still need CI.
+
+## Historical gzip compression choice
+
+Rolling CC/DL and the TB tier still use `pigz -1` when available, otherwise
+`gzip -1`. No installation is performed by the helper.
 The historical `ghcr.io/w1700k/fastbuild_base:base-builder` test image
 (`8563dec89b4c`, aarch64) had gzip but **no pigz**. It is no longer used by
 the workflow; the measurements below describe that historical environment,

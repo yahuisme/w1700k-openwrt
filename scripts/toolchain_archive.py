@@ -1,8 +1,61 @@
 """Exact TC member-graph policy, adapted from bootstrap's reviewed validator."""
+from contextlib import contextmanager
+import gzip
 import os
 from pathlib import Path
 import stat
+import subprocess
 import tarfile
+import time
+
+PACKED = 'toolchain.tar.zst'
+LEGACY = 'toolchain.tar.gz'
+
+
+def candidate(directory):
+    paths = [p for p in (directory / PACKED, directory / LEGACY) if p.exists() or p.is_symlink()]
+    if len(paths) > 1 or paths and (paths[0].is_symlink() or not paths[0].is_file()):
+        raise ValueError('ambiguous or nonregular toolchain archive')
+    return paths[0] if paths else None
+
+
+@contextmanager
+def headers(archive):
+    # tarfile stops at the tar end marker, before codec integrity checks may run.
+    if archive.name == LEGACY:
+        with gzip.GzipFile(archive, 'rb') as stream:
+            with tarfile.open(fileobj=stream, mode='r:') as tf:
+                yield tf
+            while stream.read(1024 * 1024):
+                pass
+        return
+    with archive.open('rb') as stream:
+        if stream.read(4) != b'\x28\xb5\x2f\xfd':
+            raise ValueError('invalid toolchain zstd frame')
+    with subprocess.Popen(['zstd', '-dc', '--', str(archive)], stdout=subprocess.PIPE) as proc:
+        stream = proc.stdout
+        assert stream is not None  # stdout=PIPE
+        try:
+            with tarfile.open(fileobj=stream, mode='r|', bufsize=1024 * 1024) as tf:
+                yield tf
+            while stream.read(1024 * 1024):
+                pass
+            if proc.wait():
+                raise ValueError('toolchain zstd decoding failed')
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+
+
+def extract(archive, root):
+    start = time.monotonic()
+    validate_archive(archive, root)
+    validated = time.monotonic()
+    legacy = archive.name == LEGACY
+    subprocess.run(['tar', '--gzip' if legacy else '--zstd', '--no-same-owner',
+                    '-xf', str(archive), '-C', str(root)], check=True)
+    print(f'Toolchain archive timing: format={"gzip" if legacy else "zstd"} '
+          f'validate={validated - start:.3f}s extract={time.monotonic() - validated:.3f}s')
 
 def policy_bytes():
     return Path(__file__).read_bytes()
@@ -96,7 +149,7 @@ def _link_chain(resolved, members, root, seen):
 def validate_archive(archive, root):
     """Validate all headers before extraction; never follow archive link parents."""
     members = {}
-    with tarfile.open(archive, 'r:gz') as tf:
+    with headers(archive) as tf:
         for entry in tf:
             name = entry.name.rstrip('/')
             if (not allowed(name) or Path(name).is_absolute()

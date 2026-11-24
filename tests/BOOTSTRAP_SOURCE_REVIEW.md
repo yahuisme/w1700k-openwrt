@@ -234,3 +234,95 @@ or include-remaking, and source site/cache with a harmless temporary site file.
 Nested make includes are inert boundaries, not a full framework execution.
 These tests prove consumer mechanisms and fail-closed keys, not downloaded
 configure-program environment hermeticity, compilation, CI savings or hardware.
+
+## W1700K run 45363574565 source-lock refresh
+
+Both successful jobs used recipe `04c5c90c7789baf9afa2684eee6a99299e559a55`.
+Neither prepared inventory matches an existing lock. The preceding `2e582b…`
+and `8a2797…` inventories were reproduced with canonical Git modes and the
+real Aurora generator before comparing every path, mode and content digest.
+
+| Distro / build-record artifact | Core | Prepared inventory SHA256 |
+| --- | --- | --- |
+| OpenWrt / `14907590224` | `64c777f3af8ad1503c257afe686e44200de832c7` | `fb3b70ae51e158cb7a9aaa3ad243ced388c87387616eb85e8c54e0e6851c987e` |
+| ImmortalWrt / `14907798227` | `73bc086a62f951d96e5d7404f04c4d73e141cad2` | `5e6b287bf568615dc34641241c824aa49f32cc4ef827afcb4e41ebe8219971fb` |
+
+Both used `yahuisme/packages` `ce90a8b0f85bbcaf62c0cebc8f8cb20bc8822007`
+and builder fingerprint `b9a4b030f2029eb921d5ab0c2c9c27233939d810e59c90a7bd3317485b652506`.
+The exact feed inputs and `final.config` SHA256 values are:
+
+| Input | OpenWrt | ImmortalWrt |
+| --- | --- | --- |
+| luci | `8cbf09978159264baeb61cf282b63e0ce50f76a1` | `6839c87b4da0e8274ab6c0948e688c26447c1547` |
+| packages | `79b71f9932668d49787dd5fe5b78731604e96ea4` | `7a34fbb3596b47fd6d6438263f2d3d578c8f5c7c` |
+| routing | `ea8633da9c461a9bdc62a0323439d31180762e03` | same |
+| telephony | `06feffc2c154993f555b43756ef7db6dd7e58225` | same |
+| video | `6a3b5fd6e963f41caa73ef4f691e156d467e2894` | same |
+| `final.config` | `8efc0d56e2a2d823b286d3cf5080a6efdbcd04a5a9f3ca3e555e25f2d0c2f7a7` | `0aa0a5311ddd9649ea709ce9f4c6b522ddd4e26954491f5262143769e7cf45e1` |
+
+In separate disposable trees, the real distro selector and complete `custom.sh`
+ran against immutable core/feed checkouts materialized from archives. The custom
+clone fetched the recorded commit from the local Git repository via URL rewrite;
+only the shell's `/cache-scripts` entrypoint was relocated, not the Python
+generator or its emitted bytes. Native feed scanning/install symlinks and
+defconfig were not rerun: feed installation writes metadata and package/target
+links outside this inventory, and the artifact provides the actual final config.
+The local TC helper reproduced all 11 non-environment input-group digest prefixes
+in the hosted logs for each distro (not a claim that the local overall TC key
+matches CI). Against pristine core, customization changes only the inventoried
+`include/rootfs.mk`, `package/Makefile` and `.external-packages.mk`. The three
+records are unchanged from the previous review, including the fragment parsed
+by GNU make; the APK snapshot/index is still consumed later during rootfs install.
+
+The reviewed delta is six OpenWrt paths and seven ImmortalWrt paths, with no
+existing mode changes:
+
+- Both: CMake 4.4.3 release 2 → 3 removes the liblzma/zlib discovery patches
+  and passes explicit include paths and static libraries under `STAGING_DIR_HOST`.
+  `tools/xz` and `tools/zlib` already produce those inputs and are direct CMake
+  prerequisites; the existing staged zstd input is unchanged. The new options
+  do not add an inherited path or another make include.
+- Both: LibreSSL 4.2.1 → 4.2.3 changes the SHA256-pinned source, with no recipe
+  hook change. ImmortalWrt also advances ccache 4.13.3 → 4.14.2, with an offset-only
+  refresh of `100-honour-copts.patch`, and adds a NetBSD fakeroot patch outside
+  the early closure.
+- OpenWrt: the b43 selector drops `CONFIG_BRCMSMAC_USE_FW_FROM_WL` from the
+  tools graph; the selected ccache graph and tool stamp suffix do not change.
+  The Zyxel mkits script change is only reached from target image recipes.
+
+GNU make `-rR -qp` with an empty phony goal expanded actual tools/subdir/stamp
+rules and the real final configs. All four old/current queries exited 0 with
+no shell attempts. Each yields the same 16 early producers above, including
+the implicit core and patch dependencies. No Rust/all-host selector is active
+in either artifact. Host-build/download/unpack/depends/quilt/autotools,
+CMake/Meson and prerequisite/site helpers are byte-identical to their previous
+reviewed inputs. Package and feed recipes can still write to the host pair
+later; this lock does not cover those writers or a world-complete host tree.
+
+Before admission, the real CLI reported `full-toolchain-bound` and different
+TB keys for different TC keys. After adding only the two locks, both report
+`reviewed-independent`. At the same root and builder, modifying the actual
+Airoha `940-pmdomain-airoha-cpu-pll-fallback.patch` changes the real TC key but
+not the TB key. CMake/LibreSSL recipe, ccache patch, Meson template and generated
+fragment mutations fall back to TC binding; changing fragment mode/presence
+also falls back, and links/nonregular fragments are rejected. Real-config,
+builder and environment invalidation and Rust/all-host fallback remain covered.
+Nonempty inherited path/option overrides reject without a stdout key; empty
+controls and restoration of the original inputs recover the baseline key.
+
+Under the shared 2 GB bounded runner, `test_bootstrap_cache` and
+`test_bootstrap_environment` passed 39 tests against each prepared tree, and
+`test_bootstrap_workflow` passed four. `test_bootstrap_native_environment`
+remains pinned to its historical OpenWrt fixture and passed four tests there;
+its native checks also passed four per current tree in disposable replays with
+only the separately verified `tools/Makefile` pin changed. Run the key and
+environment suites with each current `BOOTSTRAP_SOURCE`, and the unmodified
+historical native suite separately with the `7edc67…` prepared tree. This
+refresh does not change any maintained test program. The tested helper SHA256 is
+`acabd58a892661ade36c4fd57e06f17d6a7b5498027c26ba820617d613d20537`.
+
+The bootstrap helper self-hash starts a cold TB generation; no prior TB
+archive becomes compatible with these locks. The recorded run restored TC
+successfully and skipped TB
+for both jobs. Warm bootstrap stamp reuse and net savings still require a
+separately authorized hosted run with a TC miss; no local compilation ran.

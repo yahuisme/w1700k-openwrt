@@ -249,7 +249,7 @@ jobs:
     - name: Check toolchain cache budget
       id: tc_budget
       if: steps.tc_restore.outputs.hit != 'true' && steps.tc_restore.outputs.poisoned != 'true'
-      run: python3 scripts/cache_helper.py admit '${{ env.TC_PREFIX }}' tcarchive/toolchain.tar.gz '${{ steps.inputs.outputs.key }}'
+      run: python3 scripts/cache_helper.py admit '${{ env.TC_PREFIX }}' tcarchive/toolchain.tar.zst '${{ steps.inputs.outputs.key }}'
     - name: Save toolchain cache
       uses: actions/cache/save@v6
       if: steps.tc_budget.outputs.save == 'true' && steps.tc_restore.outputs.poisoned != 'true'

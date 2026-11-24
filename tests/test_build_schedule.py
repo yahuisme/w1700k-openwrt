@@ -1,5 +1,4 @@
-"""Verify direct monthly Hong Kong scheduling without daily checks."""
-from calendar import monthrange
+"""Verify direct daily Hong Kong scheduling without a date gate."""
 from datetime import datetime
 from pathlib import Path
 import unittest
@@ -16,21 +15,21 @@ class BuildScheduleTests(unittest.TestCase):
     def setUpClass(cls):
         cls.workflow = yaml.safe_load(WORKFLOW.read_text())
 
-    def test_direct_monthly_cron_at_hong_kong_midnight(self):
+    def test_direct_daily_cron_at_hong_kong_midnight(self):
         triggers = self.workflow.get('on', self.workflow.get(True))
         self.assertEqual(triggers['schedule'], [
-            {'cron': '0 0 1-31/3 * *', 'timezone': 'Asia/Hong_Kong'}])
+            {'cron': '0 0 * * *', 'timezone': 'Asia/Hong_Kong'}])
         self.assertEqual(set(triggers), {'schedule', 'workflow_dispatch'})
-        local = datetime(2026, 12, 1, tzinfo=ZoneInfo('Asia/Hong_Kong'))
-        utc = local.astimezone(ZoneInfo('UTC'))
-        self.assertEqual((utc.month, utc.day, utc.hour, utc.minute), (11, 30, 16, 0))
-        # Cron days belong to the selected timezone, not the preceding UTC day.
-        for year in (2026, 2028):
-            for month in range(1, 13):
-                days = list(range(1, monthrange(year, month)[1] + 1, 3))
-                self.assertEqual(days[0:4], [1, 4, 7, 10])
-                self.assertNotIn(2, days)
-                self.assertEqual(days[-1], 1 + 3 * ((monthrange(year, month)[1] - 1) // 3))
+        hk = ZoneInfo(triggers['schedule'][0]['timezone'])
+        for local_date, utc_date in (
+            ((2026, 12, 1), (2026, 11, 30)),
+            ((2027, 1, 1), (2026, 12, 31)),
+            ((2028, 3, 1), (2028, 2, 29)),
+        ):
+            with self.subTest(local_date=local_date):
+                local = datetime(*local_date, tzinfo=hk)
+                self.assertEqual(local.astimezone(ZoneInfo('UTC')),
+                                 datetime(*utc_date, 16, tzinfo=ZoneInfo('UTC')))
 
     def test_build_has_no_daily_date_gate(self):
         self.assertEqual(set(self.workflow['jobs']), {'openwrt', 'immortalwrt'})

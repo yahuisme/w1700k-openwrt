@@ -1,0 +1,37 @@
+--- a/w1700k-patches/tree/package/kernel/mt76/patches/911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch
++++ b/w1700k-patches/tree/package/kernel/mt76/patches/911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch
+@@ -14,10 +14,16 @@
+ Also refresh the SKU table and channel information for BSS txpower changes,
+ and report MCU failures instead of silently ignoring them.
+ 
++Project adjustment: refresh every valid BSS TXPOWER notification, including
++one equal to the desired PHY cache after an earlier MCU failure. Keep that
++cache as the requested value, not a firmware success marker. This does not
++roll back firmware state or arrange retries; mac80211 may suppress a new
++notification when the effective power and power type are unchanged.
++
+ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+ ---
+- mt7996/main.c | 62 +++++++++++++++++++++++++++++++++++++++++++++++++--
+- 1 file changed, 60 insertions(+), 2 deletions(-)
++ mt7996/main.c | 63 +++++++++++++++++++++++++++++++++++++++++++++++++---
++ 1 file changed, 60 insertions(+), 3 deletions(-)
+ 
+ diff --git a/mt7996/main.c b/mt7996/main.c
+ index 560fe30df..c32e7819f 100644
+@@ -75,12 +81,12 @@
+  }
+  
+  static int
+-@@ -1025,9 +1068,24 @@ mt7996_link_info_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
++@@ -1025,9 +1068,23 @@ mt7996_link_info_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+  		mt7996_update_mu_group(hw, link, info);
+  
+  	if (changed & BSS_CHANGED_TXPOWER &&
+-+	    info->txpower != INT_MIN &&
+- 	    info->txpower != phy->txpower) {
++-	    info->txpower != phy->txpower) {
+++	    info->txpower != INT_MIN) {
+ +		int ret;
+ +
+  		phy->txpower = info->txpower;

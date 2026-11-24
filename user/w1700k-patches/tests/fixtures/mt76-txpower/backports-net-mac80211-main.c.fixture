@@ -1,0 +1,125 @@
+static u32 ieee80211_calc_hw_conf_chan(struct ieee80211_local *local,
+				       struct ieee80211_chanctx_conf *ctx)
+{
+	struct ieee80211_sub_if_data *sdata;
+	struct cfg80211_chan_def chandef = {};
+	struct cfg80211_chan_def *oper = NULL;
+	enum ieee80211_smps_mode smps_mode = IEEE80211_SMPS_STATIC;
+	u32 changed = 0;
+	int power;
+	u32 offchannel_flag;
+
+	if (!local->emulate_chanctx)
+		return 0;
+
+	offchannel_flag = local->hw.conf.flags & IEEE80211_CONF_OFFCHANNEL;
+
+	if (ctx && !WARN_ON(!ctx->def.chan)) {
+		oper = &ctx->def;
+		if (ctx->rx_chains_static > 1)
+			smps_mode = IEEE80211_SMPS_OFF;
+		else if (ctx->rx_chains_dynamic > 1)
+			smps_mode = IEEE80211_SMPS_DYNAMIC;
+		else
+			smps_mode = IEEE80211_SMPS_STATIC;
+	}
+
+	if (local->scan_chandef.chan) {
+		chandef = local->scan_chandef;
+	} else if (local->tmp_channel) {
+		chandef.chan = local->tmp_channel;
+		chandef.width = NL80211_CHAN_WIDTH_20_NOHT;
+		chandef.center_freq1 = chandef.chan->center_freq;
+		chandef.freq1_offset = chandef.chan->freq_offset;
+	} else if (oper) {
+		chandef = *oper;
+	} else {
+		chandef = local->dflt_chandef;
+	}
+
+	if (WARN(!cfg80211_chandef_valid(&chandef),
+		 "control:%d.%03d MHz width:%d center: %d.%03d/%d MHz",
+		 chandef.chan ? chandef.chan->center_freq : -1,
+		 chandef.chan ? chandef.chan->freq_offset : 0,
+		 chandef.width, chandef.center_freq1, chandef.freq1_offset,
+		 chandef.center_freq2))
+		return 0;
+
+	if (!oper || !cfg80211_chandef_identical(&chandef, oper))
+		local->hw.conf.flags |= IEEE80211_CONF_OFFCHANNEL;
+	else
+		local->hw.conf.flags &= ~IEEE80211_CONF_OFFCHANNEL;
+
+	offchannel_flag ^= local->hw.conf.flags & IEEE80211_CONF_OFFCHANNEL;
+
+	/* force it also for scanning, since drivers might config differently */
+	if (offchannel_flag || local->scanning || local->in_reconfig ||
+	    !cfg80211_chandef_identical(&local->hw.conf.chandef, &chandef)) {
+		local->hw.conf.chandef = chandef;
+		changed |= IEEE80211_CONF_CHANGE_CHANNEL;
+	}
+
+	if (!conf_is_ht(&local->hw.conf)) {
+		/*
+		 * mac80211.h documents that this is only valid
+		 * when the channel is set to an HT type, and
+		 * that otherwise STATIC is used.
+		 */
+		local->hw.conf.smps_mode = IEEE80211_SMPS_STATIC;
+	} else if (local->hw.conf.smps_mode != smps_mode) {
+		local->hw.conf.smps_mode = smps_mode;
+		changed |= IEEE80211_CONF_CHANGE_SMPS;
+	}
+
+	power = ieee80211_chandef_max_power(&chandef);
+	if (local->user_power_level != IEEE80211_UNSET_POWER_LEVEL)
+		power = min(local->user_power_level, power);
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(sdata, &local->interfaces, list) {
+		if (!rcu_access_pointer(sdata->vif.bss_conf.chanctx_conf))
+			continue;
+		if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN)
+			continue;
+		if (sdata->vif.bss_conf.txpower == INT_MIN)
+			continue;
+		power = min(power, sdata->vif.bss_conf.txpower);
+	}
+	rcu_read_unlock();
+
+	if (local->hw.conf.power_level != power) {
+		changed |= IEEE80211_CONF_CHANGE_POWER;
+		local->hw.conf.power_level = power;
+	}
+
+	return changed;
+}
+
+void ieee80211_link_info_change_notify(struct ieee80211_sub_if_data *sdata,
+				       struct ieee80211_link_data *link,
+				       u64 changed)
+{
+	struct ieee80211_local *local = sdata->local;
+
+	WARN_ON_ONCE(changed & BSS_CHANGED_VIF_CFG_FLAGS);
+
+	if (!changed)
+		return;
+
+	switch (sdata->vif.type) {
+	case NL80211_IFTYPE_AP_VLAN:
+		return;
+	case NL80211_IFTYPE_MONITOR:
+		if (!ieee80211_hw_check(&local->hw, WANT_MONITOR_VIF))
+			return;
+		break;
+	default:
+		break;
+	}
+
+	if (!check_sdata_in_driver(sdata))
+		return;
+
+	drv_link_info_changed(local, sdata, link->conf, link->link_id, changed);
+}
+

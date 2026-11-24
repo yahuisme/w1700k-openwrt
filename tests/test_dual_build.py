@@ -119,6 +119,12 @@ class DualBuildTests(unittest.TestCase):
                 '# End firewall4 patch refresh.\n')
             self.assertEqual(script.count(refresh), 1)
             script = script.replace(refresh, '', 1)
+            local_patches = ('# Required patches are versioned with the firmware workflow.\n'
+                             'PATCH_DIR="$DK_USER/w1700k-patches"\n')
+            self.assertEqual(script.count(local_patches), 1)
+            script = script.replace(local_patches,
+                                    '# Required patches share the applications\' exact packages checkout.\n'
+                                    'PATCH_DIR="$PKG_REPO/w1700k-patches"\n', 1)
             script = script.replace('# Shared 610 replaces the upstream CN/US customization.',
                                     '# Shared 610 covers the CN/US customization previously provided by 600.')
             # Normalize only explicitly reviewed post-migration additions.

@@ -1,0 +1,27 @@
+{
+  "sources": {
+    "openwrt_previous": "8d3160652b2423608edadf9881362bfe95855384",
+    "openwrt_current": "7424e2ca306c801eaf9c9dee23545af1a4e66d20",
+    "immortalwrt": "a4ba8240d8a1aaef7e8c6f2d65e841a9bfd2b8c5"
+  },
+  "files": {
+    "mac80211.sh": {
+      "path": "package/network/config/wifi-scripts/files-ucode/lib/netifd/wireless/mac80211.sh",
+      "sha256": "e56a6b39a5fbcc39f39ffe79a07ec39a019ef135b714385f8391935d88677d47"
+    },
+    "generator.uc": {
+      "path": "package/network/config/wifi-scripts/files-ucode/usr/share/ucode/wifi/hostapd.uc",
+      "sha256": "ab6e667b4ec93c5878b3ddd651cac980949d9a1a13085a2c75d0252fb5859db6"
+    },
+    "hostapd-old.uc": {
+      "path": "package/network/services/hostapd/files/hostapd.uc",
+      "sha256": "d2b14d19de4c51313d231a026f57343e19fc498c32607c4ac15ba0bea2ece083"
+    },
+    "hostapd-current.uc": {
+      "path": "package/network/services/hostapd/files/hostapd.uc",
+      "sha256": "160af9e095108a5d8d476dd5a87771491b733fde4b422406352baafca02dd242"
+    }
+  },
+  "baseline_patch_revision": "0b1aa4e87430595f3eb233549db3ca0d4b788498",
+  "baseline_patch_sha256": "6276d8dda3e35924adbaf6577e692f24183eefe7c51302194c1545c0c25692d9"
+}

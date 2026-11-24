@@ -1,0 +1,28 @@
+Subject: [PATCH] wifi: mt76: mt7996: return RRO raw buffers on drop
+
+After releasing the RX token, rxwi no longer owns its packet buffer.
+Return the raw buffer to its page pool when rx_check rejects it or
+build_skb fails, before skipping to the separate MSDU page bookkeeping.
+Preserve successful skb ownership, DMA and token lifetime policy.
+
+--- a/mt7996/mac.c
++++ b/mt7996/mac.c
+@@ -1933,12 +1933,16 @@
+ 				goto next_page;
+ 			}
+ 
+-			if (ls && !mt7996_rx_check(mdev, buf, len))
++			if (ls && !mt7996_rx_check(mdev, buf, len)) {
++				mt76_put_page_pool_buf(buf, false);
+ 				goto next_page;
++			}
+ 
+ 			skb = build_skb(buf, q->buf_size);
+-			if (!skb)
++			if (!skb) {
++				mt76_put_page_pool_buf(buf, false);
+ 				goto next_page;
++			}
+ 
+ 			skb_reserve(skb, q->buf_offset);
+ 			skb_mark_for_recycle(skb);

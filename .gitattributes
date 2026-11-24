@@ -1,0 +1,24 @@
+# Unified-diff context prefixes and immutable reference bytes are intentional.
+user/w1700k-patches/patches/002-w1700k-cpufreq-resources.patch whitespace=-space-before-tab
+user/w1700k-patches/patches/610-w1700k-power-30.patch whitespace=-space-before-tab
+user/w1700k-patches/patches/920-wifi-non-mlo-ap-txpower.patch whitespace=-blank-at-eol,-space-before-tab
+user/w1700k-patches/tree/package/kernel/mt76/patches/911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch whitespace=-blank-at-eol,-space-before-tab
+user/w1700k-patches/tree/package/network/utils/iwinfo/patches/999-fix-txpower-list.patch whitespace=-blank-at-eol,-space-before-tab,-blank-at-eof
+user/w1700k-patches/tree/target/linux/airoha/patches-6.18/745-net-pcs-airoha-extend-manual-rx-calib-to-E2-silicon.patch whitespace=-blank-at-eol,-space-before-tab,-blank-at-eof
+user/w1700k-patches/tree/target/linux/airoha/patches-6.18/746-net-dsa-mt7530-pre-deassert-phy-reset-gpios-before-mdio-scan.patch whitespace=-blank-at-eol,-space-before-tab
+user/w1700k-patches/tree/target/linux/airoha/patches-6.18/940-pmdomain-airoha-cpu-pll-fallback.patch whitespace=-blank-at-eol,-space-before-tab,-blank-at-eof
+user/w1700k-patches/tree/package/kernel/mt76/patches/913-*.patch whitespace=-blank-at-eol,-space-before-tab
+user/w1700k-patches/tree/package/kernel/mt76/patches/914-*.patch whitespace=-blank-at-eol,-space-before-tab
+user/w1700k-patches/tests/fixtures/mt76-txfree/mt7996/mac.c -whitespace
+user/w1700k-patches/tree/package/network/utils/iwinfo/patches/998-*.patch whitespace=-blank-at-eol,-space-before-tab
+user/w1700k-patches/patches/998-single-wiphy.patch whitespace=-blank-at-eol,-space-before-tab
+user/w1700k-patches/tests/fixtures/iwinfo-scan/*.fixture -whitespace
+user/w1700k-patches/tests/fixtures/channel-local-info.diff.fixture -whitespace
+user/w1700k-patches/tests/fixtures/mt76-txpower/911-before.patch.fixture -whitespace
+user/w1700k-patches/tests/fixtures/mt76-txpower/911-desired-cache.diff.fixture -whitespace
+user/w1700k-patches/tests/fixtures/mt76-txpower/backports-net-mac80211-cfg.c.fixture -whitespace
+user/w1700k-patches/tests/fixtures/mt76-txpower/backports-net-mac80211-driver-ops.c.fixture -whitespace
+user/w1700k-patches/tests/fixtures/mt76-txpower/backports-net-mac80211-iface.c.fixture -whitespace
+user/w1700k-patches/tests/fixtures/mt76-txpower/backports-net-mac80211-main.c.fixture -whitespace
+user/w1700k-patches/tests/fixtures/mt76-txpower/mt76-mt7996-mcu.c.fixture -whitespace
+user/w1700k-patches/tree/package/system/procd/patches/001-*.patch whitespace=-blank-at-eol,-space-before-tab

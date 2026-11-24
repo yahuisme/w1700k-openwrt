@@ -1,0 +1,147 @@
+--- a/w1700k-patches/patches/998-single-wiphy.patch
++++ b/w1700k-patches/patches/998-single-wiphy.patch
+@@ -2,94 +2,76 @@
+ Date: Fri, 19 Jun 2026 00:00:00 +1000
+ Subject: [PATCH] luci-mod-status: fix channel analysis on single-wiphy multi-radio
+ 
+-iwinfo resolves the UCI radio name (radio0/radio1/...) to the wrong 
+-sub-interface for the info and scan methods on this hardware (every 
+-radio name resolves to the first/2.4GHz netdev), so the 5GHz tab showed 
+-"No data": its scan results came back as 2.4GHz and were filtered
+-out, and the local interface channel was not in the 5GHz graph. Address
+-info/scan by the radio's actual netdev ifname (e.g. phy0.1-ap0) instead.
+-freqlist resolves per-radio correctly and is left on the radio name.
++Project refinement of the original netdev-based single-wiphy workaround:
++iwinfo now resolves and binds the requested radio in the backend. Use LuCI's
++native WifiDevice.getScanList() (nobatch) and radio-name info RPC instead of
++selecting an interface and redeclaring scan in this view.
++
++Validate the local interface's channel and actual MHz against this tab's
++freqlist before caching or drawing it, and remove obsolete local graphs
++without expiring scanned neighbors. Only build the configured radio band.
+ ---
+- .../resources/view/status/channel_analysis.js | 35 ++++++++++
+- 1 file changed, 35 insertions(+)
+-
+ --- a/htdocs/luci-static/resources/view/status/channel_analysis.js
+ +++ b/htdocs/luci-static/resources/view/status/channel_analysis.js
+-@@ -22,6 +22,13 @@
+- 		expect: { }
++@@ -19,7 +19,7 @@
++ 		object: 'iwinfo',
++ 		method: 'info',
++ 		params: [ 'device' ],
++-		expect: { }
+++		expect: { '': {} }
+  	}),
+  
+-+	callScan: rpc.declare({
+-+		object: 'iwinfo',
+-+		method: 'scan',
+-+		params: [ 'device' ],
+-+		expect: { results: [] }
+-+	}),
++ 	render_signal_badge(signalPercent, signalValue) {
++@@ -211,6 +211,19 @@
++ 
++ 			const rows = [];
++ 
+++			const local_valid = local_wifi.bssid && local_wifi.center_chan1 && local_wifi.frequency > 0 &&
+++				typeof local_wifi.htmode == 'string' && band + 'g' == radio.dev.get('band') &&
+++				radio.freq.some(freq => freq.band == band &&
+++					freq.channel === local_wifi.channel &&
+++					freq.mhz === local_wifi.frequency);
+ +
+- 	render_signal_badge(signalPercent, signalValue) {
+- 		let icon, title, value;
+++			/* Local info is not a stale scan result; remove it once no longer valid. */
+++			if (radio.localBssid && (!local_valid || radio.localBssid != local_wifi.bssid)) {
+++				scanCache[radio.localBssid]?.graph?.group.remove();
+++				delete scanCache[radio.localBssid];
+++				radio.localBssid = null;
+++			}
+++
++ 			for (let res of results) {
++ 				if (scanCache[res.bssid] == null)
++ 					scanCache[res.bssid] = {};
++@@ -219,7 +232,8 @@
++ 				scanCache[res.bssid].data.stale = false;
++ 			}
+  
+-@@ -201,8 +208,8 @@
+- 		let q;
++-			if (band + 'g' == radio.dev.get('band')) {
+++			if (local_valid) {
+++				radio.localBssid = local_wifi.bssid;
++ 				if (scanCache[local_wifi.bssid] == null)
++ 					scanCache[local_wifi.bssid] = {};
+  
+- 		return Promise.all([
+--			radio.dev.getScanList(),
+--			this.callInfo(radio.dev.getName())
+-+			this.callScan(radio.ifname),
+-+			this.callInfo(radio.ifname)
+- 		]).then(L.bind(function([results, local_wifi]) {
+- 			const table = radio.table;
+- 			const chan_analysis = radio.graph;
+-@@ -413,12 +420,28 @@
+- 				const tasks = [], ret = [];
++@@ -453,6 +467,14 @@
+  
+- 				for (let d of data) {
+--					ret[d.getName()] = { dev : d };
+-+					ret[d.getName()] = { dev : d, ifname : d.getName() };
+- 
+- 					tasks.push(this.callFrequencyList(d.getName())
+- 					.then(L.bind(function(radio, data) {
+- 						ret[radio.getName()].freq = data;
+- 					}, this, d)));
++ 			for (let band in bands) {
++ 				if (bands[band].channels.length == 0)
+++					continue;
+ +
+-+					/* On single-wiphy multi-radio hardware (e.g. MT7996) iwinfo
+-+					   resolves the UCI radio name (radio0/1/2) to the wrong
+-+					   sub-interface for the info/scan methods, so address those
+-+					   by the radio's actual netdev ifname (e.g. phy0.1-ap0)
+-+					   instead. freqlist resolves per-radio correctly and is
+-+					   left on the radio name. */
+-+					tasks.push(d.getWifiNetworks().then(L.bind(function(radio, nets) {
+-+						for (let n of nets) {
+-+							const ifname = n.getIfname();
+-+							if (ifname) {
+-+								ret[radio.getName()].ifname = ifname;
+-+								break;
+-+							}
+-+						}
+-+					}, this, d)));
+- 				}
+- 
+- 				return Promise.all(tasks).then(function() { return ret; })
+-@@ -455,6 +478,14 @@
+- 				if (bands[band].channels.length == 0)
+- 					continue;
+- 
+ +				/* Single-wiphy multi-radio (e.g. MT7996): iwinfo's freqlist
+ +				   returns the whole wiphy's channels for every radio, so each
+ +				   radio would otherwise spawn a tab for all three bands. Build
+ +				   only this radio's own band. */
+ +				const devBand = wifiDevs[ifname].dev.get('band');
+ +				if (devBand && (band + 'g') != devBand)
+-+					continue;
+-+
++ 					continue;
++ 
+  				const csvg = svg.cloneNode(true);
+- 				const table = E('table', { 'class': 'table' }, [
+- 					E('tr', { 'class': 'tr table-titles' }, [
+-@@ -477,6 +508,7 @@
++@@ -477,6 +499,7 @@
+  
+  				this.radios[ifname+band] = {
+  					dev: wifiDevs[ifname].dev,
+-+					ifname: wifiDevs[ifname].ifname,
+++					freq: wifiDevs[ifname].freq,
+  					band: band,
+  					graph: graph_data,
+  					table: table,

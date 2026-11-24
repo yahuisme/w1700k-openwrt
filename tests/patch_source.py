@@ -1,6 +1,5 @@
-"""Locate the same shared payload used by the firmware packages checkout."""
-import os
+"""Locate the patch payload from the firmware checkout under test."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PATCHES = Path(os.environ.get('W1700K_PATCHES', ROOT.parent / 'packages/w1700k-patches'))
+PATCHES = ROOT / 'user/w1700k-patches'

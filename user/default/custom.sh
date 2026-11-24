@@ -44,8 +44,8 @@ cp -r "$PKG_REPO/luci-app-wifi7" "$PKG_REPO/luci-app-airoha-npu" \
       "$PKG_REPO/luci-app-airoha-flowsense" \
       "$PKG_REPO/luci-app-airoha-fancontrol" package/
 
-# Required patches share the applications' exact packages checkout.
-PATCH_DIR="$PKG_REPO/w1700k-patches"
+# Required patches are versioned with the firmware workflow.
+PATCH_DIR="$DK_USER/w1700k-patches"
 for file in \
     patches/002-w1700k-cpufreq-resources.patch \
     patches/920-wifi-non-mlo-ap-txpower.patch \

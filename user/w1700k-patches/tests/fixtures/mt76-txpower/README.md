@@ -1,0 +1,9 @@
+# Immutable TX-power source inputs
+
+- mt76: [`0936617dc529ff9da0385221d3fa6de732231177`](https://github.com/openwrt/mt76/commit/0936617dc529ff9da0385221d3fa6de732231177), archive SHA256 `52628072a3eaad00d19796518a9d726069d04dfa20470f2ddd7a4fa51d2ad277`. Original BSD-3-Clause-Clear source, Copyright (C) 2022 MediaTek Inc.
+- mac80211: [OpenWrt backports 7.2](https://github.com/openwrt/backports/releases/tag/backports-v7.2), `backports-7.2.tar.zst` SHA256 `6ec76a4cb0988b5382b2fc5053610a56ada90b8ef6a5a4f2807cd433badb9454`. Original GPL-2.0-only source; original authors include Johannes Berg and Intel Corporation.
+- `manifest.json` records the immutable archive, original full-file and extracted-fixture digests. The main.c mt76 fixture includes the complete two touched functions and exact surrounding patch context. All MCU/mac80211 excerpts preserve complete original functions.
+- `911-before.patch.fixture` is the unchanged pre-fix production patch from packages commit `80f8350a6c10350d76a72e0b03aa6a76e34ff610`, SHA256 `1b1f7dd058079affd700e843b2c76233e206dfcb70b35e1a663ff265f0b5eca3`. Do not replace it with repaired bytes.
+- `911-desired-cache.diff.fixture` allows only the reviewed production-patch adjustment and its explanation; migration applies it to the historical Git bytes without updating those bytes or historical digests.
+
+`test_txpower_retry.py` applies the actual 911 patch zero-fuzz, locks every untouched source byte against the old patch output, checks the producer/caller contracts, and runs numeric callback-routing oracles. It neither compiles nor executes driver C, MCU firmware or hardware. An arriving `BSS_CHANGED_TXPOWER` notification is distinct from a repeated userspace assignment: when effective power and power type do not change, mac80211 can emit no new notification. No automatic retry or hardware rollback is claimed.

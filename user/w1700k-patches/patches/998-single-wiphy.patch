@@ -1,0 +1,77 @@
+From: Gilly1970 <gilroyscott@hotmail.com>
+Date: Fri, 19 Jun 2026 00:00:00 +1000
+Subject: [PATCH] luci-mod-status: fix channel analysis on single-wiphy multi-radio
+
+Project refinement of the original netdev-based single-wiphy workaround:
+iwinfo now resolves and binds the requested radio in the backend. Use LuCI's
+native WifiDevice.getScanList() (nobatch) and radio-name info RPC instead of
+selecting an interface and redeclaring scan in this view.
+
+Validate the local interface's channel and actual MHz against this tab's
+freqlist before caching or drawing it, and remove obsolete local graphs
+without expiring scanned neighbors. Only build the configured radio band.
+---
+--- a/htdocs/luci-static/resources/view/status/channel_analysis.js
++++ b/htdocs/luci-static/resources/view/status/channel_analysis.js
+@@ -19,7 +19,7 @@
+ 		object: 'iwinfo',
+ 		method: 'info',
+ 		params: [ 'device' ],
+-		expect: { }
++		expect: { '': {} }
+ 	}),
+ 
+ 	render_signal_badge(signalPercent, signalValue) {
+@@ -211,6 +211,19 @@
+ 
+ 			const rows = [];
+ 
++			const local_valid = local_wifi.bssid && local_wifi.center_chan1 && local_wifi.frequency > 0 &&
++				typeof local_wifi.htmode == 'string' && band + 'g' == radio.dev.get('band') &&
++				radio.freq.some(freq => freq.band == band &&
++					freq.channel === local_wifi.channel &&
++					freq.mhz === local_wifi.frequency);
++
++			/* Local info is not a stale scan result; remove it once no longer valid. */
++			if (radio.localBssid && (!local_valid || radio.localBssid != local_wifi.bssid)) {
++				scanCache[radio.localBssid]?.graph?.group.remove();
++				delete scanCache[radio.localBssid];
++				radio.localBssid = null;
++			}
++
+ 			for (let res of results) {
+ 				if (scanCache[res.bssid] == null)
+ 					scanCache[res.bssid] = {};
+@@ -219,7 +232,8 @@
+ 				scanCache[res.bssid].data.stale = false;
+ 			}
+ 
+-			if (band + 'g' == radio.dev.get('band')) {
++			if (local_valid) {
++				radio.localBssid = local_wifi.bssid;
+ 				if (scanCache[local_wifi.bssid] == null)
+ 					scanCache[local_wifi.bssid] = {};
+ 
+@@ -453,6 +467,14 @@
+ 
+ 			for (let band in bands) {
+ 				if (bands[band].channels.length == 0)
++					continue;
++
++				/* Single-wiphy multi-radio (e.g. MT7996): iwinfo's freqlist
++				   returns the whole wiphy's channels for every radio, so each
++				   radio would otherwise spawn a tab for all three bands. Build
++				   only this radio's own band. */
++				const devBand = wifiDevs[ifname].dev.get('band');
++				if (devBand && (band + 'g') != devBand)
+ 					continue;
+ 
+ 				const csvg = svg.cloneNode(true);
+@@ -477,6 +499,7 @@
+ 
+ 				this.radios[ifname+band] = {
+ 					dev: wifiDevs[ifname].dev,
++					freq: wifiDevs[ifname].freq,
+ 					band: band,
+ 					graph: graph_data,
+ 					table: table,

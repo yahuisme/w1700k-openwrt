@@ -1,0 +1,13 @@
+--- a/target/linux/airoha/dts/an7581-w1700k-ubi.dts
++++ b/target/linux/airoha/dts/an7581-w1700k-ubi.dts
+@@ -413,3 +413,10 @@
+ 	pinctrl-names = "default";
+ 	pinctrl-0 = <&hsuart_pins>;
+ };
++
++/* Standard CPU PLL fallback for the existing W1700K boot firmware. */
++&cpufreq {
++	reg = <0x0 0x1fa20000 0x0 0x2c0>,
++	      <0x0 0x1efbe000 0x0 0x800>;
++	reg-names = "chip-scu", "mcucfg";
++};

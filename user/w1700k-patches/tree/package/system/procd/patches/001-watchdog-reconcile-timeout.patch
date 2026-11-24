@@ -1,0 +1,67 @@
+Subject: [PATCH] procd: reconcile watchdog cadence after timeout negotiation
+
+Keep the official SETTIMEOUT/GETTIMEOUT path: the AN7581 driver already
+returns its 28-second timeout when the default 30-second request fails.
+A combined ubus request selects frequency before the driver negotiation,
+so a rejected larger timeout can otherwise leave a heartbeat longer than
+the actual timeout. Bound the frequency after a positive result, and ping
+before replacing an already pending deadline. Do not start stopped timers.
+
+Keep the last confirmed timeout if both ioctls fail, so a failed larger
+request cannot widen the next heartbeat or a later frequency-only request.
+Without a prior confirmation the hardware timeout remains unknown.
+Preserve offline requests and the official seconds-based frequency API;
+no sysfs default cap or special subsecond heartbeat is needed for W1700K.
+
+---
+--- a/watchdog.c
++++ b/watchdog.c
+@@ -31,6 +31,7 @@
+ static struct uloop_timeout wdt_timeout;
+ static int wdt_fd = -1;
+ static int wdt_drv_timeout = 30;
++static int wdt_last_timeout;
+ static int wdt_frequency = 5;
+ static bool wdt_magicclose = false;
+ 
+@@ -89,16 +90,33 @@
+ 
+ static int watchdog_set_drv_timeout(void)
+ {
++	int timeout = wdt_drv_timeout;
++	int ret;
++
+ 	if (wdt_fd < 0)
+ 		return -1;
+ 
+-	if (!ioctl(wdt_fd, WDIOC_SETTIMEOUT, &wdt_drv_timeout))
+-		return 0;
+-
+-	ERROR("WDT failed to set timeout %ds: %m\n", wdt_drv_timeout);
+-	ioctl(wdt_fd, WDIOC_GETTIMEOUT, &wdt_drv_timeout);
+-
+-	return -1;
++	ret = ioctl(wdt_fd, WDIOC_SETTIMEOUT, &timeout);
++	if (ret) {
++		ERROR("WDT failed to set timeout %ds: %m\n", wdt_drv_timeout);
++		if (ioctl(wdt_fd, WDIOC_GETTIMEOUT, &timeout) || timeout <= 0)
++			timeout = wdt_last_timeout;
++	}
++
++	if (timeout <= 0)
++		return -1;
++
++	wdt_drv_timeout = timeout;
++	wdt_last_timeout = timeout;
++	if (wdt_frequency > timeout / 2)
++		wdt_frequency = timeout / 2;
++	if (wdt_frequency < 1)
++		wdt_frequency = 1;
++
++	if (wdt_timeout.pending)
++		watchdog_timeout_cb(&wdt_timeout);
++
++	return ret;
+ }
+ 
+ static void watchdog_print_status(void)

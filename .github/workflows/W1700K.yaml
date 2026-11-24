@@ -3,9 +3,9 @@ name: W1700K Firmware
 on:
   workflow_dispatch:
 
-  # Monthly days 1, 4, 7, 10... at 00:00 Hong Kong time.
+  # Daily at 00:00 Hong Kong time.
   schedule:
-    - cron: '0 0 1-31/3 * *'
+    - cron: '0 0 * * *'
       timezone: Asia/Hong_Kong
 concurrency:
   group: w1700k-cache
@@ -325,7 +325,7 @@ jobs:
 
         > 安装或重装会清除原有系统与配置。先备份本机原厂数据，刷写期间勿断电。
 
-        [默认设置](https://github.com/yahuisme/w1700k-openwrt#默认设置) · [补丁与功率定制](https://github.com/yahuisme/packages/blob/main/w1700k-patches/SOURCES.md)
+        [默认设置](https://github.com/yahuisme/w1700k-openwrt#默认设置) · [补丁与功率定制](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/user/w1700k-patches/SOURCES.md)
         EOF
 
     - name: Collect build record

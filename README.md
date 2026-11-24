@@ -78,6 +78,6 @@
 
 ## 构建与发布
 
-每隔3天自动构建（每月 1 日重新起算），也可手动运行 [Actions](https://github.com/yahuisme/w1700k-openwrt/actions/workflows/W1700K.yaml)。两个发行版分别构建、分别发布到两个独立 Release，各自只保留最新一版正式固件。
+每天香港时间 00:00 自动构建，也可手动运行 [Actions](https://github.com/yahuisme/w1700k-openwrt/actions/workflows/W1700K.yaml)。两个发行版分别构建、分别发布到两个独立 Release，各自只保留最新一版正式固件。
 
-[补丁说明与来源](https://github.com/yahuisme/packages/tree/main/w1700k-patches/SOURCES.md)
+[补丁说明与来源](user/w1700k-patches/SOURCES.md)

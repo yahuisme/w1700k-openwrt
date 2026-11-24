@@ -1,4 +1,5 @@
 """Run the complete customization script using exact sources and local clone boundaries."""
+import json
 import os
 from pathlib import Path
 import shutil
@@ -6,6 +7,7 @@ import subprocess
 import tempfile
 import unittest
 from patch_source import PATCHES
+from scripts.select_distribution import select
 from test_device_runtime import FLASH_RUN, node
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,16 +28,24 @@ class SharedPatchSource(unittest.TestCase):
         for kind, broken in cases:
             with self.subTest(kind=kind, patch=broken), tempfile.TemporaryDirectory() as temporary:
                 base = Path(temporary)
-                donor = base / 'donor'
-                shutil.copytree(PATCHES, donor / 'w1700k-patches')
+                recipe = base / 'recipe'
+                shutil.copytree(ROOT / 'user', recipe / 'user')
+                shutil.copytree(ROOT / 'installer', recipe / 'installer')
+                if distro := os.environ.get('TXPOWER_DISTRO'):
+                    select(distro, recipe)
+                user = recipe / 'user'
+                profile = user / 'default'
+                distro = json.loads((profile / 'build.json').read_text())['system']
+                local_patches = user / PATCHES.name
                 if kind == 'missing':
                     assert broken is not None
-                    (donor / 'w1700k-patches' / broken).unlink()
+                    (local_patches / broken).unlink()
                 elif kind == 'empty':
                     assert broken is not None
-                    (donor / 'w1700k-patches' / broken).write_bytes(b'')
+                    (local_patches / broken).write_bytes(b'')
+                donor = base / 'apps'
                 for app in APPS:
-                    shutil.copytree(PATCHES.parent / app, donor / app)
+                    (donor / app).mkdir(parents=True)
                 work = base / 'source'
                 for name in ('package/network/config/wifi-scripts/files-ucode/lib/netifd/wireless/mac80211.sh',
                              'package/network/config/wifi-scripts/files-ucode/usr/share/ucode/wifi/hostapd.uc',
@@ -61,6 +71,10 @@ class SharedPatchSource(unittest.TestCase):
                 destination = work / 'feeds/luci/modules/luci-mod-system/htdocs/luci-static/resources/view/system/flash.js'
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(flash, destination)
+                for directory in ('package/firmware/wireless-regdb/patches',
+                                  'package/network/config/firewall4/patches'):
+                    if (source / directory).is_dir():
+                        shutil.copytree(source / directory, work / directory)
                 # Source overlays use a directory copy: missing an individual
                 # required patch must not silently omit that behavior.
                 stub = '''git() {
@@ -85,7 +99,7 @@ python3() {
 }
 export -f git python3
 '''
-                # A rejected donor may not install overlays or mutate direct inputs.
+                # A rejected payload may not install overlays or mutate direct inputs.
                 # Flash reconnect defaults, app copies and revision recording precede
                 # patch preflight and are the only permitted earlier writes.
                 def protected_files():
@@ -97,7 +111,7 @@ export -f git python3
                 before = protected_files()
                 result = subprocess.run(['bash', '-ec', stub + 'bash "$CUSTOM"'], cwd=work,
                     env=dict(os.environ, DONOR=str(donor), CALLS=str(base / 'calls'),
-                             CUSTOM=str(ROOT / 'user/default/custom.sh'), DK_PROFILE=str(ROOT / 'user/default')),
+                             CUSTOM=str(profile / 'custom.sh'), DK_PROFILE=str(profile), DK_USER=str(user)),
                     text=True, capture_output=True)
                 self.assertEqual(result.returncode == 0, broken is None, result.stdout + result.stderr)
                 self.assertEqual(list(work.rglob('*.orig')), [], 'patch backups must not enter package payloads')
@@ -121,6 +135,12 @@ export -f git python3
                                      (work / 'feeds/luci/modules/luci-mod-status/patches/998-single-wiphy.patch').read_bytes())
                     self.assertIn('per_interface_txpower', (work / 'package/network/config/wifi-scripts/files-ucode/lib/netifd/wireless/mac80211.sh').read_text())
                     self.assertIn('123'.zfill(40), (work / '.custom-revisions.tsv').read_text())
+                    if distro == 'immortalwrt':
+                        fw4 = work / 'package/network/config/firewall4/patches/001-firewall4-add-support-for-fullcone-nat.patch'
+                        self.assertEqual(fw4.read_bytes(), (user / 'immortalwrt/firewall4-fullcone.patch').read_bytes())
+                        removed = 'package/firmware/wireless-regdb/patches/600-custom-change-txpower-and-dfs.patch'
+                        self.assertTrue((source / removed).is_file())
+                        self.assertFalse((work / removed).exists())
                 else:
                     self.assertIn('ERROR: Required patch missing or empty: ' + str(broken), result.stderr)
                     self.assertEqual(protected_files(), before)

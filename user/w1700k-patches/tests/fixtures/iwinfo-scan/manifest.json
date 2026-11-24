@@ -1,0 +1,25 @@
+{
+  "revisions": {
+    "iwinfo": "66bdd1a071895d91babc9b9228bb84626bbce226",
+    "openwrt": "dab12e766366dceb149e70aa1155005b6a571299",
+    "immortalwrt": "4765b657625ec5bbda74b44400465fe043802b30"
+  },
+  "files": {
+    "iwinfo_nl80211.c.fixture": {
+      "source": "iwinfo_nl80211.c",
+      "sha256": "ceb8796155248be576e64f44259c4fd65a271e362804db6143d1cb682d1c93c0",
+      "git_blob": "3be29701932abcb6b3453c852b2220d56b8e0c4a"
+    },
+    "nl80211.h.fixture": {
+      "source": "api/nl80211.h",
+      "sha256": "e07ad1a038d4a0d39277f54cc8038457bb43c4688690f8469c1f63a4b9fc59e6",
+      "git_blob": "6e96ad9d7a9825e16b9b35c9394a3ab59a44ad0f"
+    },
+    "100-multi_radio.patch.fixture": {
+      "sha256": "c22916327b54090c5aa26151c8abef496ee768778c859fd5936b7b8b6e26b85b"
+    },
+    "Makefile.fixture": {
+      "sha256": "c4eb7be498300a4e823df8a0dda86738d3dc7e4334d8f039cbbd4bf4efe01135"
+    }
+  }
+}

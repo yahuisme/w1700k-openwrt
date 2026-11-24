@@ -1,0 +1,38 @@
+bool __ieee80211_recalc_txpower(struct ieee80211_link_data *link)
+{
+	struct ieee80211_chanctx_conf *chanctx_conf;
+	int power;
+
+	rcu_read_lock();
+	chanctx_conf = rcu_dereference(link->conf->chanctx_conf);
+	if (!chanctx_conf) {
+		rcu_read_unlock();
+		return false;
+	}
+
+	power = ieee80211_chandef_max_power(&chanctx_conf->def);
+	rcu_read_unlock();
+
+	if (link->user_power_level != IEEE80211_UNSET_POWER_LEVEL)
+		power = min(power, link->user_power_level);
+
+	if (link->ap_power_level != IEEE80211_UNSET_POWER_LEVEL)
+		power = min(power, link->ap_power_level);
+
+	if (power != link->conf->txpower) {
+		link->conf->txpower = power;
+		return true;
+	}
+
+	return false;
+}
+
+void ieee80211_recalc_txpower(struct ieee80211_link_data *link,
+			      bool update_bss)
+{
+	if (__ieee80211_recalc_txpower(link) ||
+	    (update_bss && ieee80211_sdata_running(link->sdata)))
+		ieee80211_link_info_change_notify(link->sdata, link,
+						  BSS_CHANGED_TXPOWER);
+}
+

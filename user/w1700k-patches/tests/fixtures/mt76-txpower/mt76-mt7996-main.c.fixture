@@ -1,0 +1,103 @@
+
+static int mt7996_config(struct ieee80211_hw *hw, int radio_idx, u32 changed)
+{
+	return 0;
+}
+
+static int
+mt7996_conf_tx(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+
+static void
+mt7996_link_info_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+			 struct ieee80211_bss_conf *info, u64 changed)
+{
+	struct mt7996_dev *dev = mt7996_hw_dev(hw);
+	struct mt7996_vif_link *link;
+	struct mt7996_phy *phy;
+	struct mt76_phy *mphy;
+
+	mutex_lock(&dev->mt76.mutex);
+
+	link = mt7996_vif_conf_link(dev, vif, info);
+	if (!link)
+		goto out;
+
+	mphy = mt76_vif_link_phy(&link->mt76);
+	if (!mphy)
+		goto out;
+
+	phy = mphy->priv;
+
+	/* station mode uses BSSID to map the wlan entry to a peer,
+	 * and then peer references bss_info_rfch to set bandwidth cap.
+	 */
+	if ((changed & BSS_CHANGED_BSSID && !is_zero_ether_addr(info->bssid)) ||
+	    (changed & BSS_CHANGED_BEACON_ENABLED && info->enable_beacon))
+		mt7996_vif_link_bss_add(phy, vif, info, link,
+					!!(changed & BSS_CHANGED_BSSID));
+	else if (changed & BSS_CHANGED_BSSID)
+		eth_zero_addr(link->bmc_bssid);
+
+	if (changed & BSS_CHANGED_HT || changed & BSS_CHANGED_ERP_CTS_PROT)
+		mt7996_mcu_set_protection(phy, link, info->ht_operation_mode,
+					  info->use_cts_prot);
+
+	if (changed & BSS_CHANGED_ERP_SLOT) {
+		int slottime = info->use_short_slot ? 9 : 20;
+
+		if (slottime != phy->slottime) {
+			phy->slottime = slottime;
+			mt7996_mcu_set_timing(phy, vif, info);
+		}
+	}
+
+	if (changed & BSS_CHANGED_MCAST_RATE)
+		link->mt76.mcast_rates_idx =
+			mt7996_get_rates_table(phy, info, false, true);
+
+	if (changed & BSS_CHANGED_BASIC_RATES)
+		link->mt76.basic_rates_idx =
+			mt7996_get_rates_table(phy, info, false, false);
+
+	/* ensure that enable txcmd_mode after bss_info */
+	if (changed & (BSS_CHANGED_QOS | BSS_CHANGED_BEACON_ENABLED))
+		mt7996_mcu_set_tx(dev, vif, info);
+
+	if (changed & BSS_CHANGED_HE_OBSS_PD)
+		mt7996_mcu_add_obss_spr(phy, link, &info->he_obss_pd);
+
+	if (changed & BSS_CHANGED_HE_BSS_COLOR) {
+		if ((vif->type == NL80211_IFTYPE_AP &&
+		    link->mt76.omac_idx <= HW_BSSID_MAX) ||
+		   vif->type == NL80211_IFTYPE_STATION)
+			mt7996_mcu_update_bss_color(dev, &link->mt76,
+						    &info->he_bss_color);
+	}
+
+	if (changed & (BSS_CHANGED_BEACON |
+		       BSS_CHANGED_BEACON_ENABLED)) {
+		link->mt76.beacon_rates_idx =
+			mt7996_get_rates_table(phy, info, true, false);
+
+		mt7996_link_beacon_update(hw, vif, info, link, phy);
+	}
+
+	if (changed & (BSS_CHANGED_UNSOL_BCAST_PROBE_RESP |
+		       BSS_CHANGED_FILS_DISCOVERY))
+		mt7996_mcu_beacon_inband_discov(dev, info, link, changed);
+
+	if (changed & BSS_CHANGED_MU_GROUPS)
+		mt7996_update_mu_group(hw, link, info);
+
+	if (changed & BSS_CHANGED_TXPOWER &&
+	    info->txpower != phy->txpower) {
+		phy->txpower = info->txpower;
+		mt7996_mcu_set_txpower_sku(phy);
+	}
+
+out:
+	mutex_unlock(&dev->mt76.mutex);
+}
+
+static int
+mt7996_post_channel_switch(struct ieee80211_hw *hw, struct ieee80211_vif *vif,

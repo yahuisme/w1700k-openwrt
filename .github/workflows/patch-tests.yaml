@@ -1,0 +1,50 @@
+name: Patch Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-tests.yaml'
+      - '.gitattributes'
+      - 'tests/patch_source.py'
+      - 'tests/test_mt76_payloads.py'
+      - 'user/w1700k-patches/**'
+      - 'user/default/custom.sh'
+  pull_request:
+    paths:
+      - '.github/workflows/patch-tests.yaml'
+      - '.gitattributes'
+      - 'tests/patch_source.py'
+      - 'tests/test_mt76_payloads.py'
+      - 'user/w1700k-patches/**'
+      - 'user/default/custom.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  patches:
+    name: Replay W1700K patches
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Checkout pinned LuCI resources
+        uses: actions/checkout@v7
+        with:
+          repository: openwrt/luci
+          ref: a8c110bed82375b69eb3881b2e54e617520e8c7d
+          path: .luci
+      - name: Run patch regressions
+        env:
+          LUCI_CHANNEL_SOURCE: ${{ github.workspace }}/.luci/modules/luci-mod-status
+        run: |
+          # Full regdb replay separately requires both official source trees.
+          PYTHONPATH=user/w1700k-patches/tests python3 -m unittest -v \
+            test_channel_analysis test_iwinfo_scan test_migration test_hostapd_context \
+            test_txpower_retry test_txfree_cleanup test_rro_cleanup test_watchdog_timeout
+          python3 -m unittest discover -s tests -p test_mt76_payloads.py -v

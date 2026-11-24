@@ -1,0 +1,82 @@
+{
+  "scope": "Immutable original source; source contracts/Python numeric oracle only, not executed C.",
+  "sources": {
+    "mt76": {
+      "archive_sha256": "52628072a3eaad00d19796518a9d726069d04dfa20470f2ddd7a4fa51d2ad277",
+      "root": "mt76-0936617dc529ff9da0385221d3fa6de732231177"
+    },
+    "backports": {
+      "archive_sha256": "6ec76a4cb0988b5382b2fc5053610a56ada90b8ef6a5a4f2807cd433badb9454",
+      "root": "backports-7.2"
+    }
+  },
+  "files": {
+    "mt76-mt7996-main.c.fixture": {
+      "source": "mt76",
+      "path": "mt7996/main.c",
+      "source_sha256": "a64de28a1da58c1c203e574882d69ba8004e2bdcebf8cf4748449935cc24c416",
+      "sha256": "f1b972905c139b1e9193fcafd98751e0704204e1097f2a42c619d0765447d7d7",
+      "functions": [
+        "mt7996_config",
+        "mt7996_link_info_changed"
+      ],
+      "context_lines": {
+        "before": 1,
+        "after": 3
+      }
+    },
+    "mt76-mt7996-mcu.c.fixture": {
+      "source": "mt76",
+      "path": "mt7996/mcu.c",
+      "source_sha256": "b0c778327c5eb06fa1cb45728050ad318c2b9b3cf912a0d3cbd06a0f07e21484",
+      "sha256": "1ff9082533651243bae93dbe4d72b000b8661fbe10c604a6a5e2ad2e0c877cc1",
+      "functions": [
+        "mt7996_mcu_set_chan_info",
+        "mt7996_mcu_set_txpower_sku"
+      ]
+    },
+    "backports-net-mac80211-cfg.c.fixture": {
+      "source": "backports",
+      "path": "net/mac80211/cfg.c",
+      "source_sha256": "ad793c9b7842ee08f02fb9e87204b5492a9f26eb761086ad809260e7a33289ef",
+      "sha256": "3f71483a8fc669185c7e6d2b508ae6b538400cef8f1001093a3b6bcdd29a5060",
+      "functions": [
+        "ieee80211_set_tx_power"
+      ]
+    },
+    "backports-net-mac80211-iface.c.fixture": {
+      "source": "backports",
+      "path": "net/mac80211/iface.c",
+      "source_sha256": "27d765b5833a81df8accd201827cfa01f9ebdd3a79f64a74798987e79b47b335",
+      "sha256": "21db8653442fb5b29be9ff1a3bf3cf889bad52d6e64b2c13bfd7e36f2a3eb3d6",
+      "functions": [
+        "__ieee80211_recalc_txpower",
+        "ieee80211_recalc_txpower"
+      ]
+    },
+    "backports-net-mac80211-main.c.fixture": {
+      "source": "backports",
+      "path": "net/mac80211/main.c",
+      "source_sha256": "dabd820e799b44d97b0f3a786fad71450d622cb149f82b31dba7d5ebcee897e4",
+      "sha256": "31ff52156206cc2b0d3c7d910731fca7c99287f9fadd246be3623010ca33683d",
+      "functions": [
+        "ieee80211_calc_hw_conf_chan",
+        "ieee80211_link_info_change_notify"
+      ]
+    },
+    "backports-net-mac80211-driver-ops.c.fixture": {
+      "source": "backports",
+      "path": "net/mac80211/driver-ops.c",
+      "source_sha256": "56d03c25dedea140079497c2f47a5b71034ecc68bcbab32806848daf010ad7ea",
+      "sha256": "df0f4cee3aca62eaddbf848ea142b972351e924c90f0a09c4ffd6aedde19348d",
+      "functions": [
+        "drv_link_info_changed"
+      ]
+    }
+  },
+  "historical_patch": {
+    "git": "80f8350a6c10350d76a72e0b03aa6a76e34ff610",
+    "path": "w1700k-patches/tree/package/kernel/mt76/patches/911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch",
+    "sha256": "1b1f7dd058079affd700e843b2c76233e206dfcb70b35e1a663ff265f0b5eca3"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "revisions": {
+    "openwrt": {
+      "repo": "openwrt/luci",
+      "commit": "326145c2399c4c07db47ea4dda41f763621ec016"
+    },
+    "immortalwrt": {
+      "repo": "immortalwrt/luci",
+      "commit": "ad75cde88e694b511100576bfbe0a280e5efe6ef"
+    },
+    "ci": {
+      "repo": "openwrt/luci",
+      "commit": "a8c110bed82375b69eb3881b2e54e617520e8c7d"
+    }
+  },
+  "files": {
+    "luci.js": {
+      "path": "modules/luci-base/htdocs/luci-static/resources/luci.js",
+      "blob": "d2ae496f219b03c7c2779617dd5e511649cc5285",
+      "sha256": "5ba434f17e371674b7e32b56c458aaa857ab8b252d92bf592890dff66183f53f",
+      "ci_sha256": "6420c5eed66aca92731f9067dd2840c34773f81842ca5f0cb7d7d539c88c959c",
+      "ci_blob": "5ad6974a5a735c7153659de6f1b5ff45b9c4ffcc"
+    },
+    "rpc.js": {
+      "path": "modules/luci-base/htdocs/luci-static/resources/rpc.js",
+      "blob": "72ccbd26e28b009b48851206c8d99733c6e39e7a",
+      "sha256": "7d1c23fac98fc1c8a86d1c75106eb39bd045eaeb1e3f1d10085abf2b87a9955f"
+    },
+    "network.js": {
+      "path": "modules/luci-base/htdocs/luci-static/resources/network.js",
+      "blob": "b5e4c2b13da7cbc3d26063615e552424ff4eba30",
+      "sha256": "d4303b7775ad19b670e8978d1560b05616cc6cabb3dba01ec162bc9918b7f96a"
+    },
+    "channel_analysis.js": {
+      "path": "modules/luci-mod-status/htdocs/luci-static/resources/view/status/channel_analysis.js",
+      "blob": "30dc22fc9c56c86ec6226fc01d3fff2c86b08225",
+      "sha256": "870d2d476b7320c95b42713275536e0cd02d9bc290a4b016fdcf99858ef326df"
+    }
+  }
+}

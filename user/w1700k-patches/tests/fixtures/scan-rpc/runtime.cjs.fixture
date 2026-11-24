@@ -1,0 +1,87 @@
+// Only immutable, hash-checked upstream code is evaluated; RPC data is never code.
+const fs = require('fs'), zlib = require('zlib');
+exports.createRuntime = function(fixture, calls, getFrame) {
+ const read = name => zlib.gunzipSync(fs.readFileSync(`${__dirname}/${name}.gz`)).toString();
+ const L = {env:{}, url:()=>'/admin/ubus', resource:s=>s,
+  bind:(fn,ctx,...args)=>fn.bind(ctx,...args),
+  isObject:o=>o !== null && typeof o === 'object',
+  raise:(type,msg)=>{throw new Error(`${type}: ${msg}`);}};
+ const frames = [], sent = [], settled = [];
+ class Transport {
+  open(method,url) { this.url = url; }
+  setRequestHeader() {}
+  getAllResponseHeaders() { return ''; }
+  send(payload) { sent.push({xhr:this, payload:JSON.parse(payload), done:false}); }
+ }
+ // Request, Response, Headers and Class execute unchanged, including queue/flush.
+ // Stop before Poll/DOM/browser bootstrap; inject only XHR, URL and frame boundary.
+ const source = read('luci.js');
+ const begin = source.indexOf('\tconst env = {}');
+ const end = source.indexOf('\tconst Poll =');
+ if (begin < 0 || end <= begin) throw new Error('immutable Request boundary changed');
+ const {Class, Request, classes} = new Function('requestAnimationFrame','XMLHttpRequest','location',
+  'const classes = {}; let rpcBaseURL = "/admin/ubus";' + source.slice(begin,end) +
+  '; return {Class, Request, classes};')(fn=>frames.push(fn), Transport,
+   {protocol:'https:',host:'router.invalid'});
+ const Rpc = new Function('baseclass','request','L',read('rpc.js'))(Class,Request,L);
+ const rpc = classes.rpc = new Rpc();
+ rpc.addInterceptor((msg,req)=>{settled.push(req.method);});
+ const networkSource = read('network.js');
+ if (networkSource.split('return Network;').length !== 2)
+  throw new Error('immutable Network export changed');
+ const config = fixture.radios || [{radio:fixture.radio || 'radio2',band:fixture.band || '6g'}];
+ const uci = {get:(pkg,name,opt)=>opt === 'band' ? config.find(d=>d.radio===name)?.band : null};
+ // Export the real WifiDevice constructor without altering any method or RPC.
+ const {WifiDevice} = new Function('baseclass','rpc','uci','validation','firewall','L','_',
+  networkSource.replace('return Network;', 'return {WifiDevice};'))(Class,rpc,uci,{},{},L,s=>s);
+ let enumerations = 0;
+ const devices = config.map(d=> {
+  const dev = new WifiDevice(d.radio, {disabled:!!d.disabled});
+  // The view no longer needs interface state; any enumeration is a regression.
+  dev.getWifiNetworks = () => {
+   enumerations++;
+   throw new Error('interface enumeration is unnecessary');
+  };
+  return dev;
+ });
+ const tick = () => new Promise(resolve=>setImmediate(resolve));
+ async function pump() {
+  await tick();
+  for (const fn of frames.splice(0)) fn();
+  await tick();
+ }
+ function respond({holdScan=false}={}) {
+  for (const item of sent) {
+   if (item.done) continue;
+   const messages = Array.isArray(item.payload) ? item.payload : [item.payload];
+   if (holdScan && messages.some(m=>m.params[2] === 'scan')) continue;
+   const frame = getFrame() || {};
+   const response = messages.map(m=> {
+    const method=m.params[2], name=m.params[3].device;
+    calls.push({method,name});
+    if (method === 'info' && frame.infoHttpError) return null;
+    const value = method === 'freqlist' ? {results:fixture.freqs} :
+     method === 'scan' ? {results:frame.scan || []} :
+     Object.hasOwn(frame,'info') ? frame.info : {};
+    return {jsonrpc:'2.0',id:m.id,result:method === 'info' && frame.infoStatus ?
+     [frame.infoStatus] : [0,structuredClone(value)]};
+   });
+   item.done = true;
+   Object.assign(item.xhr,{readyState:4,status:response.includes(null)?503:200,
+    statusText:response.includes(null)?'Unavailable':'OK',responseType:'text',
+    responseText:JSON.stringify(Array.isArray(item.payload)?response:response[0])});
+   item.xhr.onreadystatechange();
+  }
+ }
+ async function run(promise) {
+  let finished=false, value, error;
+  promise.then(v=>{finished=true;value=v;}, e=>{finished=true;error=e;});
+  for (let i=0;!finished && i<20;i++) {await pump();respond();}
+  await tick();
+  if (!finished) throw new Error('LuCI promise did not settle');
+  if (error) throw error;
+  return value;
+ }
+ return {L,rpc,devices,run,pump,respond,settled,
+  wire:()=>sent.map(item=>item.payload), enumerations:()=>enumerations};
+};

@@ -24,20 +24,20 @@ class Mt76PayloadTests(unittest.TestCase):
                                      for p in PATCHES.rglob('*.patch')})
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            donor = root / 'donor/w1700k-patches'
+            payload = root / 'user/w1700k-patches'
             for name in names:
-                path = donor / name
+                path = payload / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text('isolated payload\n')
             if broken:
-                candidate = donor / broken
+                candidate = payload / broken
                 self.assertTrue(candidate.is_file(), 'payload absent from required preflight')
                 if empty:
                     candidate.write_text('')
                 else:
                     candidate.unlink()
             return subprocess.run(['bash', '-euo', 'pipefail', '-c', block],
-                                  cwd=root, env=dict(os.environ, PKG_REPO=str(root / 'donor')),
+                                  cwd=root, env=dict(os.environ, DK_USER=str(root / 'user')),
                                   text=True, capture_output=True)
 
     def test_missing_or_empty_payload_blocks_before_copy(self):

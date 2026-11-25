@@ -320,10 +320,10 @@ jobs:
 
         - 上游源码：[${DISTRO_TITLE} ${SOURCE_BRANCH}](https://github.com/${SYSTEM}/${SYSTEM}/tree/${SOURCE_BRANCH})
         - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
-        - [首次安装或重装](https://github.com/yahuisme/w1700k-openwrt/blob/main/w1700k-${SYSTEM}-first-flash.md)：均按完整教程操作，使用同次发布的 \`chainload-uboot.itb\` 和 \`initramfs-installer.itb\`。安装会清除原有系统与配置，完成后无需再刷升级包。
-        - 日常升级：已有兼容 UBI2 系统，用同发行版的 \`squashfs-sysupgrade.itb\`，无需重新初始化 UBI2。
+        - [首次刷机 / 完整重装](https://github.com/yahuisme/w1700k-openwrt/blob/main/w1700k-${SYSTEM}-first-flash.md)：从原厂 AXON U-Boot 写入 Chainloader，再启动 Installer。使用本次发布的 \`chainload-uboot.itb\` 和 \`initramfs-installer.itb\`，无需再刷升级镜像。
+        - 日常升级：已安装修正版 Chainloader、兼容版本为 2.0 的同发行版 UBI2 系统，使用 \`squashfs-sysupgrade.itb\`。
 
-        > 安装或重装会清除原有系统与配置。先备份本机原厂数据，刷写期间勿断电。
+        > 首次刷机和完整重装会清除原有系统与配置。无法进入原厂 AXON U-Boot 时，教程不适用。刷写前备份本机原厂数据，期间勿断电。
 
         [默认设置](https://github.com/yahuisme/w1700k-openwrt#默认设置) · [补丁与功率定制](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/user/w1700k-patches/SOURCES.md)
         EOF

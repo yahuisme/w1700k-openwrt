@@ -1,6 +1,6 @@
 # UBI2 Installer
 
-刷机步骤见 [OpenWrt 首次安装教程](../w1700k-openwrt-first-flash.md) 或 [ImmortalWrt 首次安装教程](../w1700k-immortalwrt-first-flash.md)。
+首次刷机或完整重装请看对应教程：[OpenWrt](../w1700k-openwrt-first-flash.md) · [ImmortalWrt](../w1700k-immortalwrt-first-flash.md)。
 
 本目录维护 W1700K UBI2 安装脚本，运行 overlay 与正式固件分离。安装逻辑源自 Kenneth Kasilag / hurrian 的 W1700K UBI Installer，按 [GPL-3.0](LICENSE) 保留；本项目维护分区预检、原厂数据校验、写入回读与失败停止机制。
 
@@ -8,7 +8,7 @@
 
 此步骤位于构建末尾：结束时恢复正式配置、配方、overlay 与输出，随后只收集和发布封存产物，不复用临时 package/rootfs 状态继续构建正式固件。
 
-Installer 自动写入同次完整 sysupgrade，安装完成重启后就是完整系统，无需后台再升级。内部 Recovery 不含自动安装入口，仅用于手动恢复；默认管理地址沿用原生 `192.168.1.1`。
+Installer 自动写入同次构建的完整 sysupgrade，重启后无需再刷升级镜像。内嵌 Recovery 仅用于手动恢复，不会自动安装，默认管理地址为 `192.168.1.1`。
 
 原厂 U-Boot 启动默认配置为 `conf-uboot` 的 Chainloader；Chainloader 明确选择 Linux FIT 的 `config-1`。Installer 只接受完整的 `yes` 确认行；UBI 回读用 BusyBox `cmp -n` 比较实际写入长度，不创建内存中的回读副本，也不比较卷的填充字节。
 

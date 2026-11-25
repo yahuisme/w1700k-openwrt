@@ -39,8 +39,11 @@ class InstallerDocsTest(unittest.TestCase):
                 self.assertNotIn('/releases/latest', text)
                 self.assertNotIn('w1700k-ubi2-installer', text)
                 self.assertNotRegex(text, r'(?:0\. Exit|\d+\. Boot installer via TFTP)')
-                self.assertIn('首次安装和重装都走同一套流程', text)
-                self.assertIn('安装或重装会清除原有系统与配置', text)
+                self.assertIn(f'# W1700K {title} 首次刷机 / 完整重装\n', text)
+                self.assertIn('从原厂 AXON U-Boot 写入 Chainloader → 启动 Installer 安装系统', text)
+                self.assertIn('无法进入原厂 AXON U-Boot 时，本教程不适用', text)
+                self.assertIn('会清除原有系统与配置', text)
+                self.assertIn('UBI2 兼容版本为 2.0', text)
                 self.assertNotRegex(text, r'跳过|只执行|只需第二个|mtd list')
                 flash, _ = text.split('### 写入 Chainloader', 1)[1].split('### 启动 Installer', 1)
                 self.assertIn('不能在替换版 U-Boot 中执行', flash.split('```', 1)[0])
@@ -63,9 +66,10 @@ class InstallerDocsTest(unittest.TestCase):
                                 installer.index('`yes` 并按 Enter'))
                 for value in ('`yes` 并按 Enter', 'DHCP 获得的 IPv4 默认网关', 'TTL 串口启动日志'):
                     self.assertIn(value, text)
-        self.assertIn('两个独立 Release', readme)
-        self.assertIn('各自只保留最新一版', readme)
-        self.assertIn('首次安装和重装均按完整教程操作', readme)
+        self.assertIn('两个发行版各自构建和发布', readme)
+        self.assertIn('只保留各自最新一版', readme)
+        self.assertIn('## 首次刷机 / 完整重装\n', readme)
+        self.assertIn('## 日常升级\n', readme)
 
     def test_release_notes_link_to_the_selected_guide(self):
         workflow = WORKFLOW.read_text()

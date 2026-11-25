@@ -1,8 +1,8 @@
-# W1700K ImmortalWrt U-Boot 与首次安装教程
+# W1700K ImmortalWrt 首次刷机 / 完整重装
 
-**首次安装和重装都走同一套流程：写入 Chainloader → 启动 Installer → 登录后台。** 已安装兼容 UBI2 系统的日常升级不在本教程范围内，使用同发行版的 `sysupgrade` 镜像。
+首次刷机与完整重装使用同一流程：**从原厂 AXON U-Boot 写入 Chainloader → 启动 Installer 安装系统 → 登录后台。** 救砖或旧版迁移需要完整重装时，也按此流程操作；无法进入原厂 AXON U-Boot 时，本教程不适用。
 
-> 仅适用于 Quantum Fiber / Gemtek W1700K。安装或重装会清除原有系统与配置。刷写前确认型号，并将本机原厂数据备份保存到电脑；刷写期间不要断电。
+> 仅适用于 Quantum Fiber / Gemtek W1700K。首次刷机和完整重装都会清除原有系统与配置。刷写前确认型号，将本机原厂数据备份到电脑；刷写期间不要断电。
 
 ## 1. 准备
 
@@ -17,7 +17,7 @@ immortalwrt-airoha-an7581-gemtek_w1700k-ubi-chainload-uboot.itb
 immortalwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb
 ```
 
-`immortalwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb` 只用于同发行版日常升级，不能替代 Installer。
+已安装修正版 Chainloader 且 UBI2 兼容版本为 2.0 时，日常升级用同发行版的 `immortalwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb`，无需重刷 Chainloader。升级镜像不能替代 Installer。
 
 ## 2. 连接与设置
 
@@ -110,7 +110,7 @@ reset
 
 重启后进入 Chainloader 菜单。
 
-保持 Tftpd64 运行、Installer 文件在目录中，选择：
+确认 Tftpd64 正在运行且目录中有 Installer，再选择：
 
 ```text
 Boot installer via TFTP.
@@ -118,7 +118,7 @@ Boot installer via TFTP.
 
 在 Tftpd64 核对请求名，默认是 `immortalwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb`。如仍请求旧名称，把本次下载的 Installer 复制一份并改成请求名，再选一次菜单；不要使用之前下载的文件。
 
-确认加载的是本次下载的 Installer 后，再操作串口提示：
+确认加载的是本次下载的 Installer，再在串口处理以下提示：
 
 ```text
 Initialize/reinstall UBI2 on mtd2 and erase its contents? (yes/no)
@@ -137,7 +137,7 @@ Initialize/reinstall UBI2 on mtd2 and erase its contents? (yes/no)
 
 ## 4. 登录后台
 
-安装完成后即为本仓库的完整系统，包含中文 LuCI，无需再次升级。
+Installer 已装好完整系统，无需再刷升级镜像。
 
 1. 电脑保持连接黄色 1G LAN 口。
 2. 将有线网卡恢复为自动获取 IP 和 DNS。
@@ -148,7 +148,7 @@ Initialize/reinstall UBI2 on mtd2 and erase its contents? (yes/no)
 
 登录后先设置管理员密码，再配置上网和无线。
 
-注意：`192.168.1.1` 是 U-Boot 下载阶段地址，正式系统默认地址为 `192.168.8.1`。
+`192.168.1.1` 用于 U-Boot 下载；正式系统默认地址为 `192.168.8.1`。
 
 ## 遇到问题
 
@@ -163,8 +163,8 @@ Initialize/reinstall UBI2 on mtd2 and erase its contents? (yes/no)
 **后台打不开**
 
 - 确认安装完成且已重启，电脑已恢复自动获取地址。
-- 运行 `ipconfig`，查看直连有线网卡通过 DHCP 获得的 IPv4 默认网关；若不是 `192.168.8.1`，先试实际网关。项目默认设置未生效时，原生 LAN 地址可能仍为 `192.168.1.1`。
-- 未获取地址时重新插拔网线；仍失败则看 TTL 串口启动日志，确认已进入正式系统而非 Installer 或 Recovery。在正式系统串口可用 `ip -4 addr show br-lan` 查看实际 LAN 地址，不要仅因网页打不开就重刷。
+- 用 `ipconfig` 查看直连网卡通过 DHCP 获得的 IPv4 默认网关，先试该地址。默认设置未生效时，LAN 可能仍用 `192.168.1.1`。
+- 没拿到地址就重插网线；仍不通时，查看 TTL 串口启动日志，确认已进入正式系统而非 Installer 或 Recovery。可在正式系统串口运行 `ip -4 addr show br-lan` 查看 LAN 地址。不要仅因网页打不开就重刷。
 
 **提示原厂数据损坏**
 

@@ -1,31 +1,43 @@
 # W1700K OpenWrt / ImmortalWrt
 
-适用于 Quantum Fiber / Gemtek W1700K，提供 OpenWrt 与 ImmortalWrt 两种系统的首次安装和日常升级固件。
+适用于 Quantum Fiber / Gemtek W1700K 的 OpenWrt 和 ImmortalWrt 固件。
 
 - [OpenWrt 官方 main](https://github.com/openwrt/openwrt/tree/main)
 - [ImmortalWrt 官方 master](https://github.com/immortalwrt/immortalwrt/tree/master)
 
 ## 固件下载
 
-请先选定发行版，再在对应标签前缀下下载；不要把两个发行版或不同 Release 的文件混用。
+先选发行版，再从对应 Release 下载。不要混用不同发行版或不同 Release 的镜像。
 
 | 发行版 | Release 标签前缀 | 下载 |
 | --- | --- | --- |
 | OpenWrt | `W1700K-OpenWrt-r<revision>-YY.MM.DD_HH.MM.SS` | [OpenWrt Releases](https://github.com/yahuisme/w1700k-openwrt/releases?q=W1700K-OpenWrt-) |
 | ImmortalWrt | `W1700K-ImmortalWrt-r<revision>-YY.MM.DD_HH.MM.SS` | [ImmortalWrt Releases](https://github.com/yahuisme/w1700k-openwrt/releases?q=W1700K-ImmortalWrt-) |
 
-每个发行版的 Release 都包含以下三个后缀；完整文件名中的发行版前缀必须与所选 Release 一致：
+每个 Release 提供三个镜像，按文件名后缀区分用途：
 
 | 文件后缀 | 用途 |
 | --- | --- |
-| `chainload-uboot.itb` | 首次安装和重装均从原厂 U-Boot 写入 Chainloader |
-| `initramfs-installer.itb` | 初始化或重建 UBI2，并安装同次构建的完整系统 |
-| `squashfs-sysupgrade.itb` | 已有兼容 UBI2 系统的同发行版升级 |
+| `chainload-uboot.itb` | 从原厂 U-Boot 写入 Chainloader |
+| `initramfs-installer.itb` | 由 Chainloader 启动，初始化或重建 UBI2 并安装完整系统 |
+| `squashfs-sysupgrade.itb` | 同发行版日常升级 |
 
-**首次安装和重装均按完整教程操作，会清除原有系统与配置：**
+## 首次刷机 / 完整重装
+
+首次刷机，或因救砖、旧版迁移需要完整重装时，从原厂 AXON U-Boot 写入 Chainloader，再启动 Installer 安装系统。两个镜像须来自同一 Release。
+
+**此流程会清除原有系统与配置。无法进入原厂 AXON U-Boot 时，不适用以下教程。**
 
 - [OpenWrt 刷机教程](w1700k-openwrt-first-flash.md)
 - [ImmortalWrt 刷机教程](w1700k-immortalwrt-first-flash.md)
+
+## 日常升级
+
+仅适用于已安装修正版 Chainloader、兼容版本为 2.0 的同发行版 UBI2 系统，无需重刷 Chainloader。旧版或布局不明时，按对应教程完整重装。
+
+1. 备份当前配置，下载同发行版的 `squashfs-sysupgrade.itb`。
+2. 在 **系统 → 备份 / 升级** 上传镜像。建议取消勾选「保留配置」，这会清除现有设置。
+3. 校验通过后再升级，等待设备重启，期间不要断电。校验失败时不要强制刷写。
 
 ## 特性
 
@@ -47,11 +59,11 @@
 
 ## Aurora 更新
 
-预装 Aurora 主题、配置应用及中文包，使用 Aurora 作者提供的签名 APK 软件源。可在 **系统 → 软件包** 刷新列表并更新。默认使用侧边栏和小圆角，保留配置升级不覆盖已有设置。
+Aurora 主题、配置应用和中文包可通过作者的签名 APK 源更新，在 **系统 → 软件包** 刷新列表即可。默认使用侧边栏和小圆角，保留配置升级时不会覆盖已有设置。
 
 ## 默认设置
 
-以下设置在首次启动或不保留配置升级时生效，两个发行版的默认值相同。
+两个发行版使用相同默认值，首次启动或不保留配置升级后生效。
 
 - 管理地址：`192.168.8.1`
 - 用户名：`root`
@@ -68,16 +80,8 @@
 | 模式 | EHT20 | EHT160 | EHT320 |
 | 配置功率 | 23 dBm | 25 dBm | 25 dBm |
 
-## 日常升级
-
-1. 备份当前配置，从已安装发行版的 Release 下载 `squashfs-sysupgrade.itb`。
-2. 进入 **系统 → 备份 / 升级**，上传固件。建议取消勾选“保留配置”；这样会清除现有设置。
-3. 校验通过后再升级，等待设备重启，期间不要断电。校验失败时不要强制刷写。
-
-日常升级只适用于已安装修正版 Chainloader 和兼容版本 2.0 的同发行版系统。旧版或布局不明时，按对应教程完整重装，不要强制升级。
-
 ## 构建与发布
 
-每天香港时间 00:00 自动构建，也可手动运行 [Actions](https://github.com/yahuisme/w1700k-openwrt/actions/workflows/W1700K.yaml)。两个发行版分别构建、分别发布到两个独立 Release，各自只保留最新一版正式固件。
+每天香港时间 00:00 自动构建，也可手动运行 [Actions](https://github.com/yahuisme/w1700k-openwrt/actions/workflows/W1700K.yaml)。两个发行版各自构建和发布，只保留各自最新一版正式固件。
 
 [补丁说明与来源](user/w1700k-patches/SOURCES.md)

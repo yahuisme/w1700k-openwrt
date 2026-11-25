@@ -19,6 +19,7 @@
 | `patches/920-*` | 非 MLO AP 按 BSS 设置功率 | 本项目实现，适用范围见下文 |
 | `patches/998-*` | single-wiphy 多射频信道分析适配 | 作者 Gilly1970；沿用原生 radio scan/info（扫描沿用 `nobatch`），校验本机频率、清理失效缓存并限定 tab 频段，保留停用 AP 扫描；宽信道主信道线只挂在对应的 SVG 组内，随组移除 |
 | `patches/110-*` | 修复 libwebsockets 5.1 下 ttyd 启动即退出 | 回移植 [ttyd #1589](https://github.com/tsl0922/ttyd/pull/1589)，保留官方绑定、认证与日志配置 |
+| `patches/003-*` | 风扇初始化仅操作识别到的 NCT7802，写入失败时尝试恢复自动控制 | 回移植 [OpenWrt #26929](https://github.com/openwrt/openwrt/pull/26929)，保留两版各自的机型分支和官方曲线 |
 
 ### 来源
 
@@ -31,7 +32,7 @@
 
 ## 应用方式
 
-- `002`、`920`：在固件源码根目录应用。
+- `002`、`003`、`920`：在固件源码根目录应用。
 - `610`：复制到 wireless-regdb 补丁目录，在官方 `500` 后应用；ImmortalWrt 仅移除被覆盖的 `600-custom-change-txpower-and-dfs.patch`。
 - `998`：复制到 LuCI 的 luci-mod-status 补丁目录，由 LuCI 构建流程应用。
 - `110`：复制到 ttyd 软件包补丁目录，在官方日志补丁后应用。

@@ -13,6 +13,7 @@ from test_ttyd_compat import PAYLOAD, SOURCE_HASH
 
 ROOT = Path(__file__).resolve().parents[1]
 APPS = ('luci-app-wifi7', 'luci-app-airoha-npu', 'luci-app-airoha-flowsense', 'luci-app-airoha-fancontrol')
+FAN = 'target/linux/airoha/an7581/base-files/etc/init.d/airoha_fan'
 TEMPLATES = tuple('package/base-files/files/' + name for name in (
     'etc/banner', 'etc/device_info', 'etc/openwrt_release', 'etc/openwrt_version',
     'usr/lib/os-release')) + ('include/version.mk',)
@@ -20,10 +21,64 @@ TEMPLATES = tuple('package/base-files/files/' + name for name in (
 
 @unittest.skipUnless(os.environ.get('TXPOWER_SOURCE'), 'set TXPOWER_SOURCE to exact unpatched official source')
 class SharedPatchSource(unittest.TestCase):
+    def check_fan_boot(self, script, root):
+        # Only redirect sysfs and mock rc.common's board lookup/logging.
+        (root / 'lib').mkdir(parents=True)
+        (root / 'lib/functions.sh').write_text('board_name() { printf "%s\\n" "$BOARD"; }\n')
+        sensors = root / 'hwmon'
+        wrong = sensors / 'hwmon5'
+        wrong.mkdir(parents=True)
+        (wrong / 'name').write_text('unrelated\n')
+        (wrong / 'pwm1_enable').write_text('sentinel\n')
+        native = sensors / 'hwmon7'
+        attrs = {'pwm1_enable': '2', **{f'pwm1_auto_point{i}_temp': str(i * 10000 + 30000)
+                                       for i in range(1, 6)},
+                 **{f'pwm1_auto_point{i}_pwm': str(v) for i, v in enumerate((54, 69, 95, 199), 1)}}
+        body = script.read_text().replace('/sys/class/hwmon/', str(sensors) + '/')
+        def boot(board='gemtek,w1700k-ubi', restore='yes'):
+            return subprocess.run(['busybox', 'ash', '-c', '''
+logger() { printf '%s\\n' "$*" >&2; }
+echo() { if [ "$*" = 2 ] && [ "$RESTORE" = no ]; then return 1; fi; command echo "$@"; }
+''' + body + '\nboot\n'], env=dict(os.environ, IPKG_INSTROOT=str(root), BOARD=board,
+                                   RESTORE=restore), text=True, capture_output=True)
+
+        result = boot()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('NCT7802 not found', result.stderr)
+        self.assertEqual((wrong / 'pwm1_enable').read_text(), 'sentinel\n')
+        native.mkdir()
+        (native / 'name').write_text('nct7802\n')
+        result = boot()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('NCT7802 not found', result.stderr)
+        self.assertEqual(list(native.iterdir()), [native / 'name'])
+        for key in attrs:
+            (native / key).write_text('sentinel\n')
+        result = boot(board='other,board')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(all((native / key).read_text() == 'sentinel\n' for key in attrs))
+        result = boot()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual({key: (native / key).read_text().strip() for key in attrs}, attrs)
+
+        failed = native / 'pwm1_auto_point2_temp'
+        failed.unlink()
+        failed.mkdir()
+        later = native / 'pwm1_auto_point3_temp'
+        later.write_text('sentinel\n')
+        result = boot()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('failed to set the fan curve', result.stderr)
+        self.assertEqual((native / 'pwm1_enable').read_text(), '2\n')
+        self.assertEqual(later.read_text(), 'sentinel\n')
+        result = boot(restore='no')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('failed to restore automatic control', result.stderr)
+
     def test_complete_customization_and_invalid_payloads(self):
         source = Path(os.environ['TXPOWER_SOURCE'])
         payloads = sorted(p.relative_to(PATCHES) for p in PATCHES.rglob('*.patch'))
-        self.assertEqual(len(payloads), 14, 'update the full production payload matrix')
+        self.assertEqual(len(payloads), 15, 'update the full production payload matrix')
         cases = [(None, None)] + [(kind, name) for name in payloads
                                   for kind in ('missing', 'empty')]
         for kind, broken in cases:
@@ -52,10 +107,14 @@ class SharedPatchSource(unittest.TestCase):
                              'package/network/config/wifi-scripts/files-ucode/usr/share/ucode/wifi/hostapd.uc',
                              'package/network/services/hostapd/files/hostapd.uc',
                              'target/linux/airoha/dts/an7581-w1700k-ubi.dts',
-                             'target/linux/airoha/an7581/config-6.18'):
+                             'target/linux/airoha/an7581/config-6.18', FAN):
                     destination = work / name
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copyfile(source / name, destination)
+                dts = 'target/linux/airoha/dts/an7581-w1700k-ubi.dts'
+                if '#include "an7581-gemtek-common.dtsi"' in (source / dts).read_text():
+                    common = Path(dts).with_name('an7581-gemtek-common.dtsi')
+                    shutil.copyfile(source / common, work / common)
                 for name, text in {
                     **{name: (source / name).read_text() for name in TEMPLATES},
                     'feeds/packages/utils/ttyd/Makefile': f'PKG_VERSION:=1.7.7\nPKG_RELEASE:=1\nPKG_HASH:={SOURCE_HASH}\n',
@@ -122,6 +181,7 @@ export -f git python3
                                  'packages\naurora-prepare\n' if reached_aurora else 'packages\n')
                 if broken is None:
                     self.assertIn('Custom commands completed', result.stdout)
+                    self.check_fan_boot(work / FAN, base / 'fan-runtime')
                     self.assertEqual(official_templates, {p: (work / p).read_bytes()
                                                         for p in official_templates})
                     kernel_config = (work / 'target/linux/airoha/an7581/config-6.18').read_text().splitlines()

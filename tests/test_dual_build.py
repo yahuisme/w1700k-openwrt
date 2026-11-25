@@ -134,6 +134,7 @@ class DualBuildTests(unittest.TestCase):
             hook = script.split(ttyd_start, 1)[1].split(overlay_start, 1)[0]
             script = script.replace(ttyd_start + hook + overlay_start, overlay_start, 1)
             for payload in (
+                'patches/003-airoha-fan-init.patch',
                 'patches/110-run-libuv-loop.patch',
                 'tree/package/kernel/mt76/patches/914-mt76-mt7996-free-rro-drop-buffers.patch',
                 'tree/package/network/utils/iwinfo/patches/998-fix-multi-radio-scan.patch',
@@ -147,6 +148,34 @@ class DualBuildTests(unittest.TestCase):
                     script = script.replace(' \\\n' + last, '; do\n', 1)
                 else:
                     script = script.replace(continued, '', 1)
+            fan_apply = ('patch -p1 --fuzz=0 --no-backup-if-mismatch '
+                         '< "$PATCH_DIR/patches/003-airoha-fan-init.patch"\n')
+            self.assertEqual(script.count(fan_apply), 1)
+            script = script.replace(fan_apply, '', 1)
+            # The later shared-DTSI adaptation has its own tests. Restore
+            # only the independently reviewed LED block for this old digest.
+            led_start = '# Status LED colors: upgrade green, running white; keep native boot/failsafe.\n'
+            led_end = '# End status LED colors\n'
+            self.assertEqual(script.count(led_start), 1)
+            self.assertEqual(script.count(led_end), 1)
+            led = script.split(led_start, 1)[1].split(led_end, 1)[0]
+            self.assertEqual(hashlib.sha256((led_start + led + led_end).encode()).hexdigest(),
+                             '3865024fd5d56d586b325383702ef1cb37698dae491e4bcc6de5696244caa8ce')
+            historical_led = r'''DTS=target/linux/airoha/dts/an7581-w1700k-ubi.dts
+for alias in 'boot red' 'failsafe blue' 'upgrade green' 'running white'; do
+    read -r state color <<< "$alias"
+    if [ "$state" = upgrade ]; then
+        sed -i 's/led-upgrade = &led_status_blue;/led-upgrade = \&led_status_green;/' "$DTS"
+    elif [ "$state" = running ]; then
+        sed -i 's/led-running = &led_status_green;/led-running = \&led_status_white;/' "$DTS"
+    fi
+    grep -qF "led-$state = &led_status_$color;" "$DTS" || {
+        echo "ERROR: LED alias mismatch: $state" >&2
+        exit 1
+    }
+done
+'''
+            script = script.replace(led_start + led + led_end, led_start + historical_led + led_end, 1)
             # Reconstruct the one explicitly retired migration input; do not
             # refresh the immutable baseline digest to hide unrelated drift.
             anchor = '    tree/package/kernel/mt76/patches/913-mt76-mt7996-clean-up-truncated-txfree.patch'
@@ -161,6 +190,10 @@ class DualBuildTests(unittest.TestCase):
             self.assertEqual(installer, canonical.replace('/openwrt-airoha-an7581-', '/immortalwrt-airoha-an7581-'))
             # Reverse independently tested changes before the historical digest check.
             for current, historical in (
+                ('  # Match Linux\'s nonzero unicast requirement, including locally assigned MACs.\n'
+                 '  [ "$1" != \'00:00:00:00:00:00\' ] &&\n'
+                 '    printf \'%s\' "$1" | grep -Eq \'^[0-9A-Fa-f][02468AaCcEe](:[0-9A-Fa-f]{2}){5}$\'\n',
+                 '  echo "$1" | grep -Eq \'^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$\'\n'),
                 ('  local answer\n', ''),
                 ('  IFS= read -r answer || return 1\n', '  read -r answer\n'),
                 ('  cmp -n "$length" "$image" "$dev" || die "UBI readback failed: $dev"\n',

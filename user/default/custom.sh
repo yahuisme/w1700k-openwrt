@@ -48,6 +48,7 @@ cp -r "$PKG_REPO/luci-app-wifi7" "$PKG_REPO/luci-app-airoha-npu" \
 PATCH_DIR="$DK_USER/w1700k-patches"
 for file in \
     patches/002-w1700k-cpufreq-resources.patch \
+    patches/003-airoha-fan-init.patch \
     patches/920-wifi-non-mlo-ap-txpower.patch \
     patches/610-w1700k-power-30.patch \
     patches/998-single-wiphy.patch \
@@ -90,6 +91,7 @@ esac
 # Preserve buildroot ownership when copying the patch overlay.
 cp -a --no-preserve=ownership "$PATCH_DIR/tree/." .
 patch -p1 --fuzz=0 --no-backup-if-mismatch < "$PATCH_DIR/patches/002-w1700k-cpufreq-resources.patch"
+patch -p1 --fuzz=0 --no-backup-if-mismatch < "$PATCH_DIR/patches/003-airoha-fan-init.patch"
 # wifi-scripts installs directly from source; its Build/Prepare is empty.
 patch -p1 --fuzz=0 --no-backup-if-mismatch < "$PATCH_DIR/patches/920-wifi-non-mlo-ap-txpower.patch"
 

@@ -24,9 +24,9 @@
 
 ## 首次刷机 / 完整重装
 
-首次刷机，或因救砖、旧版迁移需要完整重装时，从原厂 AXON U-Boot 写入 Chainloader，再启动 Installer 安装系统。两个镜像须来自同一 Release。
+首次刷机，或因救砖、旧版迁移需要完整重装时，在原厂 U-Boot 中写入 Chainloader，再启动 Installer 安装系统。两个镜像须来自同一 Release。
 
-**此流程会清除原有系统与配置。无法进入原厂 AXON U-Boot 时，不适用以下教程。**
+**此流程会清除原有系统与配置。无法进入原厂 U-Boot 时，不适用以下教程。**
 
 - [OpenWrt 刷机教程](w1700k-openwrt-first-flash.md)
 - [ImmortalWrt 刷机教程](w1700k-immortalwrt-first-flash.md)

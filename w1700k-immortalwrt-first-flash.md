@@ -1,6 +1,6 @@
 # W1700K ImmortalWrt 首次刷机 / 完整重装
 
-首次刷机与完整重装使用同一流程：**从原厂 AXON U-Boot 写入 Chainloader → 启动 Installer 安装系统 → 登录后台。** 救砖或旧版迁移需要完整重装时，也按此流程操作；无法进入原厂 AXON U-Boot 时，本教程不适用。
+首次刷机与完整重装使用同一流程：**在原厂 U-Boot 中写入 Chainloader → 启动 Installer 安装系统 → 登录后台。** 救砖或旧版迁移需要完整重装时，也按此流程操作；无法进入原厂 U-Boot 时，本教程不适用。
 
 > 仅适用于 Quantum Fiber / Gemtek W1700K。首次刷机和完整重装都会清除原有系统与配置。刷写前确认型号，将本机原厂数据备份到电脑；刷写期间不要断电。
 
@@ -79,7 +79,7 @@ DNS：      留空
 
 ### 写入 Chainloader
 
-**以下命令只在原厂 AXON U-Boot 中执行，不能在替换版 U-Boot 中执行。认不出原厂提示符就停止。**
+**以下命令只在原厂 U-Boot 中执行，不能在替换版 U-Boot 中执行。认不出原厂提示符就停止。**
 
 通电，看到第一处 `Hit any key to stop autoboot` 时按 Enter 或空格，停在原厂 U-Boot 后立即下载 Chainloader：
 

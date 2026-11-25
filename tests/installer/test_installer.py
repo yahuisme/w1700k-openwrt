@@ -200,6 +200,19 @@ read -r answer
         self.assertEqual(self.calls, "", p.stdout)
         self.assertFalse((self.root / "installer/factory.bin").exists())
 
+    def test_invalid_factory_mac_stops_before_ubi_mutation(self):
+        raw = (self.root / "dev/mtd0").read_bytes()
+        for key, original in (("wan", b"02:11:22:33:44:55"), ("lan", b"02:11:22:33:44:66")):
+            for invalid in (b"00:00:00:00:00:00", b"01:00:5E:00:00:01", b"FF:FF:FF:FF:FF:FF"):
+                with self.subTest(key=key, invalid=invalid):
+                    self.put("dev/mtd0", raw.replace(original, invalid, 1))
+                    self.put("calls", "")
+                    result = self.run_installer()
+                    self.assertIn(f"{key}_mac invalid", result.stdout)
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertEqual(self.calls, "", result.stdout)
+                    self.assertFalse((self.root / "installer/factory.bin").exists())
+
     def test_missing_payload_manifest_stops_before_erase(self):
         (self.root / "installer/payload.sha256").unlink()
         self.assert_payload_rejected()

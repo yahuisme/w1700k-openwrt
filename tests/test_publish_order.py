@@ -229,8 +229,8 @@ elif a[:2] == ['release', 'create']:
 elif a == ['api', '--paginate', '--slurp', 'repos/fixture/repo/releases?per_page=100']:
     p.write_text(json.dumps(s))
     current = Path('firmware/version.txt').read_text().strip()
-    old = current.rsplit('-r', 1)[0] + '-r1-old'
-    print(json.dumps([[dict(tag_name=tag, id=i, draft=False, prerelease=False, published_at=str(i))
+    old = current.rsplit('-r', 1)[0] + '-r1-24.01.01_08.00.00'
+    print(json.dumps([[dict(tag_name=tag, id=1000 if tag == current else i, draft=False, prerelease=False, published_at=f'2024-01-0{i}T00:00:00Z')
                        for i,tag in enumerate([old,current],1)]])); sys.exit(0)
 elif a[:2] == ['release', 'delete']:
     p.write_text(json.dumps(s)); sys.exit(0)
@@ -257,7 +257,8 @@ docker_exec() {
     elif [ "$1" = python3 ] && [ "$2" = /cache-scripts/cache.py ]; then
         [ "$FAULT" != package ] || return 17
         mkdir -p "${5#/}"
-        truncate -s 100 "${5#/}/$3.tar.gz"
+        suffix=tar.gz; [ "$3" != toolchain ] || suffix=tar.zst
+        truncate -s 100 "${5#/}/$3.$suffix"
     else
         "$@"
     fi
@@ -373,7 +374,7 @@ export -f make docker_exec sudo git
                 self.assertEqual(bool(creates), published, log)
                 deletes = [call[2] for call in inventory['calls'] if call[:2] == ['release', 'delete']]
                 current = creates[0][2] if creates else ''
-                self.assertEqual(deletes, [current.rsplit('-r', 1)[0] + '-r1-old']
+                self.assertEqual(deletes, [current.rsplit('-r', 1)[0] + '-r1-24.01.01_08.00.00']
                                  if published and fault != 'publish' else [], log)
                 self.assertEqual(outcomes['Publish firmware and prune releases'],
                                  'failure' if fault == 'publish' else 'success' if published else 'skipped', log)
@@ -419,12 +420,12 @@ export -f make docker_exec sudo git
                     self.assertEqual(outcomes['Validate and stage firmware'], 'success', log)
                     self.assertEqual(outcomes['Publish firmware and prune releases'], 'failure', log)
 
-    def test_post_create_mutation_blocks_retention_even_if_readback_matches(self):
+    def test_same_size_uploaded_mutation_fails_frozen_digest_before_retention(self):
         outcomes, _, inventory, log = self.replay('post-create-corruption')
         self.assertTrue(any(call[:2] == ['release', 'create'] for call in inventory['calls']), log)
         self.assertFalse(any(call[:2] == ['release', 'delete'] for call in inventory['calls']), log)
         self.assertEqual(outcomes['Publish firmware and prune releases'], 'failure', log)
-        self.assertIn('staged image differs from native acceptance', log)
+        self.assertIn('Release asset digest mismatch', log)
 
     def test_real_fingerprint_failure_preserves_good_release_and_denies_download_save(self):
         outcomes, _, inventory, log = self.replay('fingerprint')

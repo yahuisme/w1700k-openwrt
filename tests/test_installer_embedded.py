@@ -103,7 +103,7 @@ class EmbeddedInstaller(unittest.TestCase):
         image = work / 'installer.itb'
         compressed = lzma.compress(kernel, format=lzma.FORMAT_ALONE)
         if fault == 'compressed-truncated': compressed = compressed[:-8]
-        image.write_bytes(make_fit(fit, external=False, kernel=compressed))
+        image.write_bytes(make_fit(fit, external=False, kernel=compressed, kind='recovery'))
         return image, expected
 
     def test_rejects_path_alias_matrix(self):
@@ -126,7 +126,7 @@ class EmbeddedInstaller(unittest.TestCase):
                             self.assertEqual(set(targets), set(content))
                             return [alias_name] + names if before else names + [alias_name]
                         image, expected = self.fixture(Path(tmp), paths=paths)
-                        installer_payload.verify_fit(image)
+                        installer_payload.verify_fit(image, kind='recovery')
                         with self.assertRaises(ValueError) as caught:
                             installer_payload.verify_embedded(image, expected)
                         self.assertEqual(str(caught.exception),
@@ -145,7 +145,7 @@ class EmbeddedInstaller(unittest.TestCase):
                         Path(tmp), paths=lambda names, content, files:
                         ([] if root is None else [root]) + [prefix + name for name in names], archive=edit)
                     expected['root-input'] = 'sha256:' + hashlib.sha256(b'root-level frozen input').hexdigest()
-                    installer_payload.verify_fit(image)
+                    installer_payload.verify_fit(image, kind='recovery')
                     installer_payload.verify_embedded(image, expected)
 
     def test_frozen_inputs_require_single_link(self):
@@ -160,7 +160,7 @@ class EmbeddedInstaller(unittest.TestCase):
                             if name == target: fields[4] = nlink
                         return records
                     image, expected = self.fixture(Path(tmp), archive=edit)
-                    installer_payload.verify_fit(image)
+                    installer_payload.verify_fit(image, kind='recovery')
                     with self.assertRaisesRegex(ValueError, 'Hardlinked embedded input: ' + target):
                         installer_payload.verify_embedded(image, expected)
 
@@ -181,7 +181,7 @@ class EmbeddedInstaller(unittest.TestCase):
                                 alias = (linked, 'installer/link-alias', body)
                                 return [alias] + records if before else records + [alias]
                             image, expected = self.fixture(Path(tmp), archive=edit)
-                            installer_payload.verify_fit(image)
+                            installer_payload.verify_fit(image, kind='recovery')
                             with self.assertRaisesRegex(ValueError, 'Hardlink.*embedded input'):
                                 installer_payload.verify_embedded(image, expected)
 
@@ -201,7 +201,7 @@ class EmbeddedInstaller(unittest.TestCase):
                     return records + [(fields, 'installer/link-a', b''),
                                       (fields.copy(), 'installer/link-b', alias_body)]
                 image, expected = self.fixture(Path(tmp), archive=edit)
-                installer_payload.verify_fit(image)
+                installer_payload.verify_fit(image, kind='recovery')
                 installer_payload.verify_embedded(image, expected)
 
     def test_rejects_canonical_duplicate_paths(self):
@@ -217,7 +217,7 @@ class EmbeddedInstaller(unittest.TestCase):
                             fields[1], fields[4] = mode, 1
                             return records + [(fields, prefix + target, b'')]
                         image, expected = self.fixture(Path(tmp), archive=edit)
-                        installer_payload.verify_fit(image)
+                        installer_payload.verify_fit(image, kind='recovery')
                         with self.assertRaisesRegex(ValueError, 'Duplicate embedded newc path: ' + target):
                             installer_payload.verify_embedded(image, expected)
 
@@ -234,7 +234,7 @@ class EmbeddedInstaller(unittest.TestCase):
                             replacement = (fields, parent, body)
                             return [replacement] + records if before else records + [replacement]
                         image, expected = self.fixture(Path(tmp), archive=edit)
-                        installer_payload.verify_fit(image)
+                        installer_payload.verify_fit(image, kind='recovery')
                         diagnostic = ('Non-directory embedded input parent: ' + parent if before else
                                       'Missing/late embedded input parent: ')
                         with self.assertRaisesRegex(ValueError, diagnostic):
@@ -249,7 +249,7 @@ class EmbeddedInstaller(unittest.TestCase):
                         remaining = [record for record in records if record[1] != parent]
                         return remaining if fault == 'missing' else remaining + [directory]
                     image, expected = self.fixture(Path(tmp), archive=edit)
-                    installer_payload.verify_fit(image)
+                    installer_payload.verify_fit(image, kind='recovery')
                     with self.assertRaisesRegex(ValueError, 'Missing/late embedded input parent: '):
                         installer_payload.verify_embedded(image, expected)
 
@@ -260,7 +260,7 @@ class EmbeddedInstaller(unittest.TestCase):
                 lib = next(record for record in records if record[1] == 'lib')
                 return [preinit, lib] + [record for record in records if record[1] not in ('lib', 'lib/preinit')]
             image, expected = self.fixture(Path(tmp), archive=edit)
-            installer_payload.verify_fit(image)
+            installer_payload.verify_fit(image, kind='recovery')
             with self.assertRaisesRegex(ValueError, 'Missing/late embedded input parent: lib/preinit'):
                 installer_payload.verify_embedded(image, expected)
 

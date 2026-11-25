@@ -131,7 +131,9 @@ ubi_mknod() {
 }
 
 mac_valid() {
-  echo "$1" | grep -Eq '^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$'
+  # Match Linux's nonzero unicast requirement, including locally assigned MACs.
+  [ "$1" != '00:00:00:00:00:00' ] &&
+    printf '%s' "$1" | grep -Eq '^[0-9A-Fa-f][02468AaCcEe](:[0-9A-Fa-f]{2}){5}$'
 }
 
 mac_to_hex() {

@@ -58,7 +58,7 @@ class SharedPatchSource(unittest.TestCase):
                     shutil.copyfile(source / name, destination)
                 for name, text in {
                     **{name: (source / name).read_text() for name in TEMPLATES},
-                    'feeds/packages/utils/ttyd/Makefile': f'PKG_VERSION:=1.7.7\nPKG_HASH:={SOURCE_HASH}\n',
+                    'feeds/packages/utils/ttyd/Makefile': f'PKG_VERSION:=1.7.7\nPKG_RELEASE:=1\nPKG_HASH:={SOURCE_HASH}\n',
                     'feeds/luci/modules/luci-base/po/zh_Hans/base.po': Path(os.environ['DEVICE_BASE_PO']).read_text()
                         if os.environ.get('DEVICE_BASE_PO') else 'msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n',
                 }.items():

@@ -134,9 +134,9 @@ class ReleaseTests(unittest.TestCase):
             notes = (base / 'firmware/release-notes.md').read_text()
             self.assertIn('## 默认设置\n', (ROOT / 'README.md').read_text())
             self.assertIn('/w1700k-openwrt#默认设置', notes)
-            first_flash = next(line for line in notes.splitlines() if line.startswith('- [首次刷机 / 完整重装]'))
+            first_flash = next(line for line in notes.splitlines() if line.startswith('- [首次刷机 / 完整重装（含救砖）]'))
             self.assertIn('/blob/main/w1700k-' + MATRIX['system'] + '-first-flash.md)', first_flash)
-            self.assertIn('在原厂 U-Boot 中写入 Chainloader，再启动 Installer', first_flash)
+            self.assertIn('在原厂 U-Boot 中刷入 Chainloader，再启动 Installer 安装系统', first_flash)
             self.assertIn('本次发布的 `chainload-uboot.itb` 和 `initramfs-installer.itb`', first_flash)
             self.assertIn('会清除原有系统与配置', notes)
             self.assertIn('无法进入原厂 U-Boot 时，教程不适用', notes)
@@ -296,11 +296,12 @@ elif args[:2]!=['release','delete']: sys.exit(99)
 ''')
                 gh.chmod(0o755)
                 version = (base / 'firmware/version.txt').read_text().strip()
-                standard = ['W1700K-' + MATRIX['title'] + '_old', 'W1700K-' + MATRIX['title'] + '-r1-old']
+                standard = [f"W1700K-{MATRIX['title']}_24.01.01-08.00.00_r1",
+                            f"W1700K-{MATRIX['title']}-r1-24.01.02_08.00.00"]
                 if MATRIX['system'] == 'openwrt':
-                    standard.append('W1700K-ubi2_old')
+                    standard.append('W1700K-ubi2_24.01.03-08.00.00_r1')
                 oc = ['W1700K-OpenWrt-OC_old', 'W1700K-OpenWrt-OC-r1-old', 'W1700K-ubi2-oc_old']
-                entries = [dict(tag_name=tag, id=i, draft=False, prerelease=False,
+                entries = [dict(tag_name=tag, id=1000 if tag == version else i+1, draft=False, prerelease=False,
                                 published_at=f'2026-01-{i+1:02d}T00:00:00Z')
                            for i, tag in enumerate(standard + oc + [version, 'unrelated'])]
                 (base / 'releases.json').write_text(json.dumps([entries]))

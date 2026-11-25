@@ -76,9 +76,17 @@ if [ -L "$TTYD_TARGET" ] || { [ -e "$TTYD_TARGET" ] && ! cmp -s "$PATCH_DIR/patc
     echo 'ERROR: conflicting ttyd compatibility patch in package feed' >&2
     exit 1
 fi
-if [ ! -e "$TTYD_TARGET" ]; then
-    install -D -m 644 "$PATCH_DIR/patches/$TTYD_PATCH" "$TTYD_TARGET"
-fi
+# APK requires integer revisions. Do not stack on a changed upstream release.
+case "$(grep -E '^[[:space:]]*PKG_RELEASE[[:space:]]*[:+?]?=' "$TTYD_RECIPE/Makefile" || true)" in
+    PKG_RELEASE:=1)
+        [ -e "$TTYD_TARGET" ] || install -D -m 644 "$PATCH_DIR/patches/$TTYD_PATCH" "$TTYD_TARGET"
+        sed -i 's/^PKG_RELEASE:=1$/PKG_RELEASE:=2/' "$TTYD_RECIPE/Makefile"
+        ;;
+    PKG_RELEASE:=2)
+        [ -f "$TTYD_TARGET" ] || { echo 'ERROR: unreviewed ttyd package release' >&2; exit 1; }
+        ;;
+    *) echo 'ERROR: unreviewed ttyd package release' >&2; exit 1 ;;
+esac
 # Preserve buildroot ownership when copying the patch overlay.
 cp -a --no-preserve=ownership "$PATCH_DIR/tree/." .
 patch -p1 --fuzz=0 --no-backup-if-mismatch < "$PATCH_DIR/patches/002-w1700k-cpufreq-resources.patch"

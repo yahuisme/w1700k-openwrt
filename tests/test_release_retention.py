@@ -2,7 +2,6 @@
 import json
 import os
 from pathlib import Path
-import re
 import subprocess
 import tempfile
 import unittest
@@ -12,10 +11,11 @@ from record_fixture import staged_images, acceptance, READBACK
 from test_release_safety import IMAGE
 
 BLOCK = step('Publish firmware and prune releases')['run']
-PREFIX_MATCH = re.search(r'PREFIX="([^"]+)"', BLOCK)
-assert PREFIX_MATCH is not None
-PREFIX = PREFIX_MATCH[1].replace('${DISTRO_TITLE}', MATRIX['title'])
-CURRENT = PREFIX + 'r1-current'
+PREFIX = f"W1700K-{MATRIX['title']}-"
+CURRENT = PREFIX + 'r8-26.01.03_08.00.00'
+OLD = PREFIX + 'r999999-26.01.01_08.00.00'
+PREVIOUS = PREFIX + 'r7-26.01.02_08.00.00'
+NEWER = PREFIX + 'r9-26.01.04_08.00.00'
 API = ['api', '--paginate', '--slurp', 'repos/fixture/repo/releases?per_page=100']
 GH = '''#!/usr/bin/env python3
 import json, os, sys
@@ -24,10 +24,12 @@ args = sys.argv[1:]
 with Path('calls').open('a') as f:
     f.write(json.dumps(args) + '\\n')
 if args == ['api', 'repos/fixture/repo/git/ref/heads/main', '--jq', '.object.sha']:
-    print(os.environ['GITHUB_SHA'])
+    print('b' * 40 if Path('listed').exists() and os.environ['FAULT'] == 'advance-after-list' else os.environ['GITHUB_SHA'])
 elif args == ['api', '--paginate', '--slurp', 'repos/fixture/repo/releases?per_page=100']:
+    Path('listed').touch()
     print(Path('pages.json').read_text())
     sys.exit(19 if os.environ['FAULT'] == 'list' else 0)
+
 elif args[0] == 'api' and '/releases/tags/' in args[1]:
 ''' + READBACK + '''
 elif args[0] == 'api' and '/git/ref/tags/' in args[1]:
@@ -42,9 +44,9 @@ else:
 '''
 
 
-def release(tag: str, day: int) -> dict:
+def release(tag: str, day: int, *, id=None) -> dict:
     return dict(tag_name=tag, published_at=f'2026-01-{day:02d}T00:00:00Z',
-                id=day, draft=False, prerelease=False)
+                id=(1000 if tag == CURRENT else day) if id is None else id, draft=False, prerelease=False)
 
 
 class RetentionTests(unittest.TestCase):
@@ -61,7 +63,8 @@ class RetentionTests(unittest.TestCase):
             (base / 'gh').chmod(0o755)
             (base / 'pages.json').write_text(pages if isinstance(pages, str) else json.dumps(pages))
             env = dict(os.environ, PATH=tmp + os.pathsep + os.environ['PATH'],
-                       GITHUB_SHA='a' * 40, GITHUB_REPOSITORY='fixture/repo', FAULT=fault)
+                       GITHUB_SHA='a' * 40, GITHUB_REPOSITORY='fixture/repo', FAULT=fault,
+                       SYSTEM=MATRIX['system'])
             self.assertIn('${{ steps.stage.outputs.acceptance }}', BLOCK)
             block = BLOCK.replace('${{ steps.stage.outputs.acceptance }}', acceptance(base))
             result = subprocess.run(['bash', '-eo', 'pipefail', '-c', block],
@@ -87,48 +90,61 @@ class RetentionTests(unittest.TestCase):
         self.replay([[release(CURRENT, 3)]])
 
     def test_current_plus_one_old_keeps_only_current(self):
-        self.replay([[release(PREFIX + 'r1-old', 1), release(CURRENT, 3)]], [PREFIX + 'r1-old'])
+        self.replay([[release(OLD, 1), release(CURRENT, 3)]], [OLD])
 
-    def test_all_noncurrent_releases_deleted_regardless_of_revision(self):
-        old = PREFIX + 'r999999-old'
-        self.replay([[release(old, 1), release(CURRENT, 3), release(PREFIX + 'r2-previous', 2)]], [old, PREFIX + 'r2-previous'])
+    def test_same_tag_replacement_after_asset_verification_keeps_older_releases(self):
+        result = self.replay([[release(OLD, 1), release(CURRENT, 3, id=2000)]])
+        self.assertIn('retaining all releases', result.stdout)
+
+    def test_older_releases_deleted_regardless_of_revision(self):
+        self.replay([[release(OLD, 1), release(CURRENT, 3), release(PREVIOUS, 2)]], [OLD, PREVIOUS])
 
     def test_multiple_pages_keep_protected_series(self):
-        others = [release(f'unrelated-{i}', 20) for i in range(100)]
-        old = PREFIX + 'r1-old'
-        previous = PREFIX + 'r2-previous'
-        self.replay([others, [release(old, 1), release(previous, 2)], [release(CURRENT, 3)]], [old, previous])
+        others = [release(f'unrelated-{i}', 20, id=i + 100) for i in range(98)]
+        self.replay([others + [release(OLD, 1), release(PREVIOUS, 2)], [release(CURRENT, 3)]], [OLD, PREVIOUS])
 
     def test_other_series_retired_oc_draft_prerelease_protected(self):
-        protected = [release(t, 20) for t in (
+        protected = [release(t, 20, id=i + 100) for i, t in enumerate((
             'unrelated', 'MX4200-ImmortalWrt-r9-old', 'W1700K-ubi2-oc_old',
             'W1700K-ubi2_oc-r9-old', 'W1700K-ubi2-OC_old', 'W1700K-ubi2_OC-r9-old',
             PREFIX[:-1] + '-OC_old', PREFIX[:-1] + '-OC-r9-old',
             'W1700K-OC-Immortalwrt_old',
             'W1700K-ImmortalWrt_old' if 'OpenWrt' in PREFIX else 'W1700K-OpenWrt_old',
             'W1700K-ImmortalWrt-r123-current' if MATRIX['system'] == 'openwrt' else 'W1700K-OpenWrt-r123-current',
-            'W1700K-ImmortalWrt-r122-old' if MATRIX['system'] == 'openwrt' else 'W1700K-OpenWrt-r122-old')]
+            'W1700K-ImmortalWrt-r122-26.01.01_08.00.00' if MATRIX['system'] == 'openwrt' else 'W1700K-OpenWrt-r122-26.01.01_08.00.00'))]
         if MATRIX['system'] == 'immortalwrt':
-            protected += [release('W1700K-ubi2_old', 20), release('W1700K-ubi2-r1-old', 20)]
-        draft = release(PREFIX + 'r8-draft', 21)
+            protected += [release('W1700K-ubi2_26.01.01-08.00.00_r1', 1, id=60),
+                          release('W1700K-ubi2-r1-26.01.01_08.00.00', 1, id=61)]
+        draft = release(PREFIX + 'r14-26.01.01_08.00.00', 1, id=21)
         draft['draft'] = True
-        pre = release(PREFIX + 'r9-pre', 22)
+        pre = release(PREFIX + 'r15-26.01.01_08.00.00', 1, id=22)
         pre['prerelease'] = True
-        old = 'W1700K-ubi2-r1-old' if MATRIX['system'] == 'openwrt' else PREFIX + 'r1-old'
-        self.replay([protected + [draft, pre, release(old, 1),
-                                 release(PREFIX + 'r2-previous', 2), release(CURRENT, 3)]],
-                    [PREFIX + 'r2-previous', old])
+        self.replay([protected + [draft, pre, release(OLD, 1),
+                                 release(PREVIOUS, 2), release(CURRENT, 3)]], [PREVIOUS, OLD])
 
     def test_legacy_standard_forms_still_pruned(self):
-        tags = [PREFIX[:-1] + '_legacy']
+        tags = [PREFIX[:-1] + '_26.01.01-08.00.00_r1', PREFIX + 'r2-26.01.01-08.00.00']
         if MATRIX['system'] == 'openwrt':
-            tags += ['W1700K-ubi2_old', 'W1700K-ubi2-r1-old']
-        self.replay([[release(CURRENT, 3)] + [release(tag, 1) for tag in tags]], tags)
+            tags += ['W1700K-ubi2_26.01.01-08.00.00_r1', 'W1700K-ubi2-r1-26.01.01_08.00.00']
+        self.replay([[release(CURRENT, 3)] + [release(tag, 1, id=i + 10) for i, tag in enumerate(tags)]], tags)
 
-    def test_current_outside_newest_two_is_only_survivor(self):
-        self.replay([[release(PREFIX + 'r4-newest', 4), release(PREFIX + 'r3-second', 3),
-                      release(CURRENT, 2), release(PREFIX + 'r1-old', 1)]],
-                    [PREFIX + 'r4-newest', PREFIX + 'r3-second', PREFIX + 'r1-old'])
+    def test_preserves_newer_build_or_publication(self):
+        self.replay([[release(NEWER, 1, id=10), release(PREVIOUS, 4),
+                      release(CURRENT, 3), release(OLD, 1)]], [OLD])
+
+    def test_abnormal_inventory_retains_all(self):
+        current, old = release(CURRENT, 3), release(OLD, 1)
+        for pages in ([[current], [old]], [[current, old, old]],
+                      [[current, old, dict(old, id=10)]], [[current, old, dict(old, tag_name=PREVIOUS)]],
+                      [[current, old, dict(release(PREVIOUS, 2), published_at='missing')]]):
+            with self.subTest(pages=pages):
+                self.assertIn('retaining all releases', self.replay(pages).stdout)
+
+    def test_unknown_suffix_is_not_a_production_tag(self):
+        self.replay([[release(PREFIX + 'r1-old', 1), release(PREFIX + 'r5-26.99.03_08.00.00', 2), release(CURRENT, 3)]])
+
+    def test_main_advances_during_listing(self):
+        self.replay([[release(OLD, 1), release(CURRENT, 3)]], fault='advance-after-list')
 
     def test_missing_current_skips_cleanup(self):
         result = self.replay([[release(PREFIX + f'r{i}-old', i) for i in range(1, 5)]])
@@ -145,13 +161,11 @@ class RetentionTests(unittest.TestCase):
     def test_malformed_listing_cannot_delete(self):
         self.replay('[[{')
 
-    def test_equal_publication_deletes_all_noncurrent_regardless_of_id(self):
-        old, previous = release(PREFIX + 'r1-old', 2), release(PREFIX + 'r2-previous', 2)
-        old['id'], previous['id'] = 1, 2
-        self.replay([[old, release(CURRENT, 3), previous]], [old['tag_name'], previous['tag_name']])
+    def test_equal_publication_or_build_time_does_not_prove_age(self):
+        self.replay([[release(OLD, 3, id=4), release(CURRENT, 3),
+                      release(PREFIX + 'r6-26.01.03_08.00.00', 2)]])
 
     def test_deletion_failure_warns_without_failing_publication(self):
-        result = self.replay([[release(CURRENT, 4), release(PREFIX + 'r3-previous', 3),
-                      release(PREFIX + 'r2-old', 2), release(PREFIX + 'r1-oldest', 1)]],
-                    [PREFIX + 'r3-previous', PREFIX + 'r2-old', PREFIX + 'r1-oldest'], fault='delete')
+        result = self.replay([[release(CURRENT, 4), release(PREVIOUS, 2), release(OLD, 1)]],
+                             [PREVIOUS, OLD], fault='delete')
         self.assertIn('::warning::Failed to delete release', result.stdout)

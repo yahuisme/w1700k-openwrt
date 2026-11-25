@@ -34,26 +34,33 @@ class TtydCompat(unittest.TestCase):
                 payload_dir = base / 'user/w1700k-patches'
                 expected = (payload_dir / 'patches' / PAYLOAD).read_bytes()
                 makefile = package / 'Makefile'
-                for mode in ('known', 'repeat', 'unknown', 'conflict'):
+                for mode in ('known', 'repeat', 'unknown', 'conflict', 'upstream-r2', 'duplicate-release'):
                     with self.subTest(mode=mode):
                         version = '2.0.0' if mode == 'unknown' else '1.7.7'
-                        recipe = f'PKG_VERSION:={version}\nPKG_RELEASE:=1\nPKG_HASH:={SOURCE_HASH}\n'
+                        release = '2' if mode in ('repeat', 'upstream-r2') else '1'
+                        recipe = f'PKG_VERSION:={version}\nPKG_RELEASE:={release}\nPKG_HASH:={SOURCE_HASH}\n'
+                        if mode == 'duplicate-release':
+                            recipe += 'PKG_RELEASE:=3\n'
                         makefile.write_text(recipe)
-                        if mode == 'unknown':
-                            target.unlink()
+                        if mode != 'repeat':
+                            target.unlink(missing_ok=True)
                         if mode == 'conflict':
                             target.write_bytes(b'feed patch\n')
                         result = subprocess.run(['bash', '-e', '-c', commands], cwd=base,
                                                 env=dict(os.environ, PATCH_DIR=str(payload_dir)),
                                                 capture_output=True, text=True)
                         self.assertEqual(result.returncode == 0, mode in ('known', 'repeat'), result.stderr)
-                        self.assertEqual(makefile.read_text(), recipe)
+                        self.assertEqual(makefile.read_text(), recipe.replace('PKG_RELEASE:=1', 'PKG_RELEASE:=2')
+                                         if mode == 'known' else recipe)
                         self.assertEqual(original.read_text(), 'official logging patch\n')
                         if mode in ('known', 'repeat'):
                             self.assertEqual(target.read_bytes(), expected)
                         elif mode == 'unknown':
                             self.assertFalse(target.exists())
                             self.assertIn('unreviewed ttyd source', result.stderr)
-                        else:
+                        elif mode == 'conflict':
                             self.assertIn('conflicting ttyd compatibility patch', result.stderr)
                             self.assertEqual(target.read_bytes(), b'feed patch\n')
+                        else:
+                            self.assertIn('unreviewed ttyd package release', result.stderr)
+                            self.assertFalse(target.exists())

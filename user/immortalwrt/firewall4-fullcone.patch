@@ -14,7 +14,8 @@ respectively, most IPv6 traffic do NOT need this FullCone NAT functionality.
 Renew: ZiMing Mo <msylgj@immortalwrt.org>
 Refresh against firewall4 3722eadc088c3ab81389596ca9796112b436583a:
 remove retired disable_ipv6 comment context and retain related_l3devs.
-No FullCone or flow-offload behavior changes.
+Probe only when either family requests FullCone. If the probe fails, fall
+back to ordinary masquerading for both families without changing UCI.
 ---
 --- a/root/etc/config/firewall
 +++ b/root/etc/config/firewall
@@ -172,19 +173,20 @@ No FullCone or flow-offload behavior changes.
  			input: [ "policy", "drop" ],
  			output: [ "policy", "drop" ],
  			forward: [ "policy", "drop" ],
-@@ -2155,6 +2206,11 @@
+@@ -2155,6 +2206,12 @@
  			defs.synflood_protect = defs.syn_flood;
  
  		delete defs.syn_flood;
 +
-+		if (!nft_try_fullcone()) {
++		if ((defs.fullcone || defs.fullcone6) && !nft_try_fullcone()) {
 +			delete defs.fullcone;
++			delete defs.fullcone6;
 +			warn("nft_try_fullcone failed, disable fullcone globally\n");
 +		}
  
  		this.state.defaults = defs;
  	},
-@@ -2406,10 +2462,23 @@
+@@ -2406,10 +2463,23 @@
  		zone.related_physdevs = related_physdevs;
  		zone.related_l3devs = related_l3devs;
  

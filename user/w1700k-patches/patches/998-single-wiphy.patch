@@ -10,6 +10,7 @@ selecting an interface and redeclaring scan in this view.
 Validate the local interface's channel and actual MHz against this tab's
 freqlist before caching or drawing it, and remove obsolete local graphs
 without expiring scanned neighbors. Only build the configured radio band.
+Keep the wide-channel highlight inside its owning SVG group.
 ---
 --- a/htdocs/luci-static/resources/view/status/channel_analysis.js
 +++ b/htdocs/luci-static/resources/view/status/channel_analysis.js
@@ -22,7 +23,15 @@ without expiring scanned neighbors. Only build the configured radio band.
  	}),
  
  	render_signal_badge(signalPercent, signalValue) {
-@@ -211,6 +211,19 @@
+@@ -83,7 +83,6 @@
+ 					const main = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+ 					main.setAttribute('style', 'fill:url(#GradientVerticalCenteredBlack)');
+ 					scanCache[res.bssid].graph.group.appendChild(main);
+-					chan_analysis.graph.firstElementChild.lastElementChild.appendChild(main);
+ 					scanCache[res.bssid].graph["main"] = main;
+ 				}
+ 				const main_offset = offset_tbl[res.channel];
+@@ -211,6 +210,19 @@
  
  			const rows = [];
  
@@ -42,7 +51,7 @@ without expiring scanned neighbors. Only build the configured radio band.
  			for (let res of results) {
  				if (scanCache[res.bssid] == null)
  					scanCache[res.bssid] = {};
-@@ -219,7 +232,8 @@
+@@ -219,7 +231,8 @@
  				scanCache[res.bssid].data.stale = false;
  			}
  
@@ -52,7 +61,7 @@ without expiring scanned neighbors. Only build the configured radio band.
  				if (scanCache[local_wifi.bssid] == null)
  					scanCache[local_wifi.bssid] = {};
  
-@@ -453,6 +467,14 @@
+@@ -453,6 +466,14 @@
  
  			for (let band in bands) {
  				if (bands[band].channels.length == 0)
@@ -67,7 +76,7 @@ without expiring scanned neighbors. Only build the configured radio band.
  					continue;
  
  				const csvg = svg.cloneNode(true);
-@@ -477,6 +499,7 @@
+@@ -477,6 +498,7 @@
  
  				this.radios[ifname+band] = {
  					dev: wifiDevs[ifname].dev,

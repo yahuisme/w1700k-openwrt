@@ -39,8 +39,8 @@ class InstallerDocsTest(unittest.TestCase):
                 self.assertNotIn('/releases/latest', text)
                 self.assertNotIn('w1700k-ubi2-installer', text)
                 self.assertNotRegex(text, r'(?:0\. Exit|\d+\. Boot installer via TFTP)')
-                self.assertIn(f'# W1700K {title} 首次刷机 / 完整重装\n', text)
-                self.assertIn('在原厂 U-Boot 中写入 Chainloader → 启动 Installer 安装系统', text)
+                self.assertIn(f'# W1700K {title} 首次刷机 / 完整重装（含救砖）\n', text)
+                self.assertIn('在原厂 U-Boot 中刷入 Chainloader，再启动 Installer 安装系统', text)
                 self.assertIn('无法进入原厂 U-Boot 时，本教程不适用', text)
                 self.assertIn('会清除原有系统与配置', text)
                 self.assertIn('UBI2 兼容版本为 2.0', text)
@@ -57,6 +57,7 @@ class InstallerDocsTest(unittest.TestCase):
                     'flash erase 0x600000 0x100000', 'flash write 0x600000 0x100000 0x89000000', 'reset',
                 ])
                 self.assertIn('无论以前是否刷过，均逐行执行', flash)
+                self.assertIn('每步确认成功后再继续；如有报错，停在原厂 U-Boot，不要重启', flash.split(blocks[1], 1)[0])
                 installer = text.split('### 启动 Installer', 1)[1].split('## 4.', 1)[0]
                 self.assertIn('只放这次下载的两个文件', text)
                 filename = f'{system}-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb'
@@ -68,7 +69,8 @@ class InstallerDocsTest(unittest.TestCase):
                     self.assertIn(value, text)
         self.assertIn('两个发行版各自构建和发布', readme)
         self.assertIn('只保留各自最新一版', readme)
-        self.assertIn('## 首次刷机 / 完整重装\n', readme)
+        self.assertIn('## 首次刷机 / 完整重装（含救砖）\n', readme)
+        self.assertIn('`chainload-uboot.itb` | 在原厂 U-Boot 中首次刷入或重刷 Chainloader |', readme)
         self.assertIn('## 日常升级\n', readme)
 
     def test_release_notes_link_to_the_selected_guide(self):

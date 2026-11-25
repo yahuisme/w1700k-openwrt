@@ -1,6 +1,6 @@
-# W1700K ImmortalWrt 首次刷机 / 完整重装
+# W1700K ImmortalWrt 首次刷机 / 完整重装（含救砖）
 
-首次刷机与完整重装使用同一流程：**在原厂 U-Boot 中写入 Chainloader → 启动 Installer 安装系统 → 登录后台。** 救砖或旧版迁移需要完整重装时，也按此流程操作；无法进入原厂 U-Boot 时，本教程不适用。
+首次刷机、救砖重装或旧版迁移时，先在原厂 U-Boot 中刷入 Chainloader，再启动 Installer 安装系统。无法进入原厂 U-Boot 时，本教程不适用。
 
 > 仅适用于 Quantum Fiber / Gemtek W1700K。首次刷机和完整重装都会清除原有系统与配置。刷写前确认型号，将本机原厂数据备份到电脑；刷写期间不要断电。
 
@@ -94,7 +94,7 @@ setenv serverip 192.168.1.10 ; setenv ipaddr 192.168.1.1 ; tftpboot 0x89000000 i
 
 **下载失败时不要擦写。** 下载成功后，用 `printenv bootcmd bootcmd_orig` 查看并保存启动参数。已有 `bootcmd_orig` 就保留原值；只有确认 `bootcmd` 仍是原厂值且没有备份时，才用 `setenv bootcmd_orig "$bootcmd"` 备份。
 
-无论以前是否刷过，均逐行执行：
+无论以前是否刷过，均逐行执行。**每步确认成功后再继续；如有报错，停在原厂 U-Boot，不要重启，保留串口日志。**
 
 ```text
 setenv one flash read 0x600000 0x100000 \$loadaddr

@@ -75,6 +75,47 @@ class ImmortalFirewall4(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertFalse((tree / 'reached').exists())
 
+    @unittest.skipUnless(os.environ.get('FIREWALL4_SOURCE'),
+                         'set FIREWALL4_SOURCE to exact firewall4 3722eadc source')
+    def test_fullcone_probe_and_fallback_for_both_families(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tree = Path(tmp) / 'firewall4'
+            shutil.copytree(os.environ['FIREWALL4_SOURCE'], tree)
+            result = subprocess.run(['patch', '-p1', '--fuzz=0', '--batch', '--no-backup-if-mismatch',
+                                     '-i', str(ROOT / 'user/immortalwrt/firewall4-fullcone.patch')],
+                                    cwd=tree, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            fw4 = tree / 'root/usr/share/ucode/fw4.uc'
+            # Load the patched native parser unchanged. Stub module loading and
+            # the external capability probe so the test cannot run nft or UCI.
+            harness = r'''
+global.require = function(name) { return {}; };
+let probes = 0;
+let status = 0;
+global.system = function(cmd) {
+    assert(index(cmd, "/usr/sbin/nft -c ") == 0, "unexpected shell command");
+    probes++;
+    return status;
+};
+let fw4 = loadfile(FW4)();
+for (let flags in [["0", "0"], ["1", "0"], ["0", "1"], ["1", "1"]]) {
+    let enabled = flags[0] == "1" || flags[1] == "1";
+    for (status in [1, 0]) {
+        fw4.state = {};
+        probes = 0;
+        fw4.parse_defaults({fullcone: flags[0], fullcone6: flags[1]});
+        assert(!!fw4.default_option("fullcone") == (!status && flags[0] == "1"),
+               "IPv4 FullCone must fall back on a failed probe");
+        assert(!!fw4.default_option("fullcone6") == (!status && flags[1] == "1"),
+               "IPv6 FullCone must fall back on a failed probe");
+        assert(probes == (enabled ? 1 : 0), "only probe when FullCone is requested");
+    }
+}
+'''
+            result = subprocess.run(['ucode', '-D', f'FW4={fw4}', '-e', harness],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()

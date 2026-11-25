@@ -98,7 +98,8 @@ jobs:
           # Remove ALL builder-preseeded patches, feeds, overlays and ABI files.
           git clean -ffdx
           mountpoint $DK_BIN || { echo "::error::not mounted" >&2; exit 1; }
-          ln -s $DK_BIN bin && ln -s /dlcache dl
+          ln -sT "$DK_BIN" bin
+          ln -sT /dlcache dl
           ./scripts/feeds update -a >/dev/null || { echo "::error::feeds update failed"; exit 1; }
           ./scripts/feeds install -a >/dev/null || { echo "::error::feeds install failed"; exit 1; }
           cp $DK_PROFILE/config.diff .config
@@ -320,7 +321,7 @@ jobs:
 
         - 上游源码：[${DISTRO_TITLE} ${SOURCE_BRANCH}](https://github.com/${SYSTEM}/${SYSTEM}/tree/${SOURCE_BRANCH})
         - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
-        - [首次刷机 / 完整重装](https://github.com/yahuisme/w1700k-openwrt/blob/main/w1700k-${SYSTEM}-first-flash.md)：在原厂 U-Boot 中写入 Chainloader，再启动 Installer。使用本次发布的 \`chainload-uboot.itb\` 和 \`initramfs-installer.itb\`，无需再刷升级镜像。
+        - [首次刷机 / 完整重装（含救砖）](https://github.com/yahuisme/w1700k-openwrt/blob/main/w1700k-${SYSTEM}-first-flash.md)：在原厂 U-Boot 中刷入 Chainloader，再启动 Installer 安装系统。使用本次发布的 \`chainload-uboot.itb\` 和 \`initramfs-installer.itb\`，无需再刷升级镜像。
         - 日常升级：已安装修正版 Chainloader、兼容版本为 2.0 的同发行版 UBI2 系统，使用 \`squashfs-sysupgrade.itb\`。
 
         > 首次刷机和完整重装会清除原有系统与配置。无法进入原厂 U-Boot 时，教程不适用。刷写前备份本机原厂数据，期间勿断电。
@@ -370,31 +371,21 @@ jobs:
         current_main
         # Independent native acceptance remains mandatory even if record upload failed.
         acceptance='${{ steps.stage.outputs.acceptance }}'
-        verified=$(python3 scripts/verify_staged.py firmware firmware/accepted-images.json "$acceptance")
+        proof=firmware/accepted-images.json
+        verified=$(python3 scripts/verify_staged.py firmware "$proof" "$acceptance")
         mapfile -t images <<< "$verified"
         VERSION="$(cat firmware/version.txt)"
         RELEASE_TITLE="$VERSION"
         gh release create "$VERSION" "${images[@]}" --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file firmware/release-notes.md
-        python3 scripts/verify_release.py "$VERSION" "${images[@]}"
-        python3 scripts/verify_staged.py firmware firmware/accepted-images.json "$acceptance" >/dev/null
+        release_id=$(python3 scripts/verify_release.py "$VERSION" "$proof" "$acceptance")
         # Recheck before pruning, before removing older standard releases.
         current_main
-        PREFIX="W1700K-${DISTRO_TITLE}-"
-        # Legacy unlabelled UBI2 tags belong to this repository's OpenWrt history.
-        LEGACY="W1700K-${DISTRO_TITLE}_"
-        if [ "$SYSTEM" = openwrt ]; then LEGACY="$LEGACY|W1700K-ubi2[-_]"; fi
-        # Keep one production Release per distribution; never prune its sibling.
+        # Only remove older releases after a complete inventory read.
         if releases=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100") &&
-          old_tags=$(jq -er --arg current "$VERSION" --arg pattern "^(${PREFIX}r[0-9]+-|${LEGACY})" '
-            flatten | map(select(.draft == false and .prerelease == false and
-              (.tag_name | test($pattern)) and
-              (.tag_name | test("^W1700K-ubi2[-_]oc([-_]|$)"; "i") | not))) |
-            if any(.tag_name == $current) then
-              [.[] | select(.tag_name != $current)] | map(.tag_name) | join("\n")
-            else error("Published release missing from inventory") end
-          ' <<< "$releases"); then
+          old_tags=$(python3 scripts/release_retention.py "$SYSTEM" "$VERSION" "$release_id" <<< "$releases"); then
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
+            current_main
             gh release delete "$tag" --cleanup-tag -y || echo "::warning::Failed to delete release $tag"
           done <<< "$old_tags"
         else

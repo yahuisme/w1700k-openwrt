@@ -43,11 +43,15 @@ def verify_fit(path, *, kind='sysupgrade'):
         expected_default = 'conf-uboot' if kind == 'chainloader' else 'config-1'
         if default != expected_default or default not in configs:
             raise ValueError('Invalid FIT default configuration')
+        compression = 'gzip' if kind == 'sysupgrade' else 'lzma'
         for config in configs.values():
             for property_name, expected_type in [('kernel', 'kernel'), ('fdt', 'flat_dt')]:
                 reference = _strings(tree, config, property_name, single=True)[0]
                 if reference not in image_nodes or _strings(tree, image_nodes[reference], 'type', single=True)[0] != expected_type:
                     raise ValueError(f'Invalid FIT {property_name} reference')
+                if property_name == 'kernel' and tree.getprop(
+                        image_nodes[reference], 'compression', quiet=(libfdt.NOTFOUND,)) != compression.encode() + b'\0':
+                    raise ValueError('Invalid FIT kernel compression: expected ' + compression)
             if tree.getprop(config, 'ramdisk', quiet=(libfdt.NOTFOUND,)) != -libfdt.NOTFOUND:
                 # Native Airoha recovery embeds initramfs into the kernel;
                 # also validate any explicit recovery ramdisk reference.
@@ -108,7 +112,10 @@ def verify_embedded(path, expected):
     config = tree.path_offset('/configurations')
     selected = _strings(tree, config, 'default', single=True)[0]
     kernel = _strings(tree, tree.path_offset('/configurations/' + selected), 'kernel', single=True)[0]
-    compressed = bytes(tree.getprop(tree.path_offset('/images/' + kernel), 'data'))
+    node = tree.path_offset('/images/' + kernel)
+    if _strings(tree, node, 'compression', single=True) != ['lzma']:
+        raise ValueError('Invalid FIT installer kernel compression: expected lzma')
+    compressed = bytes(tree.getprop(node, 'data'))
     try:
         # Bound unexpected compression expansion; normal current images are <80 MiB.
         decoder = lzma.LZMADecompressor(format=lzma.FORMAT_ALONE)

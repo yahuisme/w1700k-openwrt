@@ -7,10 +7,10 @@ import subprocess
 import tempfile
 import unittest
 
-from test_cache_workflow import ROOT, step
+from test_cache_workflow import MATRIX, ROOT, step
 import test_release_safety as safety
 from test_release_safety import IMAGE
-from test_release_retention import GH, CURRENT, PREFIX, release
+from test_release_retention import GH, CURRENT, OLD, PREVIOUS, release
 from record_fixture import staged_images, acceptance, prepare, READBACK
 
 
@@ -189,9 +189,10 @@ elif args[0] == 'api' and '/releases/tags/'""")
                 (base / 'gh').write_text(stub)
                 (base / 'gh').chmod(0o755)
                 (base / 'pages.json').write_text(json.dumps([[release(CURRENT, 3),
-                    release(PREFIX+'r2-previous', 2), release(PREFIX+'r1-old', 1)]]))
+                    release(PREVIOUS, 2), release(OLD, 1)]]))
                 env = dict(os.environ, PATH=tmp+':'+os.environ['PATH'], GITHUB_SHA='a'*40,
-                           GITHUB_REPOSITORY='fixture/repo', FAULT='', MODE=mode, IMAGE=IMAGE)
+                           GITHUB_REPOSITORY='fixture/repo', FAULT='', MODE=mode, IMAGE=IMAGE,
+                           SYSTEM=MATRIX['system'])
                 block = step('Publish firmware and prune releases')['run']
                 self.assertIn('${{ steps.stage.outputs.acceptance }}', block)
                 block = block.replace('${{ steps.stage.outputs.acceptance }}', acceptance(base))
@@ -203,4 +204,4 @@ elif args[0] == 'api' and '/releases/tags/'""")
                 self.assertEqual(sum(c[:2] == ['release', 'create'] for c in calls), 1)
                 self.assertTrue(any(c[0] == 'api' and '/releases/tags/' in c[1] for c in calls))
                 self.assertCountEqual([c[2] for c in calls if c[:2] == ['release', 'delete']],
-                                      [PREFIX+'r2-previous', PREFIX+'r1-old'] if good else [])
+                                      [PREVIOUS, OLD] if good else [])

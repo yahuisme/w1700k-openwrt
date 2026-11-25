@@ -61,17 +61,18 @@ class ProfileBoundaryTests(unittest.TestCase):
             self.assertIn(prefix, result.stdout)
 
     def test_runner_verifier_reaches_asset_readback(self):
-        code = '''import importlib.util,json,os,tempfile
+        code = '''import hashlib,importlib.util,json,tempfile
 from pathlib import Path
 from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('verify', 'scripts/verify_release.py')
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 profile=json.loads(Path('user/default/build.json').read_text())
 with tempfile.TemporaryDirectory() as directory:
- paths=[Path(directory)/name for name in profile['images']]
- for p in paths: p.write_bytes(b'fixture image')
+ proof=Path(directory)/'proof.json'
+ raw=json.dumps(dict(version=1,images=[dict(name=name,size=10,digest='sha256:'+'a'*64) for name in profile['images']])).encode()
+ proof.write_bytes(raw)
  with patch.object(m.subprocess,'check_output',side_effect=RuntimeError('asset-readback-reached')):
-  try: m.verify('fixture-tag',paths)
+  try: m.verify('fixture-tag',proof,hashlib.sha256(raw).hexdigest())
   except RuntimeError as exc: assert str(exc)=='asset-readback-reached'
   else: raise AssertionError('asset readback not reached')
 '''

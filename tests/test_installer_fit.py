@@ -21,7 +21,7 @@ class InstallerFit(unittest.TestCase):
             image.write_bytes(data)
             helper.verify_fit(image)
             for role in ('chainloader', 'recovery'):
-                with self.subTest(role=role), self.assertRaisesRegex(ValueError, 'FIT.*configuration|FIT.*loadables'):
+                with self.subTest(role=role), self.assertRaisesRegex(ValueError, 'FIT.*(configuration|loadables|compression)'):
                     helper.verify_fit(image, kind=role)
             tree = libfdt.Fdt(data)
             tree.resize(len(data) + 1024)
@@ -29,6 +29,7 @@ class InstallerFit(unittest.TestCase):
             tree.delprop(config, 'loadables')
             tree.setprop_str(config, 'ramdisk', 'rootfs-1')
             tree.setprop_str(tree.path_offset('/images/rootfs-1'), 'type', 'ramdisk')
+            tree.setprop_str(tree.path_offset('/images/kernel-1'), 'compression', 'lzma')
             image.write_bytes(tree.as_bytearray())
             helper.verify_fit(image, kind='recovery')
             with self.assertRaises(ValueError):
@@ -50,6 +51,35 @@ class InstallerFit(unittest.TestCase):
             image.write_bytes(tree.as_bytearray())
             with self.assertRaisesRegex(ValueError, 'FIT.*ramdisk'):
                 helper.verify_fit(image, kind='chainloader')
+
+    def test_selected_kernel_compression_matches_native_role(self):
+        from installer_payload import verify_fit
+        from installer_fit_fixture import make_fit
+        import libfdt
+        with tempfile.TemporaryDirectory() as tmp:
+            image = Path(tmp) / 'image.itb'
+            data = make_fit(Path(tmp), external=False)
+            for role, declaration in (('sysupgrade', 'gzip'), ('recovery', 'lzma'), ('chainloader', 'lzma')):
+                with self.subTest(role=role):
+                    tree = libfdt.Fdt(data)
+                    tree.resize(len(data) + 1024)
+                    if role != 'sysupgrade':
+                        tree.delprop(tree.path_offset('/configurations/config-1'), 'loadables')
+                        tree.del_node(tree.path_offset('/images/rootfs-1'))
+                    if role == 'chainloader':
+                        tree.setprop_str(tree.path_offset('/configurations'), 'default', 'conf-uboot')
+                        tree.set_name(tree.path_offset('/configurations/config-1'), 'conf-uboot')
+                    tree.setprop_str(tree.path_offset('/images/kernel-1'), 'compression', declaration)
+                    image.write_bytes(tree.as_bytearray())
+                    verify_fit(image, kind=role)
+                    tree.setprop_str(tree.path_offset('/images/kernel-1'), 'compression', 'none')
+                    image.write_bytes(tree.as_bytearray())
+                    with self.assertRaisesRegex(ValueError, 'FIT.*compression'):
+                        verify_fit(image, kind=role)
+                    tree.delprop(tree.path_offset('/images/kernel-1'), 'compression')
+                    image.write_bytes(tree.as_bytearray())
+                    with self.assertRaisesRegex(ValueError, 'FIT.*compression'):
+                        verify_fit(image, kind=role)
 
     def test_linux_fit_defaults_match_the_chainloader_requested_config(self):
         from installer_payload import verify_fit

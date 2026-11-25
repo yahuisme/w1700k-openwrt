@@ -33,7 +33,7 @@ CALLER = '''uci_apply_defaults() {
 
 class DefaultsCleanup(unittest.TestCase):
     def run_boot(self, bands=('2g', '5g', '6g'), fault='', marker=None, anonymous=False,
-                 reapply=False, operator_reboot=False):
+                 reapply=False, operator_reboot=False, restore_radios=False, extra_band=None):
         self.assertEqual(os.geteuid(), 0, 'isolated chroot requires root')
         uci = os.environ.get('DEFAULTS_UCI') or shutil.which('uci')
         self.assertTrue(uci, 'source /opt/test-tools/env.sh (native UCI required)')
@@ -127,6 +127,8 @@ esac
             }
             if anonymous:
                 configs['wireless'] += "config wifi-iface\n option ssid 'anonymous-a'\nconfig wifi-iface\n option ssid 'anonymous-b'\n"
+            if extra_band:
+                configs['wireless'] += f"config wifi-device 'extra'\n option band '{extra_band}'\n"
             for name, text in configs.items():
                 (root / 'etc/config' / name).write_text(text)
             (root / 'tmp/.uci/system').write_text("system.main.description='earlier-default'\n")
@@ -145,6 +147,7 @@ esac
                 return subprocess.run(['/usr/sbin/chroot', str(root), '/bin/sh', '-c', code],
                                       env=env, capture_output=True, text=True)
             before = sh('uci export').stdout
+            wireless_before = (root / 'etc/config/wireless').read_bytes()
             (root / 'calls').write_text('')
             result = sh('. /boot-caller')
             fault_events = (root / 'fault-events').read_text().splitlines() if (root / 'fault-events').exists() else []
@@ -160,14 +163,25 @@ esac
                        for p in leftovers if (p / 'previous/system').is_file()}
             pending = sh('uci changes').stdout
             operator_after = None
+            if restore_radios or extra_band:
+                self.assertEqual((root / 'etc/config/wireless').read_bytes(), wireless_before)
             if operator_reboot:
-                changed = sh("uci set network.lan.ipaddr='192.168.55.1'; "
-                             "uci set system.main.hostname='operator-after-boot'; uci commit")
+                wifi = (" && uci set wireless.operator.ssid='operator-after-boot'"
+                        if restore_radios else '')
+                changed = sh("uci set network.lan.ipaddr='192.168.55.1' && "
+                             "uci set system.main.hostname='operator-after-boot'" + wifi + " && uci commit")
                 self.assertEqual(changed.returncode, 0, changed.stderr)
+                if restore_radios:
+                    with (root / 'etc/config/wireless').open('a') as wireless:
+                        for band in ('2g', '5g', '6g'):
+                            if band not in bands:
+                                wireless.write(f"\nconfig wifi-device 'radio{band[0]}'\n option band '{band}'\n")
                 operator_after = sh('uci export').stdout
                 self.assertIn("option ipaddr '192.168.55.1'", operator_after)
                 self.assertIn("option hostname 'operator-after-boot'", operator_after)
-                # Fault delivery is one-shot; the next boot must not reapply defaults.
+                if restore_radios:
+                    self.assertIn("option ssid 'operator-after-boot'", operator_after)
+                # Neither a recovered radio nor a cleared fault may reapply defaults.
                 env['FAULT'] = ''
                 again = sh('. /boot-caller')
                 self.assertEqual(again.returncode, 0, again.stderr)
@@ -307,22 +321,32 @@ esac
                 self.assertFalse(retained)
                 self.assertEqual(calls, ['commit'])
 
-    def test_incomplete_or_unreadable_radios_do_not_write(self):
+    def test_incomplete_or_unreadable_radios_apply_only_nonwireless_defaults(self):
+        def check(**options):
+            result, _, after, calls, retained, pending = self.run_boot(**options)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(retained, (result.stderr, calls))
+            self.assertIn('skipping Wi-Fi defaults', result.stderr)
+            for expected in ("option hostname 'W1700K'", "list ipaddr '192.168.8.1/24'",
+                             "option ra 'server'", "option lang 'zh-cn'",
+                             "option flow_offloading_hw '1'", "option ssid 'private'"):
+                self.assertIn(expected, after)
+            self.assertFalse(any(f' {op} wireless.' in f' {c}' for c in calls
+                                 for op in ('set', 'delete', 'add_list')), calls)
+            self.assertEqual(pending, '')
+
         for enabled in itertools.product((False, True), repeat=3):
             if all(enabled):
                 continue
             bands = tuple(b for b, present in zip(('2g', '5g', '6g'), enabled) if present)
             with self.subTest(bands=bands):
-                result, before, after, calls, retained, _ = self.run_boot(bands=bands)
-                self.assertTrue(retained, (result.stderr, calls))
-                self.assertEqual(after, before)
-                self.assertFalse(any((' set ' in f' {c} ' or ' delete ' in f' {c} ' or ' add_list ' in f' {c} ') for c in calls), calls)
+                check(bands=bands, operator_reboot=True, restore_radios=True)
         for fault in ('show', 'read'):
             with self.subTest(fault=fault):
-                result, before, after, calls, retained, _ = self.run_boot(fault=fault)
-                self.assertTrue(retained, (result.stderr, calls))
-                self.assertEqual(after, before)
-                self.assertFalse(any(' set ' in f' {c} ' for c in calls), calls)
+                check(fault=fault, operator_reboot=True, restore_radios=True)
+        for extra_band in ('5g', 'unknown'):
+            with self.subTest(extra_band=extra_band):
+                check(extra_band=extra_band)
 
 
 if __name__ == '__main__':

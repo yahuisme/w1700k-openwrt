@@ -41,6 +41,7 @@ class PayloadTests(unittest.TestCase):
                     if kind != 'sysupgrade':
                         tree.delprop(tree.path_offset('/configurations/config-1'), 'loadables')
                         tree.del_node(tree.path_offset('/images/rootfs-1'))
+                        tree.setprop_str(tree.path_offset('/images/kernel-1'), 'compression', 'lzma')
                     if kind == 'chainloader':
                         config = 'conf-uboot'
                         tree.setprop_str(tree.path_offset('/configurations'), 'default', config)

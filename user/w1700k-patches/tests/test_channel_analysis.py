@@ -44,6 +44,7 @@ class Node {
  }
  appendChild(child) {
   if (!(child instanceof Node)) child = new Node('#text', {text: String(child)});
+  child.remove(); // DOM appendChild moves an existing node rather than cloning it.
   this.childNodes.push(child); child.parentNode = this; return child;
  }
  removeChild(child) {
@@ -116,6 +117,9 @@ const flatten = value => value instanceof Node ? value.textContent :
    cache: Object.fromEntries(Object.entries(radio.scanCache).map(([key, value]) =>
     [key, {data: structuredClone(value.data), hasGraph: !!value.graph}])),
    groups: radio.graph.graph.firstElementChild.childNodes.filter(n => n.tag == 'g').map(n => n.textContent),
+   mainOwners: radio.graph.graph.firstElementChild.childNodes.filter(n => n.tag == 'g')
+    .flatMap(n => n.childNodes.filter(c => c.attrs.style === 'fill:url(#GradientVerticalCenteredBlack)')
+     .map(() => n.textContent)),
    points: radio.graph.graph.firstElementChild.childNodes.filter(n => n.tag == 'g')
     .flatMap(n => n.childNodes.filter(c => c.tag == 'polyline').map(c => c.attrs.points))
   });
@@ -357,6 +361,22 @@ class RealChannelAnalysisTests(unittest.TestCase):
                 self.assertEqual([row[1] for row in snapshot['rows']], ['⬤ Neighbor'])
                 self.assertEqual(snapshot['groups'], ['Neighbor'])
                 self.assertEqual(list(snapshot['cache']), [neighbor['bssid']])
+
+    def test_existing_narrow_local_graph_owns_wide_child_until_removed(self):
+        local = dict(bssid='02:00:00:00:06:00', channel=37, frequency=6135,
+                     center_chan1=37, htmode='EHT20', mode='Master')
+        neighbor = dict(bssid='02:00:00:00:06:01', ssid='Neighbor', band=6,
+                        channel=5, frequency=5975, signal=-67, mode='Master')
+        result = self.replay(frames=[{'info': local, 'scan': [neighbor]},
+                                     {'info': {**local, 'center_chan1': 31, 'htmode': 'EHT320'}},
+                                     {'info': {}}])
+        narrow, wide, removed = result['snapshots']
+        self.assertEqual(narrow['groups'], ['Local Interface', 'Neighbor'])
+        self.assertEqual(narrow['mainOwners'], [])
+        self.assertEqual(wide['mainOwners'], ['Local Interface'])
+        self.assertEqual(removed['groups'], ['Neighbor'])
+        self.assertEqual(removed['mainOwners'], [])
+        self.assertEqual(list(removed['cache']), [neighbor['bssid']])
 
     def test_local_bssid_change_replaces_graph_without_duplicating_neighbors(self):
         local = dict(bssid='02:00:00:00:06:00', channel=1, frequency=5955,

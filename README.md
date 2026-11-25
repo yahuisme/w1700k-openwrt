@@ -18,13 +18,13 @@
 
 | 文件后缀 | 用途 |
 | --- | --- |
-| `chainload-uboot.itb` | 从原厂 U-Boot 写入 Chainloader |
+| `chainload-uboot.itb` | 在原厂 U-Boot 中首次刷入或重刷 Chainloader |
 | `initramfs-installer.itb` | 由 Chainloader 启动，初始化或重建 UBI2 并安装完整系统 |
 | `squashfs-sysupgrade.itb` | 同发行版日常升级 |
 
-## 首次刷机 / 完整重装
+## 首次刷机 / 完整重装（含救砖）
 
-首次刷机，或因救砖、旧版迁移需要完整重装时，在原厂 U-Boot 中写入 Chainloader，再启动 Installer 安装系统。两个镜像须来自同一 Release。
+首次刷机、救砖重装或旧版迁移时，先在原厂 U-Boot 中刷入 Chainloader，再启动 Installer 安装系统。两个镜像须来自同一 Release。
 
 **此流程会清除原有系统与配置。无法进入原厂 U-Boot 时，不适用以下教程。**
 

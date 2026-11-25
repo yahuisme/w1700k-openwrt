@@ -19,23 +19,26 @@ if [ -f /sysupgrade.tgz ] || [ -f /tmp/sysupgrade.tar ]; then
 fi
 
 
-# Read the complete radio inventory before changing any configuration.
+# Only initialize Wi-Fi with an unambiguous, complete first-boot inventory.
 # Stable section IDs avoid anonymous wifi-iface index shifts during deletion.
-WIRELESS="$(uci -q -X show wireless)" || exit 1
-RADIO_2G=""
-RADIO_5G=""
-RADIO_6G=""
-for DEV in $(printf '%s\n' "$WIRELESS" | \
-    sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
-    BAND="$(uci -q get wireless.${DEV}.band)" || exit 1
-    case "$BAND" in
-        2g) RADIO_2G="$DEV" ;;
-        5g) RADIO_5G="$DEV" ;;
-        6g) RADIO_6G="$DEV" ;;
-        *) exit 1 ;;
-    esac
-done
-[ -n "$RADIO_2G" ] && [ -n "$RADIO_5G" ] && [ -n "$RADIO_6G" ] || exit 1
+read_radios() {
+    WIRELESS="$(uci -q -X show wireless)" || return 1
+    RADIO_2G=""
+    RADIO_5G=""
+    RADIO_6G=""
+    DEVICES="$(printf '%s\n' "$WIRELESS" | \
+        sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p')" || return 1
+    for DEV in $DEVICES; do
+        BAND="$(uci -q get wireless.${DEV}.band)" || return 1
+        case "$BAND" in
+            2g) [ -z "$RADIO_2G" ] || return 1; RADIO_2G="$DEV" ;;
+            5g) [ -z "$RADIO_5G" ] || return 1; RADIO_5G="$DEV" ;;
+            6g) [ -z "$RADIO_6G" ] || return 1; RADIO_6G="$DEV" ;;
+            *) return 1 ;;
+        esac
+    done
+    [ -n "$RADIO_2G" ] && [ -n "$RADIO_5G" ] && [ -n "$RADIO_6G" ]
+}
 
 # Boot commits even when a defaults script fails. Keep our deltas private until
 # every required operation succeeds; -P still reads earlier defaults' deltas.
@@ -102,99 +105,68 @@ wuci -q set firewall.@defaults[0].flow_offloading_hw='1'
 
 
 # ------------------------------------------------------------
-# Find Wi-Fi radios and create first-boot defaults
+# Wi-Fi first-boot defaults
 # ------------------------------------------------------------
 
 
-# ------------------------------------------------------------
-# 2.4 GHz
-# ------------------------------------------------------------
+if read_radios; then
+    # 2.4 GHz
+    wuci -q set wireless.${RADIO_2G}.disabled='0'
+    wuci -q set wireless.${RADIO_2G}.country='US'
+    wuci -q set wireless.${RADIO_2G}.channel='1'
+    wuci -q set wireless.${RADIO_2G}.htmode='EHT20'
+    wuci -q set wireless.${RADIO_2G}.txpower='23'
 
-wuci -q set wireless.${RADIO_2G}.disabled='0'
-wuci -q set wireless.${RADIO_2G}.country='US'
-wuci -q set wireless.${RADIO_2G}.channel='1'
-wuci -q set wireless.${RADIO_2G}.htmode='EHT20'
-wuci -q set wireless.${RADIO_2G}.txpower='23'
+    # 5 GHz
+    wuci -q set wireless.${RADIO_5G}.disabled='0'
+    wuci -q set wireless.${RADIO_5G}.country='US'
+    wuci -q set wireless.${RADIO_5G}.channel='36'
+    wuci -q set wireless.${RADIO_5G}.htmode='EHT160'
+    wuci -q set wireless.${RADIO_5G}.txpower='25'
 
+    # 6 GHz: configured but disabled until manually enabled in LuCI.
+    wuci -q set wireless.${RADIO_6G}.disabled='1'
+    wuci -q set wireless.${RADIO_6G}.country='US'
+    wuci -q set wireless.${RADIO_6G}.channel='37'
+    wuci -q set wireless.${RADIO_6G}.htmode='EHT320'
+    wuci -q set wireless.${RADIO_6G}.txpower='25'
 
-# ------------------------------------------------------------
-# 5 GHz
-# ------------------------------------------------------------
+    for IFACE in $(printf '%s\n' "$WIRELESS" | \
+        sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p'); do
+        wuci -q delete wireless.${IFACE}
+    done
 
-wuci -q set wireless.${RADIO_5G}.disabled='0'
-wuci -q set wireless.${RADIO_5G}.country='US'
-wuci -q set wireless.${RADIO_5G}.channel='36'
-wuci -q set wireless.${RADIO_5G}.htmode='EHT160'
-wuci -q set wireless.${RADIO_5G}.txpower='25'
+    IFACE_2G="wifinet2g"
+    wuci set wireless.${IFACE_2G}=wifi-iface
+    wuci set wireless.${IFACE_2G}.device="${RADIO_2G}"
+    wuci set wireless.${IFACE_2G}.mode='ap'
+    wuci set wireless.${IFACE_2G}.network='lan'
+    wuci set wireless.${IFACE_2G}.ssid='W1700K'
+    wuci set wireless.${IFACE_2G}.encryption='psk2+ccmp'
+    wuci set wireless.${IFACE_2G}.key='12345678'
 
+    IFACE_5G="wifinet5g"
+    wuci set wireless.${IFACE_5G}=wifi-iface
+    wuci set wireless.${IFACE_5G}.device="${RADIO_5G}"
+    wuci set wireless.${IFACE_5G}.mode='ap'
+    wuci set wireless.${IFACE_5G}.network='lan'
+    wuci set wireless.${IFACE_5G}.ssid='W1700K'
+    wuci set wireless.${IFACE_5G}.encryption='psk2+ccmp'
+    wuci set wireless.${IFACE_5G}.key='12345678'
 
-# ------------------------------------------------------------
-# 6 GHz
-# ------------------------------------------------------------
-
-# 6 GHz is configured but disabled by default.
-# Enable it manually from LuCI when needed.
-wuci -q set wireless.${RADIO_6G}.disabled='1'
-wuci -q set wireless.${RADIO_6G}.country='US'
-wuci -q set wireless.${RADIO_6G}.channel='37'
-wuci -q set wireless.${RADIO_6G}.htmode='EHT320'
-wuci -q set wireless.${RADIO_6G}.txpower='25'
-
-
-# ------------------------------------------------------------
-# Remove existing Wi-Fi interface defaults
-# ------------------------------------------------------------
-
-for IFACE in $(printf '%s\n' "$WIRELESS" | \
-    sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p')
-do
-    wuci -q delete wireless.${IFACE}
-done
-
-
-# ------------------------------------------------------------
-# 2.4 GHz SSID
-# ------------------------------------------------------------
-
-IFACE_2G="wifinet2g"
-wuci set wireless.${IFACE_2G}=wifi-iface
-
-wuci set wireless.${IFACE_2G}.device="${RADIO_2G}"
-wuci set wireless.${IFACE_2G}.mode='ap'
-wuci set wireless.${IFACE_2G}.network='lan'
-wuci set wireless.${IFACE_2G}.ssid='W1700K'
-wuci set wireless.${IFACE_2G}.encryption='psk2+ccmp'
-wuci set wireless.${IFACE_2G}.key='12345678'
-
-
-# ------------------------------------------------------------
-# 5 GHz SSID
-# ------------------------------------------------------------
-
-IFACE_5G="wifinet5g"
-wuci set wireless.${IFACE_5G}=wifi-iface
-
-wuci set wireless.${IFACE_5G}.device="${RADIO_5G}"
-wuci set wireless.${IFACE_5G}.mode='ap'
-wuci set wireless.${IFACE_5G}.network='lan'
-wuci set wireless.${IFACE_5G}.ssid='W1700K'
-wuci set wireless.${IFACE_5G}.encryption='psk2+ccmp'
-wuci set wireless.${IFACE_5G}.key='12345678'
-
-
-# ------------------------------------------------------------
-# 6 GHz SSID
-# ------------------------------------------------------------
-
-IFACE_6G="wifinet6g"
-wuci set wireless.${IFACE_6G}=wifi-iface
-
-wuci set wireless.${IFACE_6G}.device="${RADIO_6G}"
-wuci set wireless.${IFACE_6G}.mode='ap'
-wuci set wireless.${IFACE_6G}.network='lan'
-wuci set wireless.${IFACE_6G}.ssid='W1700K-6G'
-wuci set wireless.${IFACE_6G}.encryption='sae+ccmp'
-wuci set wireless.${IFACE_6G}.key='12345678'
+    IFACE_6G="wifinet6g"
+    wuci set wireless.${IFACE_6G}=wifi-iface
+    wuci set wireless.${IFACE_6G}.device="${RADIO_6G}"
+    wuci set wireless.${IFACE_6G}.mode='ap'
+    wuci set wireless.${IFACE_6G}.network='lan'
+    wuci set wireless.${IFACE_6G}.ssid='W1700K-6G'
+    wuci set wireless.${IFACE_6G}.encryption='sae+ccmp'
+    wuci set wireless.${IFACE_6G}.key='12345678'
+else
+    # Publish the non-wireless presets and let boot retire this script. A later
+    # radio recovery cannot tell native defaults from operator-edited Wi-Fi.
+    echo 'W1700K defaults: skipping Wi-Fi defaults (radio inventory incomplete or unreadable); configure Wi-Fi manually.' >&2
+fi
 
 
 # Prepare a complete replacement of boot's delta directory, including earlier

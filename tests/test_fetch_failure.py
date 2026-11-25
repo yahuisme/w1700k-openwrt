@@ -10,6 +10,22 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class FetchFailureTests(unittest.TestCase):
+    def test_failed_output_symlink_stops_source_preparation(self):
+        lines = WORKFLOW.read_text().splitlines()
+        start = next(i for i, line in enumerate(lines) if 'ln -s' in line and 'DK_BIN' in line)
+        end = next(i for i in range(start, len(lines)) if './scripts/feeds update' in lines[i])
+        fragment = '\n'.join(line.strip() for line in lines[start:end])
+        for failure, expected in (('none', ['bin', 'dl', 'continued']),
+                                  ('bin', ['bin']), ('dl', ['bin', 'dl'])):
+            with self.subTest(failure=failure):
+                result = subprocess.run(['bash', '-e', '-c',
+                    'ln() { printf "%s\\n" "$3"; [ "$3" != "$FAILURE" ] || return 17; };\n'
+                    + fragment + '\necho continued'],
+                    env=dict(os.environ, DK_BIN='/fixture/only', FAILURE=failure),
+                    text=True, capture_output=True)
+                self.assertEqual(result.stdout.splitlines(), expected)
+                self.assertEqual(result.returncode, 0 if failure == 'none' else 17)
+
     def test_fetch_failure_stops_before_reset(self):
         lines = WORKFLOW.read_text().splitlines()
         start = next(i for i, line in enumerate(lines) if 'git fetch origin ' in line)

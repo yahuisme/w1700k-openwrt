@@ -194,10 +194,18 @@ class RecordContract(unittest.TestCase):
             (Path(tmp) / 'build.json').write_text(json.dumps(data))
             self.assertEqual(helper.load(), data)
 
+    @staticmethod
+    def freeze_assets(base, assets):
+        proof = base / 'accepted-images.json'
+        raw = json.dumps(dict(version=1, images=[
+            {key: asset[key] for key in ('name', 'size', 'digest')} for asset in assets])).encode()
+        proof.write_bytes(raw)
+        return proof, hashlib.sha256(raw).hexdigest()
+
     def test_readback_contract(self):
         helper = module('verify_release')
         for fault in ('ok', 'missing', 'extra', 'duplicate', 'name', 'size', 'state', 'digest',
-                      'tag', 'draft', 'prerelease', 'download', 'download-wrong', 'download-failure',
+                      'tag', 'release-id', 'draft', 'prerelease', 'download', 'download-wrong', 'download-failure',
                       'digest-installer', 'digest-chainloader'):
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as tmp:
                 base = Path(tmp)
@@ -205,7 +213,8 @@ class RecordContract(unittest.TestCase):
                 digest = 'sha256:' + hashlib.sha256(b'fixture image').hexdigest()
                 assets = [dict(id=i, name=p.name, size=p.stat().st_size, state='uploaded', digest=digest)
                           for i, p in enumerate(paths, 1)]
-                release = dict(tag_name='tag/a', name='tag/a', draft=False, prerelease=False, assets=assets)
+                proof = self.freeze_assets(base, assets)
+                release = dict(id=1000, tag_name='tag/a', name='tag/a', draft=False, prerelease=False, assets=assets)
                 if fault == 'missing': assets.pop()
                 if fault == 'extra': assets.append(dict(assets[0], name='extra'))
                 if fault == 'duplicate': assets.append(dict(assets[0]))
@@ -217,6 +226,7 @@ class RecordContract(unittest.TestCase):
                     token = 'installer' if fault == 'digest-installer' else 'chainload-uboot'
                     next(asset for asset in assets if token in asset['name'])['digest'] = 'sha256:' + '0' * 64
                 if fault == 'tag': release['tag_name'] = 'wrong'
+                if fault == 'release-id': release['id'] = True
                 if fault in ('draft', 'prerelease'): release[fault] = True
                 if fault.startswith('download'):
                     for asset in assets: asset.pop('digest')
@@ -233,11 +243,11 @@ class RecordContract(unittest.TestCase):
                      patch.object(helper.subprocess, 'Popen', side_effect=lambda *a, **k: Download()) as download, \
                      contextlib.redirect_stdout(io.StringIO()):
                     if fault in ('ok', 'download'):
-                        helper.verify('tag/a', paths)
+                        self.assertEqual(helper.verify('tag/a', *proof), 1000)
                         self.assertIn('/tags/tag%2Fa', api.call_args[0][0][-1])
                         self.assertEqual(download.call_count, len(paths) if fault == 'download' else 0)
                     else:
-                        with self.assertRaises(ValueError): helper.verify('tag/a', paths)
+                        with self.assertRaises(ValueError): helper.verify('tag/a', *proof)
 
     def test_title_full_workflow_sha_and_bounded_real_tag_identity(self):
         helper = module('verify_release')
@@ -249,11 +259,12 @@ class RecordContract(unittest.TestCase):
         for case in cases:
             with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
                 _, paths = self.fixture(Path(tmp))
-                release = dict(tag_name='tag/a', name='tag/a', draft=False, prerelease=False,
+                release = dict(id=1000, tag_name='tag/a', name='tag/a', draft=False, prerelease=False,
                                target_commitish='b' * 40 if case == 'wrong-target-commitish' else 'a' * 40,
                                assets=[dict(name=p.name, size=p.stat().st_size, state='uploaded',
                                             digest='sha256:' + hashlib.sha256(p.read_bytes()).hexdigest())
                                        for p in paths])
+                proof = self.freeze_assets(Path(tmp), release['assets'])
                 if case == 'title': release['name'] = 'wrong'
                 if case == 'missing-title': release.pop('name')
                 workflow_sha = {'missing-workflow-sha': '', 'short-workflow-sha': 'a' * 7,
@@ -288,30 +299,35 @@ class RecordContract(unittest.TestCase):
                      patch.object(helper.subprocess, 'check_output', side_effect=api), \
                      contextlib.redirect_stdout(io.StringIO()):
                     if case in good:
-                        helper.verify('tag/a', paths)
+                        helper.verify('tag/a', *proof)
                     else:
                         with self.assertRaises((ValueError, subprocess.CalledProcessError)):
-                            helper.verify('tag/a', paths)
+                            helper.verify('tag/a', *proof)
                 if case.endswith('workflow-sha'):
                     self.assertEqual(reads, [])
                 self.assertLessEqual(sum('/git/tags/' in endpoint for endpoint in reads), 10)
 
-    def test_local_release_set_rejected_before_api(self):
+    def test_invalid_acceptance_rejected_before_api(self):
         helper = module('verify_release')
-        for fault in ('empty-list', 'duplicate', 'missing', 'name', 'empty', 'symlink'):
+        for fault in ('empty-list', 'duplicate', 'missing-image', 'name', 'size', 'digest',
+                      'symlink', 'changed-proof', 'missing-proof'):
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as tmp:
                 base = Path(tmp)
                 _, paths = self.fixture(base)
-                if fault == 'empty-list': paths = []
-                if fault == 'duplicate': paths.append(paths[0])
-                if fault == 'missing': paths[0].unlink()
-                if fault == 'name':
-                    paths[0].rename(paths[0].parent / 'wrong.itb')
-                    paths[0] = paths[0].parent / 'wrong.itb'
-                if fault == 'empty': paths[0].write_bytes(b'')
+                rows: list[dict[str, str | int]] = [dict(name=p.name, size=p.stat().st_size,
+                             digest='sha256:' + hashlib.sha256(p.read_bytes()).hexdigest()) for p in paths]
+                if fault == 'empty-list': rows.clear()
+                if fault == 'duplicate': rows[0] = rows[1]
+                if fault == 'missing-image': rows.pop()
+                if fault == 'name': rows[0]['name'] = 'wrong.itb'
+                if fault == 'size': rows[0]['size'] = 0
+                if fault == 'digest': rows[0]['digest'] = 'invalid'
+                proof, binding = self.freeze_assets(base, rows)
                 if fault == 'symlink':
-                    paths[0].rename(paths[0].parent / 'payload')
-                    paths[0].symlink_to('payload')
+                    proof.rename(base / 'target.json')
+                    proof.symlink_to('target.json')
+                if fault == 'changed-proof': proof.write_bytes(proof.read_bytes() + b'\n')
+                if fault == 'missing-proof': proof.unlink()
                 with patch.object(helper.subprocess, 'check_output') as api:
-                    with self.assertRaises(ValueError): helper.verify('tag', paths)
+                    with self.assertRaises(ValueError): helper.verify('tag', proof, binding)
                     api.assert_not_called()

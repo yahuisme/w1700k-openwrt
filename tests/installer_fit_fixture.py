@@ -3,12 +3,14 @@ from pathlib import Path
 import subprocess
 
 
-def make_fit(directory, *, external=True, position=None, kernel=None):
-    """Return a hashed kernel/FDT/rootfs FIT; directory must already exist.
+def make_fit(directory, *, external=True, position=None, kernel=None, kind='sysupgrade'):
+    """Return a hashed FIT for the selected role; directory must already exist.
 
     External data uses data-offset by default; position selects data-position.
     """
     directory = Path(directory)
+    compression = 'gzip' if kind == 'sysupgrade' else 'lzma'
+    config = 'conf-uboot' if kind == 'chainloader' else 'config-1'
     (directory / 'kernel.bin').write_bytes(kernel if kernel is not None else b'fixture kernel payload\n' * 3)
     (directory / 'rootfs.bin').write_bytes(b'fixture rootfs payload\n' * 4)
     (directory / 'board.dts').write_text('/dts-v1/; / { compatible = "gemtek,w1700k-ubi"; };\n')
@@ -23,7 +25,7 @@ def make_fit(directory, *, external=True, position=None, kernel=None):
             description = "kernel";
             data = /incbin/("kernel.bin");
             type = "kernel"; arch = "arm64"; os = "linux";
-            compression = "none"; load = <0x80200000>; entry = <0x80200000>;
+            compression = "@COMPRESSION@"; load = <0x80200000>; entry = <0x80200000>;
             hash-1 { algo = "crc32"; };
             hash-2 { algo = "sha1"; };
             hash-3 { algo = "sha256"; };
@@ -42,11 +44,12 @@ def make_fit(directory, *, external=True, position=None, kernel=None):
         };
     };
     configurations {
-        default = "config-1";
-        config-1 { kernel = "kernel-1"; fdt = "fdt-1"; loadables = "rootfs-1"; };
+        default = "@CONFIG@";
+        @CONFIG@ { kernel = "kernel-1"; fdt = "fdt-1"; @LOADABLES@ };
     };
 };
-''')
+'''.replace('@COMPRESSION@', compression).replace('@CONFIG@', config).replace(
+        '@LOADABLES@', 'loadables = "rootfs-1";' if kind == 'sysupgrade' else ''))
     command = ['mkimage', '-f', 'fixture.its']
     if external:
         command += ['-E']

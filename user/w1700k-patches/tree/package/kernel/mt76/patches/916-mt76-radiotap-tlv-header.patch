@@ -1,0 +1,36 @@
+From 1a519350810083fce4ae1ab00ff58f02b716f6e0 Mon Sep 17 00:00:00 2001
+From: Felix Fietkau <nbd@nbd.name>
+Date: Tue, 17 Nov 2026 19:01:23 +0100
+Subject: [PATCH] wifi: mt76: skip the radiotap TLVs in mt76_skb_get_hdr()
+
+mt76_skb_get_hdr() skips only the HE radiotap fields, so for a frame
+with EHT radiotap TLVs in front of the 802.11 header it returns the
+first TLV. mt76_check_ccmp_pn() then checks QoS Data of EHT PPDUs
+against the counter of robust Management frames, and
+mt76_rx_aggr_check_ctl() does not see a BlockAckReq.
+
+Return the mac header for a frame with RX_FLAG_RADIOTAP_TLV_AT_END,
+which mac80211 requires to point to the 802.11 header.
+
+Fixes: 97d7ab9f51ec ("wifi: mt76: mt7925: add EHT radiotap support in monitor mode")
+Fixes: e016239fcb98 ("wifi: mt76: mt7996: Add eht radiotap tlv")
+Link: https://patch.msgid.link/20261117180134.2940930-8-nbd@nbd.name
+Signed-off-by: Felix Fietkau <nbd@nbd.name>
+---
+ mt76.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/mt76.h b/mt76.h
+index 1e27af852..2bb305287 100644
+--- a/mt76.h
++++ b/mt76.h
+@@ -1488,6 +1488,9 @@ static inline void *mt76_skb_get_hdr(struct sk_buff *skb)
+ 
+ 	mstat = *((struct mt76_rx_status *)skb->cb);
+ 
++	if (mstat.flag & RX_FLAG_RADIOTAP_TLV_AT_END)
++		return skb_mac_header(skb);
++
+ 	if (mstat.flag & RX_FLAG_RADIOTAP_HE)
+ 		data += sizeof(struct ieee80211_radiotap_he);
+ 	if (mstat.flag & RX_FLAG_RADIOTAP_HE_MU)

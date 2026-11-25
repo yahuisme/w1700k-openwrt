@@ -12,6 +12,10 @@
 | `tree/package/kernel/mt76/patches/911-*` | 功率变更时刷新固件功率限制 | 作者 Yanghan Ye；适配 OpenW1700k 的 `0011-refresh-power-limits-on-txpower-changes`，SKU 启用沿用官方；本项目移除有效 BSS 功率通知的缓存去重，保留错误日志，不增加自动重试 |
 | `tree/package/kernel/mt76/patches/913-*` | TX-free 消息边界与分片校验，截断后完成已有回收与队列唤醒 | 基于 [C]/[D]；保留异常告警，不增加超时 token 回收 |
 | `tree/package/kernel/mt76/patches/914-*` | RRO 丢弃数据及 skb 分配失败时归还接收缓冲区 | 本项目修复；保留成功路径的 skb 所有权转移 |
+| `tree/package/kernel/mt76/patches/915-*` | 跨 NAPI poll 保留 NPU RX 部分帧、逐描述符推进及 cleanup/DMA read barrier | 原样回移正式 mt76 [a801adb](https://github.com/openwrt/mt76/commit/a801adb009f70cde062de22976d4d6c7dc13daa8)，作者 Lorenzo Bianconi；不使用已关闭 #1169 的旧方案 |
+| `tree/package/kernel/mt76/patches/916-*`、`917-*` | EHT radiotap header 定位与首 A-MSDU 子帧 RFC1042 检查 | 原样配套回移正式 mt76 [1a519350](https://github.com/openwrt/mt76/commit/1a519350810083fce4ae1ab00ff58f02b716f6e0) / [6145ff0](https://github.com/openwrt/mt76/commit/6145ff0b02f315f8e80af01345cb3bd6caa62b84)，作者 Felix Fietkau |
+| `patches/004-*` | 原生 `609-02` reset 的两处分支初始化 | 适配 [OpenWrt #26755](https://github.com/openwrt/openwrt/pull/26755) head `10715e0cecff464a3a5b6fd26bac971bf792ebc5`；仅将两处 `val |=` 改为 `val =`，不改 reset 策略 |
+| `patches/005-*` | EIP93 原生软件包依赖 CBC provider | 适配 [OpenWrt #26863](https://github.com/openwrt/openwrt/pull/26863) head `a6f51b8ce24e12275bf578a98df4685c0fb2862e`；仅加 `+kmod-crypto-cbc`，不在 OpenWrt 自动选择 EIP93 |
 | `patches/610-*` | CN/US 功率与频段定制 | 包含 [A] 的 US 高频段及 6 GHz 设置；迁移时对照固定源码，两版补丁处理后的 `db.txt` 一致 |
 | `tree/package/network/utils/iwinfo/patches/998-*` | 按目标 radio 选择接口与创建临时扫描接口 | 本项目扩展官方 multi-radio 实现，使用 UCI radio 索引及原生接口 radio mask |
 | `tree/package/network/utils/iwinfo/patches/999-*` | 按当前频率展示功率列表 | [A]/[B]，作者 Yanghan Ye |
@@ -32,7 +36,9 @@
 
 ## 应用方式
 
-- `002`、`003`、`920`：在固件源码根目录应用。
+- `002`、`003`、`004`、`005`、`920`：在固件源码根目录应用。`004` 修正原生内核补丁，`005` 修正原生 package 依赖，不另造驱动层副本。
+- mt76 保留 `0936617dc529ff9da0385221d3fa6de732231177`，不整体更新 master。默认 caller 校验 source version/hash、各自官方前置补丁字节、`609-02` 和 EIP93 package 段；漂移、上游吸收或新增 ID 冲突均停止，不能静默覆盖。源更新后先重审再撤 guard/回移。
+- ImmortalWrt profile 显式预装 `kmod-crypto-cbc`，正式 final.config、设备 manifest 和 staging 门同时要求 EIP93/CBC；OpenWrt profile 不增这两个包。
 - `610`：复制到 wireless-regdb 补丁目录，在官方 `500` 后应用；ImmortalWrt 仅移除被覆盖的 `600-custom-change-txpower-and-dfs.patch`。
 - `998`：复制到 LuCI 的 luci-mod-status 补丁目录，由 LuCI 构建流程应用。
 - `110`：复制到 ttyd 软件包补丁目录，在官方日志补丁后应用。
@@ -56,7 +62,7 @@
 
 官方优先，保留必要修复与既定定制；官方吸收后验证移除。必要补丁缺失或应用失败即停止构建。
 
-不保留原 `912` MCU 统计改造：没有 W1700K 实测收益，恢复官方统计路径；`911`、`913`、`914` 不依赖它，分别保留功率刷新、TX-free 边界/收尾及 RRO 缓冲区归还修复。两系统官方前置补丁加 `911 → 913 → 914` 已在固定 mt76 源码上零 fuzz 校验，`913` 无需改动。
+不保留原 `912` MCU 统计改造：没有 W1700K 实测收益，恢复官方统计路径；`911`、`913`、`914` 不依赖它，分别保留功率刷新、TX-free 边界/收尾及 RRO 缓冲区归还修复。两系统官方前置补丁加 `911 → 913 → 914 → 915 → 916 → 917` 已在固定 mt76 源码上零 fuzz 校验，`913` 无需改动。
 
 watchdog 默认 `30 → 28` 已能通过官方 `GETTIMEOUT` 回读，不再读取 sysfs 或增加 500ms 喂狗。保留的是组合请求先设置 frequency、后协商 timeout 时的周期一致性修复，含 pending timer 重排、stopped/offline 行为及双 ioctl 失败时的 last-confirmed 上界。不支持一秒超时的次秒喂狗；不据源码契约宣称所有机型或硬件均已验收。
 

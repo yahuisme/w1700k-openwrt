@@ -1,0 +1,21 @@
+Subject: [PATCH] airoha: initialize reset value in native 609-02
+
+Backport OpenWrt #26755 (head 10715e0cecff464a3a5b6fd26bac971bf792ebc5).
+Only replace the two uninitialized OR assignments; preserve native patch order.
+Source: https://github.com/openwrt/openwrt/pull/26755
+Original PR author: paulojjj; buildroot-layer adaptation by this project.
+
+--- a/target/linux/airoha/patches-6.18/609-02-clk-en7523-add-support-for-dedicated-PCIe-PERSTOUT-r.patch
++++ b/target/linux/airoha/patches-6.18/609-02-clk-en7523-add-support-for-dedicated-PCIe-PERSTOUT-r.patch
+@@ -71,9 +71,9 @@
+ +
+ +	/* For PCIC reset logic is inverted, 0:assert 1:deassert*/
+ +	if (addr == REG_NP_SCU_PCIC)
+-+		val |= assert ? 0 : BIT(id % RST_NR_PER_BANK);
+++		val = assert ? 0 : BIT(id % RST_NR_PER_BANK);
+ +	else
+-+		val |= assert ? BIT(id % RST_NR_PER_BANK) : 0;
+++		val = assert ? BIT(id % RST_NR_PER_BANK) : 0;
+  
+  	regmap_update_bits(rst_data->map, addr, BIT(id % RST_NR_PER_BANK),
+ -			   assert ? BIT(id % RST_NR_PER_BANK) : 0);

@@ -49,6 +49,8 @@ PATCH_DIR="$DK_USER/w1700k-patches"
 for file in \
     patches/002-w1700k-cpufreq-resources.patch \
     patches/003-airoha-fan-init.patch \
+    patches/004-airoha-reset-initialize-value.patch \
+    patches/005-eip93-cbc-dependency.patch \
     patches/920-wifi-non-mlo-ap-txpower.patch \
     patches/610-w1700k-power-30.patch \
     patches/998-single-wiphy.patch \
@@ -59,10 +61,53 @@ for file in \
     tree/package/kernel/mt76/patches/911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch \
     tree/package/kernel/mt76/patches/913-mt76-mt7996-clean-up-truncated-txfree.patch \
     tree/package/kernel/mt76/patches/914-mt76-mt7996-free-rro-drop-buffers.patch \
+    tree/package/kernel/mt76/patches/915-mt76-npu-rx-packet-reassembly.patch \
+    tree/package/kernel/mt76/patches/916-mt76-radiotap-tlv-header.patch \
+    tree/package/kernel/mt76/patches/917-mt76-amsdu-subframe-header.patch \
     tree/package/network/utils/iwinfo/patches/998-fix-multi-radio-scan.patch \
     tree/package/network/utils/iwinfo/patches/999-fix-txpower-list.patch \
     tree/package/system/procd/patches/001-watchdog-reconcile-timeout.patch; do
     [ -s "$PATCH_DIR/$file" ] || { echo "ERROR: Required patch missing or empty: $file" >&2; exit 1; }
+done
+# The backports are reviewed only for this mt76 source and native predecessor set.
+# Stop on absorption/drift instead of overwriting a new upstream patch.
+MT76_RECIPE=package/kernel/mt76
+if [ "$(grep -E '^PKG_(SOURCE_VERSION|MIRROR_HASH):=' "$MT76_RECIPE/Makefile")" != 'PKG_SOURCE_VERSION:=0936617dc529ff9da0385221d3fa6de732231177
+PKG_MIRROR_HASH:=3a3844097e66021f21f0ec8508cb740ef6536a2243f74c47fd5a898edb26839f' ]; then
+    echo 'ERROR: unreviewed mt76 source; review backport absorption' >&2
+    exit 1
+fi
+for file in \
+    915-mt76-npu-rx-packet-reassembly.patch \
+    916-mt76-radiotap-tlv-header.patch \
+    917-mt76-amsdu-subframe-header.patch; do
+    target="$MT76_RECIPE/patches/$file"
+    if [ -e "$target" ] || [ -L "$target" ]; then
+        echo "ERROR: conflicting mt76 backport: $file" >&2
+        exit 1
+    fi
+done
+MT76_NATIVE=$(cd "$MT76_RECIPE/patches" && sha256sum -- *.patch) || exit 1
+case "$MT76_NATIVE" in
+    'b3bf23c98c163501848a9908f1ef09545eec73ff7c5e1db22bf2f00dd3605a4e  100-wifi-mt76-mt76x02-restart-mac_work-after-a-channel-change.patch
+7dbaad684fa1f3179bd7d42787d777f353f0937869b5a2eb6d1f255784758abb  101-wifi-mt76-mt76x2u-limit-TX-A-MSDUs-to-3-kB-at-SuperSpeed.patch') ;;
+    'b3bf23c98c163501848a9908f1ef09545eec73ff7c5e1db22bf2f00dd3605a4e  100-wifi-mt76-mt76x02-restart-mac_work-after-a-channel-change.patch
+c8aba1f8bd5f76c1e3a7f06d0eb60bab28592cc76fda7c516df64de6111fe4b2  100-wifi-mt76-mt7996-Use-tx_power-from-default-fw-if-EEP.patch
+7dbaad684fa1f3179bd7d42787d777f353f0937869b5a2eb6d1f255784758abb  101-wifi-mt76-mt76x2u-limit-TX-A-MSDUs-to-3-kB-at-SuperSpeed.patch') ;;
+    *) echo 'ERROR: unreviewed mt76 native patches; review backport order' >&2; exit 1 ;;
+esac
+RESET_PATCH=target/linux/airoha/patches-6.18/609-02-clk-en7523-add-support-for-dedicated-PCIe-PERSTOUT-r.patch
+if [ "$(sha256sum "$RESET_PATCH")" != "b78df17fb157eec45ffcb654c7f1f8158ac24ed3f780aba300371515984afaa2  $RESET_PATCH" ] ||
+   [ "$(sed -n '/^define KernelPackage\/crypto-hw-eip93$/,/^endef$/p' package/kernel/linux/modules/crypto.mk | sha256sum)" != '7e9de5195ddd98c8112f82ce4f8c18d697e503adf951b33de9cb747a8e02b173  -' ]; then
+    echo 'ERROR: unreviewed Airoha reset/EIP93 source; review native fix absorption' >&2
+    exit 1
+fi
+# Dry-run both before changing either native owner.
+for file in 004-airoha-reset-initialize-value.patch 005-eip93-cbc-dependency.patch; do
+    patch -p1 --batch --forward --fuzz=0 --no-backup-if-mismatch --dry-run < "$PATCH_DIR/patches/$file"
+done
+for file in 004-airoha-reset-initialize-value.patch 005-eip93-cbc-dependency.patch; do
+    patch -p1 --batch --forward --fuzz=0 --no-backup-if-mismatch < "$PATCH_DIR/patches/$file"
 done
 # Backport the reviewed ttyd event loop fix.
 TTYD_RECIPE=feeds/packages/utils/ttyd

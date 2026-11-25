@@ -2,6 +2,11 @@
 user/w1700k-patches/patches/110-run-libuv-loop.patch text eol=lf whitespace=-blank-at-eol
 user/w1700k-patches/patches/002-w1700k-cpufreq-resources.patch whitespace=-space-before-tab
 user/w1700k-patches/patches/003-airoha-fan-init.patch text eol=lf whitespace=-blank-at-eol,-space-before-tab
+user/w1700k-patches/patches/004-airoha-reset-initialize-value.patch whitespace=-blank-at-eol,-space-before-tab
+user/w1700k-patches/patches/005-eip93-cbc-dependency.patch whitespace=-space-before-tab
+user/w1700k-patches/tree/package/kernel/mt76/patches/915-mt76-npu-rx-packet-reassembly.patch whitespace=-blank-at-eol,-space-before-tab
+user/w1700k-patches/tree/package/kernel/mt76/patches/916-mt76-radiotap-tlv-header.patch whitespace=-blank-at-eol,-space-before-tab
+user/w1700k-patches/tree/package/kernel/mt76/patches/917-mt76-amsdu-subframe-header.patch whitespace=-blank-at-eol,-space-before-tab
 user/w1700k-patches/patches/610-w1700k-power-30.patch whitespace=-space-before-tab
 user/w1700k-patches/patches/920-wifi-non-mlo-ap-txpower.patch whitespace=-blank-at-eol,-space-before-tab
 user/w1700k-patches/tree/package/kernel/mt76/patches/911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch whitespace=-blank-at-eol,-space-before-tab

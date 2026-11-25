@@ -1,0 +1,18 @@
+Subject: [PATCH] crypto: require CBC provider for EIP93 fallback
+
+Backport the native package dependency from OpenWrt #26863
+(head a6f51b8ce24e12275bf578a98df4685c0fb2862e). Dependency only:
+this does not select EIP93 on OpenWrt.
+Source: https://github.com/openwrt/openwrt/pull/26863
+Original PR author: dormancygrace; buildroot-layer adaptation by this project.
+
+--- a/package/kernel/linux/modules/crypto.mk
++++ b/package/kernel/linux/modules/crypto.mk
+@@ -554,6 +554,7 @@
+   TITLE:=MTK EIP93 crypto module
+   DEPENDS:=@(TARGET_ramips_mt7621||TARGET_airoha) \
+ 	+kmod-crypto-authenc \
++	+kmod-crypto-cbc \
+ 	+kmod-crypto-des \
+ 	+kmod-crypto-md5 \
+ 	+kmod-crypto-sha1 \

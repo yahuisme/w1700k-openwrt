@@ -34,7 +34,23 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s user/w1700k-patches/te
 
 `914` 另检查 RRO 拒绝数据与 skb 分配失败的缓冲区回收。测试应用实际补丁并检查源码契约，不编译或执行内核 C，不代替固件构建和实机验收。
 
-两系统完整 mt76 源码应用顺序为各自官方前置补丁、`911`、`913`、`914`。在 mt76 `0936617dc529ff9da0385221d3fa6de732231177` 上逐个实际应用，要求 `--fuzz=0 --no-backup-if-mismatch`、无 reject/backup；合法行偏移不是依赖。删掉 `912` 后 `913` 原有 `next:` 上下文仍匹配，无需刷新。
+两系统完整 mt76 源码应用顺序为各自官方前置补丁、`911`、`913`、`914`、`915`、`916`、`917`。在 mt76 `0936617dc529ff9da0385221d3fa6de732231177` 上逐个实际应用，要求 `--fuzz=0 --no-backup-if-mismatch`、无 reject/backup；合法行偏移不是依赖。删掉 `912` 后 `913` 原有 `next:` 上下文仍匹配，无需刷新。
+
+## 原生缺陷回移回归
+
+共享 payload 共 20 个 patch，ImmortalWrt 另有一个 fw4 refresh。新增 `004` / `005` 位于 buildroot 层，`915` / `916` / `917` 位于 mt76 原生 package patch 层。正式回归在仓库根目录 `tests/test_native_fixes.py`，精确源码、官方 commit patch 和 SHA256 保存在 `tests/fixtures/w1700k-native-fixes/`，不依赖 scratch 生效。
+
+从 fresh 仓库运行（ImmortalWrt 先在 fresh disposable copy 执行 `scripts/select_distribution.py immortalwrt`）：
+
+```bash
+flock /path/to/shared-tests.lock /opt/test-tools/bin/run-bounded-test \
+  /opt/test-tools/run-in-repo "$PWD" env -u OPENWRT_SOURCE PYTHONPATH=.:tests \
+  python3 -m unittest test_native_fixes test_mt76_payloads -v
+```
+
+测试执行实际 customization 的 preflight/guard/apply/copy 块，再在 exact selected mt76 全文件上有序零 fuzz 应用官方前置和全部本地 mt76 补丁；reset 重建各自 Linux 6.18.64/.60 完整 clock 文件的全部 touching 原生补丁。完整 `custom.sh` 及全部 payload missing/empty 由 `test_shared_patch_source.py` 配合精确 source 环境另验。最终配置/设备 manifest/真实 staging shell 覆盖有效 control、缺包、module/disabled/重复/冲突、manifest 缺失/重复/空/符号链接；OpenWrt 不额外选择 EIP93。
+
+NPU 部分帧跨 poll、分配失败/cleanup 及 HE/EHT/IV/A-MSDU oracle 是绑定正式完整函数 hash 的 Python 数据流模型；含源码突变负例。它们不执行 kernel C、DMA、射频或实机网络，不替代授权 hosted build 及硬件验收。当前 mt76 master 的后继修改已核对：五个 reached 函数与正式修复版本相同。selected 缺独立的较早 WCID 生命周期修复 `6a2f1454`；仅在 oracle 内显式正规化其 prologue 后比较 A-MSDU 完整函数，不将它作为本次 header 定位修复的前置，不声称修复其它 station-removal/replay 风险。未导入其余 205-commit 跨度。
 
 ## 多射频扫描校验
 

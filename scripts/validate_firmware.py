@@ -27,8 +27,11 @@ def validate(config, targets, distro):
         for package in ('luci-app-' + app, 'luci-i18n-' + app + '-zh-cn'):
             if lines.count('CONFIG_PACKAGE_' + package + '=y') != 1:
                 raise ValueError('missing/duplicate required application: ' + package)
-    for package in ('curl', 'etherwake', 'ttyd', 'wpad-openssl',
-                    'kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag', 'kmod-netlink-diag'):
+    dependencies = ['curl', 'etherwake', 'ttyd', 'wpad-openssl',
+                    'kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag', 'kmod-netlink-diag']
+    if distro == 'immortalwrt':
+        dependencies += ['kmod-crypto-hw-eip93', 'kmod-crypto-cbc']
+    for package in dependencies:
         symbol = 'CONFIG_PACKAGE_' + package
         selections = [line for line in lines if line.startswith(symbol + '=')
                       or line == '# ' + symbol + ' is not set']
@@ -43,6 +46,15 @@ def validate(config, targets, distro):
     images = sorted(targets.rglob('*sysupgrade*'))
     image = targets / 'airoha/an7581' / image_name
     profiles = targets / 'airoha/an7581/profiles.json'
+    if distro == 'immortalwrt':
+        manifest = image.with_name(image_name.removesuffix('-squashfs-sysupgrade.itb') + '.manifest')
+        if manifest.is_symlink() or not manifest.is_file() or manifest.stat().st_size == 0:
+            raise ValueError('missing regular device manifest: kmod-crypto-hw-eip93 / kmod-crypto-cbc')
+        packages = [line.split(' - ', 1)[0] for line in manifest.read_text().splitlines()
+                    if ' - ' in line]
+        for package in ('kmod-crypto-hw-eip93', 'kmod-crypto-cbc'):
+            if packages.count(package) != 1:
+                raise ValueError('missing/duplicate required manifest dependency: ' + package)
     if images != [image] or not image.is_file() or image.is_symlink() or image.stat().st_size == 0:
         raise ValueError('expected exactly one nonempty W1700K sysupgrade image')
     if sorted(targets.rglob('profiles.json')) != [profiles] or not profiles.is_file():

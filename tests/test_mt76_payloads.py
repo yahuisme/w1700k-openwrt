@@ -17,7 +17,7 @@ class Mt76PayloadTests(unittest.TestCase):
     def preflight(self, broken=None, empty=False):
         custom = (ROOT / 'user/default/custom.sh').read_text()
         start = custom.index('# Required patches')
-        end = custom.index('# Backport the reviewed ttyd event loop fix.', start)
+        end = custom.index('# The backports are reviewed only', start)
         block = custom[start:end]
         names = re.findall(r'    ((?:tree|patches)/[^ ]+\.patch)', block)
         self.assertEqual(set(names), {str(p.relative_to(PATCHES))

@@ -36,7 +36,10 @@ class OfficialMigrationTests(unittest.TestCase):
         self.assertEqual(mt76_patches, [
             '911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch',
             '913-mt76-mt7996-clean-up-truncated-txfree.patch',
-            '914-mt76-mt7996-free-rro-drop-buffers.patch'])
+            '914-mt76-mt7996-free-rro-drop-buffers.patch',
+            '915-mt76-npu-rx-packet-reassembly.patch',
+            '916-mt76-radiotap-tlv-header.patch',
+            '917-mt76-amsdu-subframe-header.patch'])
         self.assertFalse((tree / 'package/network/config/firewall4').exists())
         self.assertFalse(list(tree.rglob('939-*')))
 

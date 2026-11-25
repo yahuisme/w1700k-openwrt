@@ -33,6 +33,8 @@ for app in ('airoha-fancontrol', 'airoha-flowsense', 'airoha-npu', 'wifi7', 'wol
 CONFIG += ''.join(f'CONFIG_PACKAGE_{pkg}=y\n' for pkg in (
     'curl', 'etherwake', 'ttyd', 'wpad-openssl', 'kmod-nft-tproxy', 'kmod-tun', 'kmod-inet-diag',
     'kmod-netlink-diag'))
+if MATRIX['system'] == 'immortalwrt':
+    CONFIG += 'CONFIG_PACKAGE_kmod-crypto-hw-eip93=y\nCONFIG_PACKAGE_kmod-crypto-cbc=y\n'
 
 
 class ReleaseTests(unittest.TestCase):
@@ -41,6 +43,9 @@ class ReleaseTests(unittest.TestCase):
         output = base / 'openwrt_bin/targets/airoha/an7581'
         output.mkdir(parents=True)
         (base / '.config').write_text(CONFIG)
+        if MATRIX['system'] == 'immortalwrt':
+            manifest = output / (IMAGE.removesuffix('-squashfs-sysupgrade.itb') + '.manifest')
+            manifest.write_text('kmod-crypto-hw-eip93 - 6.18.60-r1\nkmod-crypto-cbc - 6.18.60-r1\n')
         (output / IMAGE).write_bytes(b'fixture-not-firmware')
         data = {'target': 'airoha/an7581', 'version_code': 'r123-abcdef', 'profiles': {
             'gemtek_w1700k-ubi': {'supported_devices': ['gemtek,w1700k-ubi'],

@@ -27,6 +27,11 @@ COMMON = (
 )
 POWER = "610-w1700k-power-30.patch"
 ADDED = {
+    "patches/004-airoha-reset-initialize-value.patch",
+    "patches/005-eip93-cbc-dependency.patch",
+    "tree/package/kernel/mt76/patches/915-mt76-npu-rx-packet-reassembly.patch",
+    "tree/package/kernel/mt76/patches/916-mt76-radiotap-tlv-header.patch",
+    "tree/package/kernel/mt76/patches/917-mt76-amsdu-subframe-header.patch",
     "patches/003-airoha-fan-init.patch",
     "patches/110-run-libuv-loop.patch",
     "tree/package/kernel/mt76/patches/913-mt76-mt7996-clean-up-truncated-txfree.patch",

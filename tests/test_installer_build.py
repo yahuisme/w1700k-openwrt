@@ -1,7 +1,9 @@
 """Exercise two native lean image passes without compiling or invoking real make."""
+from contextlib import ExitStack
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -28,6 +30,7 @@ VERIFY_ROOT = '\tpython3 /cache-scripts/external_packages.py verify-root $(1) $(
 METADATA = ('json_overview_image_info', 'checksum')
 LEAN_RECOVERY = b'lean-native-recovery-without-installer'
 OUTER_INSTALLER = b'lean-native-outer-installer'
+SOURCE_COMMIT = 'a' * 40
 
 
 def digest(data):
@@ -53,11 +56,8 @@ class InstallerBuild(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('isolated_build_installer', script)
         helper = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(helper)
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as resources:
             source = Path(tmp) / 'source'; source.mkdir()
-            subprocess.run(['git', 'init', '-q', str(source)], check=True)
-            subprocess.run(['git', '-C', str(source), '-c', 'user.name=fixture', '-c',
-                            'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture', '--allow-empty'], check=True)
             installer = Path(tmp) / 'installer'
             entrypoints = ('installer/install.sh', 'lib/preinit/00_installer')
             for relative in entrypoints:
@@ -108,8 +108,10 @@ class InstallerBuild(unittest.TestCase):
 
             manifest()
             original = tree_bytes(directory)
+            # A descriptor to the original target stays open across the call:
+            # unlink + copy cannot masquerade as untouched via inode reuse.
+            target_handle = resources.enter_context((directory / upgrade).open('rb'))
             original_copy = shutil.copytree
-            real_run = subprocess.run
             real_rename, real_write = Path.rename, Path.write_bytes
             injected = []
 
@@ -140,8 +142,6 @@ class InstallerBuild(unittest.TestCase):
                 return original_copy(a, b, *args, **kwargs)
 
             def run(command, **kwargs):
-                if command[0] == 'git':
-                    return real_run(command, **kwargs)
                 if 'fwtool' in str(command[0]):
                     Path(command[2]).write_text('{}')
                     return subprocess.CompletedProcess(command, 0)
@@ -237,6 +237,7 @@ class InstallerBuild(unittest.TestCase):
                  patch.object(Path, 'rename', rename), \
                  patch.object(Path, 'write_bytes', write), \
                  patch.object(helper.shutil, 'copytree', side_effect=restore_copy), \
+                 patch.object(helper.subprocess, 'check_output', return_value=SOURCE_COMMIT + '\n') as source_check, \
                  patch.object(helper.subprocess, 'run', side_effect=run):
                 errors = {
                     'config-mutated': (ValueError, 'configuration changed'),
@@ -277,6 +278,8 @@ class InstallerBuild(unittest.TestCase):
                         self.assertIn('include/rootfs.mk', str(caught.exception))
                 else:
                     helper.build(source, installer, profile)
+                    source_check.assert_called_once_with(['git', '-C', str(source), 'rev-parse',
+                                                          '--verify', 'HEAD'], text=True)
                     self.assertEqual(len(calls), 6)
                     self.assertEqual(seed_sets[0], seed_sets[1])
                     metadata_check.assert_called()
@@ -308,6 +311,9 @@ class InstallerBuild(unittest.TestCase):
             self.assertEqual((source / '.external-packages/provenance.json').read_text(), '{"frozen":true}')
             self.assertEqual((source / '.config').read_bytes(), original_config)
             self.assertEqual(tree_bytes(source / 'files'), formal_overlay)
+            if fail in ('rename-before', 'rename-error', 'rename-interrupt'):
+                self.assertTrue(os.path.samefile(directory / upgrade, target_handle.fileno()),
+                                'an untouched formal target must not be deleted and recopied')
             if fail in ('restore-failure', 'first-restore-failure', 'multi-restore-failure'):
                 backups = list(source.glob('.installer-*/formal-target'))
                 self.assertEqual(len(backups), 1)
@@ -330,6 +336,7 @@ class InstallerBuild(unittest.TestCase):
             if not fail:
                 self.assertEqual((directory / output).read_bytes(), OUTER_INSTALLER)
                 proof = json.loads((directory / 'installer.json').read_text())
+                self.assertEqual(proof['source'], SOURCE_COMMIT)
                 self.assertEqual(proof['payload']['digest'], digest(original[upgrade][0]))
                 self.assertEqual(proof['recovery']['digest'], digest(LEAN_RECOVERY))
                 self.assertEqual(set(proof['recovery_packages']), seed_sets[0])

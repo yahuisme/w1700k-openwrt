@@ -92,12 +92,20 @@ check_mtd() {
 }
 
 validate_layout() {
+  local erase_size write_size
   # OpenWrt target/linux/airoha/dts/an7581-w1700k-ubi.dts.
   # Validate the running installer DT, not existing UBI volume health.
   tr '\000' '\n' < /proc/device-tree/compatible | grep -qx 'gemtek,w1700k-ubi' || die "Unsupported board"
   check_mtd mtd0 vendor $((0x600000)) 0
   check_mtd mtd1 chainloader $((0x100000)) $((0x600000))
   check_mtd mtd2 ubi $((0x1b700000)) $((0x700000))
+  # Both native image recipes use 128 KiB blocks and 2 KiB pages. Partition
+  # labels/offsets alone do not establish compatibility with this UBI layout.
+  erase_size="$(cat /sys/class/mtd/mtd2/erasesize)" || die "Unsupported UBI NAND geometry: unreadable erase size"
+  write_size="$(cat /sys/class/mtd/mtd2/writesize)" || die "Unsupported UBI NAND geometry: unreadable page size"
+  if [ "$erase_size" != 131072 ] || [ "$write_size" != 2048 ]; then
+    die "Unsupported UBI NAND geometry: expected 128 KiB erase blocks and 2 KiB pages"
+  fi
   if [ -d /sys/class/ubi/ubi0 ]; then
     [ "$(cat /sys/class/ubi/ubi0/mtd_num)" = 2 ] || die "ubi0 is not attached to mtd2"
   fi

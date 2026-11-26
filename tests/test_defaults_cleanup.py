@@ -55,6 +55,9 @@ class DefaultsCleanup(unittest.TestCase):
             for applet in ('sh', 'ash', 'ls', 'basename', 'sync', 'rm', 'sed', 'mktemp',
                            'mkdir', 'cp', 'mv', 'cat', 'chmod'):
                 (root / 'bin' / applet).symlink_to('busybox')
+            (root / 'bin/sync').unlink()
+            (root / 'bin/sync').write_text('#!/bin/sh\nexit 0\n')
+            (root / 'bin/sync').chmod(0o755)
             (root / 'dev/null').touch()
             (root / 'lib/functions/system.sh').touch()
             (root / 'sbin/uci').write_text('''#!/bin/sh
@@ -79,12 +82,16 @@ run_uci "$@" || exit $?
 exec /sbin/uci-real "$@"
 ''')
             (root / 'sbin/uci').chmod(0o755)
-            for command in ('cp', 'cat', 'mv'):
+            for command in ('cp', 'cat', 'mv', 'sed'):
                 target = root / 'bin' / command
                 target.unlink()
                 target.write_text('#!/bin/sh\n' + {
                     'cp': '[ "$FAULT" != copy ] || exit 1\n',
                     'cat': '[ "$FAULT" != append ] || exit 1\n',
+                    'sed': '''case "$FAULT:$*" in
+ ifaces:*wifi-iface*) echo "$FAULT" >> /fault-events; exit 1;;
+esac
+''',
                     'mv': '''case "$FAULT:$1" in
  signal-before-publish-*:*/next)
   echo "$FAULT" >> /fault-events
@@ -153,6 +160,8 @@ esac
             fault_events = (root / 'fault-events').read_text().splitlines() if (root / 'fault-events').exists() else []
             if fault.startswith(('signal-before-publish-', 'signal-after-publish-')) or fault == 'nonzero-after-publish':
                 self.assertEqual(fault_events, [fault], 'the actual rename boundary must be reached')
+            if fault == 'ifaces':
+                self.assertEqual(fault_events, [fault], 'the iface inventory boundary must be reached')
             calls = (root / 'calls').read_text().splitlines()
             after = sh('uci export').stdout
             retained = script.exists()
@@ -163,7 +172,7 @@ esac
                        for p in leftovers if (p / 'previous/system').is_file()}
             pending = sh('uci changes').stdout
             operator_after = None
-            if restore_radios or extra_band:
+            if restore_radios or extra_band or fault == 'ifaces':
                 self.assertEqual((root / 'etc/config/wireless').read_bytes(), wireless_before)
             if operator_reboot:
                 wifi = (" && uci set wireless.operator.ssid='operator-after-boot'"
@@ -347,6 +356,17 @@ esac
         for extra_band in ('5g', 'unknown'):
             with self.subTest(extra_band=extra_band):
                 check(extra_band=extra_band)
+
+    def test_iface_inventory_failure_leaves_wireless_defaults_untouched(self):
+        result, _, after, calls, retained, pending = self.run_boot(fault='ifaces', anonymous=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('skipping Wi-Fi defaults', result.stderr)
+        self.assertFalse(retained, calls)
+        self.assertIn("list ipaddr '192.168.8.1/24'", after)
+        self.assertIn("option ssid 'private'", after)
+        self.assertFalse(any(f' {op} wireless.' in f' {call}' for call in calls
+                             for op in ('set', 'delete', 'add_list')), calls)
+        self.assertEqual(pending, '')
 
 
 if __name__ == '__main__':

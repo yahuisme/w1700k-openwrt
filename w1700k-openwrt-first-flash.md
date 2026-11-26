@@ -6,6 +6,8 @@
 
 ## 1. 准备
 
+本教程只适用于使用 128 KiB 擦除块、2 KiB 页的 NAND。若设备使用 256 KiB 擦除块、4 KiB 页，或无法确认 NAND 规格，请先停止，不要写入 Chainloader。
+
 - Windows 电脑、网线、3.3V USB-TTL
 - [PuTTY 中文版](https://github.com/larryli/putty)：串口终端
 - [Tftpd64 官方下载](https://github.com/PJO2/tftpd64/releases/)：TFTP 服务

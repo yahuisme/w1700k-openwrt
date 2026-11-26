@@ -137,14 +137,17 @@ def build(source, installer, profile):
         (work / 'formal-package-Makefile').write_text(original_make)
         (work / 'formal-rootfs.mk').write_text(original_rootfs)
         had_files = (source / 'files').exists()
+        recipes_changed = rebuild_started = False
         restored = False
         try:
             if had_files:
                 (source / 'files').rename(work / 'formal-files')
             (source / 'files').mkdir()
+            recipes_changed = True
             package_make.write_text(original_make.replace(refresh, '\t@:\n'))
             rootfs_make.write_text(original_rootfs.replace(check_root, '\t@:\n'))
             # First create a clean, lean recovery without the auto-install hook.
+            rebuild_started = True
             rebuild(source, packages, 'recovery')
             if (source / '.config').read_bytes() != original_config:
                 raise ValueError('Installer configuration changed during native rebuild')
@@ -201,12 +204,19 @@ def build(source, installer, profile):
                 if backup is not None:
                     shutil.copytree(backup, target, symlinks=True)
 
-            actions = [
-                ('package/Makefile', lambda: package_make.write_bytes((work / 'formal-package-Makefile').read_bytes())),
-                ('include/rootfs.mk', lambda: rootfs_make.write_bytes((work / 'formal-rootfs.mk').read_bytes())),
-                ('.config', lambda: (source / '.config').write_bytes((work / 'formal-config').read_bytes())),
-                ('target', lambda: restore_tree(work / 'formal-target', directory)),
-            ]
+            # Do not replace untouched outputs on early setup failures. Mark a
+            # phase before it can mutate files, including partial write failures.
+            actions = []
+            if recipes_changed:
+                actions += [
+                    ('package/Makefile', lambda: package_make.write_bytes((work / 'formal-package-Makefile').read_bytes())),
+                    ('include/rootfs.mk', lambda: rootfs_make.write_bytes((work / 'formal-rootfs.mk').read_bytes())),
+                ]
+            if rebuild_started:
+                actions += [
+                    ('.config', lambda: (source / '.config').write_bytes((work / 'formal-config').read_bytes())),
+                    ('target', lambda: restore_tree(work / 'formal-target', directory)),
+                ]
             # A rename can fail before OR after moving. Trust the backup's
             # existence, not an assignment after rename; never erase an unmoved overlay.
             if (work / 'formal-files').exists() or not had_files:

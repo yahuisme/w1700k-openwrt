@@ -13,7 +13,7 @@ import sys
 DEVICE = 'gemtek_w1700k-ubi'
 
 
-def validate(config, targets, distro):
+def _native_profile(config, targets, distro):
     if distro not in ('openwrt', 'immortalwrt'):
         raise ValueError('unsupported distribution: ' + distro)
     image_name = f'{distro}-airoha-an7581-{DEVICE}-squashfs-sysupgrade.itb'
@@ -72,19 +72,28 @@ def validate(config, targets, distro):
                 or 'sysupgrade' in entry.get('name', '')]
     if len(upgrades) != 1 or upgrades[0].get('name') != image_name or upgrades[0].get('type') != 'sysupgrade' or upgrades[0].get('filesystem') != 'squashfs':
         raise ValueError('wrong/duplicate sysupgrade metadata')
-    if upgrades[0].get('size') != image.stat().st_size:
-        raise ValueError('image size differs from profiles.json')
-    digest = upgrades[0].get('sha256')
-    if not isinstance(digest, str) or not re.fullmatch(r'[0-9a-fA-F]{64}', digest):
-        raise ValueError('missing/invalid native image sha256')
-    with image.open('rb') as stream:
-        actual = hashlib.file_digest(stream, 'sha256').hexdigest()
-    if actual.lower() != digest.lower():
-        raise ValueError('image digest differs from profiles.json')
     if not re.fullmatch(r'r[0-9]+-[0-9a-f]+', data['version_code']):
         raise ValueError('invalid version_code')
-    return dict(version=1, images=[dict(name=image_name, size=image.stat().st_size,
-                                       digest='sha256:' + actual)])
+    return image, profile, upgrades[0]
+
+
+def _check_native_upgrade(measured, native):
+    if native.get('size') != measured['size']:
+        raise ValueError('image size differs from profiles.json')
+    digest = native.get('sha256')
+    if not isinstance(digest, str) or not re.fullmatch(r'[0-9a-fA-F]{64}', digest):
+        raise ValueError('missing/invalid native image sha256')
+    if measured['digest'] != 'sha256:' + digest.lower():
+        raise ValueError('image digest differs from profiles.json')
+
+
+def validate(config, targets, distro):
+    image, _, native = _native_profile(config, targets, distro)
+    with image.open('rb') as stream:
+        actual = hashlib.file_digest(stream, 'sha256').hexdigest()
+    measured = dict(name=image.name, size=image.stat().st_size, digest='sha256:' + actual)
+    _check_native_upgrade(measured, native)
+    return dict(version=1, images=[measured])
 
 
 def finalize(config, targets, distro):
@@ -98,18 +107,16 @@ def finalize(config, targets, distro):
                    'PACKAGE_ubi-utils', 'PACKAGE_fitblk'):
         if lines.count('CONFIG_' + symbol + '=y') != 1:
             raise ValueError('missing/duplicate native installer dependency: ' + symbol)
-    native = validate(config, targets, distro)
-    upgrade = native['images'][0]
+    image, profile, native_upgrade = _native_profile(config, targets, distro)
     prefix = f'{distro}-airoha-an7581-{DEVICE}-'
     names = [prefix + suffix + '.itb' for suffix in (
         'squashfs-sysupgrade', 'initramfs-installer', 'chainload-uboot')]
     entries = collect(targets, dict(target='airoha/an7581', device='W1700K', images=names))
     accepted = {row['name']: row for row in entries}
-    if accepted[names[0]] != upgrade:
-        raise ValueError('staged sysupgrade differs from native acceptance')
-    directory = targets / 'airoha/an7581'
-    data = json.loads((directory / 'profiles.json').read_text())
-    chains = [row for row in data['profiles'][DEVICE]['images']
+    # Bind one measurement from the live inventory to both independent records.
+    upgrade = accepted[image.name]
+    _check_native_upgrade(upgrade, native_upgrade)
+    chains = [row for row in profile['images']
               if row.get('type') == 'chainload-uboot.itb' or 'chainload-uboot' in row.get('name', '')]
     chain = accepted[names[2]]
     if (len(chains) != 1 or chains[0].get('name') != names[2]
@@ -120,7 +127,7 @@ def finalize(config, targets, distro):
             or not re.fullmatch(r'[0-9a-fA-F]{64}', chains[0]['sha256'])
             or 'sha256:' + chains[0]['sha256'].lower() != chain['digest']):
         raise ValueError('chainloader differs from native profiles.json or exceeds 1 MiB')
-    metadata = directory / 'installer.json'
+    metadata = image.with_name('installer.json')
     if metadata.is_symlink() or not metadata.is_file():
         raise ValueError('missing regular installer.json')
     record = json.loads(metadata.read_text())

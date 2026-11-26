@@ -44,6 +44,9 @@ class InstallerDocsTest(unittest.TestCase):
                 self.assertIn('无法进入原厂 U-Boot 时，本教程不适用', text)
                 self.assertIn('会清除原有系统与配置', text)
                 self.assertIn('UBI2 兼容版本为 2.0', text)
+                preparation = text.split('## 1. 准备', 1)[1].split('## 2.', 1)[0]
+                self.assertIn('128 KiB 擦除块、2 KiB 页', preparation)
+                self.assertIn('无法确认 NAND 规格，请先停止，不要写入 Chainloader', preparation)
                 self.assertNotRegex(text, r'跳过|只执行|只需第二个|mtd list')
                 flash, _ = text.split('### 写入 Chainloader', 1)[1].split('### 启动 Installer', 1)
                 self.assertIn('不能在替换版 U-Boot 中执行', flash.split('```', 1)[0])

@@ -94,7 +94,6 @@ jobs:
           git remote set-url origin $REPO_URL 2>&- || git remote add origin $REPO_URL
           git fetch origin "+refs/heads/$REPO_BRANCH:refs/remotes/origin/$REPO_BRANCH"
           git checkout -f -B "$REPO_BRANCH" "origin/$REPO_BRANCH"
-          git reset --hard "origin/$REPO_BRANCH"
           # Remove ALL builder-preseeded patches, feeds, overlays and ABI files.
           git clean -ffdx
           mountpoint $DK_BIN || { echo "::error::not mounted" >&2; exit 1; }

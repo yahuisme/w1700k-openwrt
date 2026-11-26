@@ -20,8 +20,7 @@ fi
 
 
 # Only initialize Wi-Fi with an unambiguous, complete first-boot inventory.
-# Stable section IDs avoid anonymous wifi-iface index shifts during deletion.
-read_radios() {
+read_wireless() {
     WIRELESS="$(uci -q -X show wireless)" || return 1
     RADIO_2G=""
     RADIO_5G=""
@@ -37,7 +36,10 @@ read_radios() {
             *) return 1 ;;
         esac
     done
-    [ -n "$RADIO_2G" ] && [ -n "$RADIO_5G" ] && [ -n "$RADIO_6G" ]
+    [ -n "$RADIO_2G" ] && [ -n "$RADIO_5G" ] && [ -n "$RADIO_6G" ] || return 1
+    # Stable section IDs avoid anonymous wifi-iface index shifts during deletion.
+    IFACES="$(printf '%s\n' "$WIRELESS" | \
+        sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p')" || return 1
 }
 
 # Boot commits even when a defaults script fails. Keep our deltas private until
@@ -109,7 +111,7 @@ wuci -q set firewall.@defaults[0].flow_offloading_hw='1'
 # ------------------------------------------------------------
 
 
-if read_radios; then
+if read_wireless; then
     # 2.4 GHz
     wuci -q set wireless.${RADIO_2G}.disabled='0'
     wuci -q set wireless.${RADIO_2G}.country='US'
@@ -131,8 +133,7 @@ if read_radios; then
     wuci -q set wireless.${RADIO_6G}.htmode='EHT320'
     wuci -q set wireless.${RADIO_6G}.txpower='25'
 
-    for IFACE in $(printf '%s\n' "$WIRELESS" | \
-        sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p'); do
+    for IFACE in $IFACES; do
         wuci -q delete wireless.${IFACE}
     done
 

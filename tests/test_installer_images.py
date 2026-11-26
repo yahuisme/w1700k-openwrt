@@ -1,10 +1,13 @@
 """Exact three-image contract; fixtures are bytes, not flashable firmware."""
+from collections import Counter
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -31,6 +34,27 @@ class InstallerAcceptance(unittest.TestCase):
         from test_release_safety import ReleaseTests, IMAGE
         target, data = ReleaseTests().fixture(base)
         return target, data, IMAGE
+
+    def test_finalize_measures_each_live_image_once(self):
+        from scripts.validate_firmware import finalize
+        system = json.loads((ROOT / 'user/default/build.json').read_text())['system']
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target, _, _ = self.fixture(base)
+            measured = Counter()
+            file_digest = hashlib.file_digest
+
+            def measure(stream, algorithm):
+                measured[Path(stream.name)] += 1
+                return file_digest(stream, algorithm)
+
+            with patch.object(hashlib, 'file_digest', side_effect=measure):
+                accepted = finalize(base / '.config', base / 'openwrt_bin/targets', system)
+            images = accepted['images']
+            assert isinstance(images, list)
+            paths = [target / row['name'] for row in images]
+            self.assertEqual(len(paths), 3)
+            self.assertEqual(measured, Counter(paths))
 
     def test_finalize_cli_and_staged_binding_cover_every_image(self):
         import hashlib

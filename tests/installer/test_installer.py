@@ -52,6 +52,7 @@ class InstallerTest(unittest.TestCase):
         for n, name, size, off in [(0,"vendor",0x600000,0),(1,"chainloader",0x100000,0x600000),(2,"ubi",0x1b700000,0x700000)]:
             for k,v in {"name":name,"size":size,"offset":off,"erasesize":131072}.items():
                 self.put(f"sys/class/mtd/mtd{n}/{k}", str(v)+"\n")
+        self.put('sys/class/mtd/mtd2/writesize', '2048\n')
         self.put("proc/device-tree/compatible", b"gemtek,w1700k-ubi\0airoha,an7581\0")
         self.put("sys/class/ubi/ubi0/mtd_num", "2\n")
         for n in range(5):
@@ -415,6 +416,35 @@ esac
         self.assertNotEqual(p.returncode, 0, p.stdout)
         self.assertIn("Unsupported MTD layout", p.stdout)
         self.assertNotIn("ubiformat", self.calls)
+
+    def test_unsupported_ubi_geometry_stops_before_confirmation(self):
+        # An incompatible NAND can expose the same partition names and offsets.
+        # Keep payloads valid and use the real BusyBox shell with inert devices.
+        base = {'erasesize': '131072', 'writesize': '2048'}
+        for sizes in ({'erasesize': '262144', 'writesize': '4096'},
+                      {'erasesize': '262144'}, {'writesize': '4096'},
+                      {'writesize': None}, {'erasesize': 'unknown'}):
+            with self.subTest(sizes=sizes):
+                for name, value in (base | sizes).items():
+                    path = f'sys/class/mtd/mtd2/{name}'
+                    if value is None:
+                        (self.root / path).unlink()
+                    else:
+                        self.put(path, value + '\n')
+                self.put('calls', '')
+                p = self.run_installer('no\n')
+                self.assertNotEqual(p.returncode, 0, p.stdout)
+                self.assertIn('Unsupported UBI NAND geometry', p.stdout)
+                self.assertIn('stage=validate layout', p.stdout)
+                self.assertNotIn('Initialize/reinstall', p.stdout)
+                self.assertFalse((self.root / 'tmp/factory-build').exists())
+                self.assertEqual(self.calls, '')
+        for name, value in base.items():
+            self.put(f'sys/class/mtd/mtd2/{name}', value + '\n')
+        p = self.run_installer('no\n')
+        self.assertEqual(p.returncode, 0, p.stdout)
+        self.assertIn('Initialize/reinstall', p.stdout)
+        self.assertEqual(self.calls, '')
 
     def test_mtd_numeric_fields_must_be_valid(self):
         for field, value in [("size", ""), ("offset", "invalid")]:

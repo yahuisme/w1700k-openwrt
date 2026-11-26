@@ -244,7 +244,7 @@ class ReleaseTests(unittest.TestCase):
                 return collect(*args, **kwargs)
 
             with patch.object(firmware_images, 'collect', side_effect=collect_after_change):
-                with self.assertRaisesRegex(ValueError, 'sysupgrade differs from native acceptance'):
+                with self.assertRaisesRegex(ValueError, 'image digest differs from profiles.json'):
                     finalize(*paths)
 
     def test_staged_digest_gate_precedes_release_create(self):

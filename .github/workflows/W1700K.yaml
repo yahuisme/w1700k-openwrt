@@ -3,9 +3,9 @@ name: W1700K Firmware
 on:
   workflow_dispatch:
 
-  # Daily at 00:00 Hong Kong time.
+  # Daily at 06:00 Hong Kong time.
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 6 * * *'
       timezone: Asia/Hong_Kong
 concurrency:
   group: w1700k-cache

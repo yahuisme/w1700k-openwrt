@@ -15,10 +15,10 @@ class BuildScheduleTests(unittest.TestCase):
     def setUpClass(cls):
         cls.workflow = yaml.safe_load(WORKFLOW.read_text())
 
-    def test_direct_daily_cron_at_hong_kong_midnight(self):
+    def test_direct_daily_cron_at_six_hong_kong_time(self):
         triggers = self.workflow.get('on', self.workflow.get(True))
         self.assertEqual(triggers['schedule'], [
-            {'cron': '0 0 * * *', 'timezone': 'Asia/Hong_Kong'}])
+            {'cron': '0 6 * * *', 'timezone': 'Asia/Hong_Kong'}])
         self.assertEqual(set(triggers), {'schedule', 'workflow_dispatch'})
         hk = ZoneInfo(triggers['schedule'][0]['timezone'])
         for local_date, utc_date in (
@@ -27,9 +27,10 @@ class BuildScheduleTests(unittest.TestCase):
             ((2028, 3, 1), (2028, 2, 29)),
         ):
             with self.subTest(local_date=local_date):
-                local = datetime(*local_date, tzinfo=hk)
+                local = datetime(*local_date, 6, tzinfo=hk)
                 self.assertEqual(local.astimezone(ZoneInfo('UTC')),
-                                 datetime(*utc_date, 16, tzinfo=ZoneInfo('UTC')))
+                                 datetime(*utc_date, 22, tzinfo=ZoneInfo('UTC')))
+        self.assertIn('每天香港时间 06:00 自动构建', (ROOT / 'README.md').read_text())
 
     def test_build_has_no_daily_date_gate(self):
         self.assertEqual(set(self.workflow['jobs']), {'openwrt', 'immortalwrt'})

@@ -119,12 +119,17 @@ for (const [rpm, pct, expected] of [
  assert.equal(text(tree.children.at(-1)), 'Fan|' + expected, String(rpm));
  assert.equal(text(tree.children[0]), 'CPU|42 °C');
 }
-for (const [value, expected] of [[0,'0 °C'],[-12,'-12 °C'],[42,'42 °C'],[null,'--'],[undefined,'--'],[NaN,'--'],[Infinity,'--']]) {
+for (const [value, expected] of [
+ [0,'0 °C'],[-12,'-12 °C'],[42.4,'42.4 °C'],[39.875,'39.9 °C'],[65.05,'65.1 °C'],
+ [null,'--'],[undefined,'--'],[NaN,'--'],[Infinity,'--']]) {
  const tree = widget.render({temp_board:value});
  assert.equal(text(tree.children[1]), 'Motherboard|' + expected, String(value));
  const style = tree.children[1].children[1].attrs.style;
  assert.equal(style.includes('color:'), expected !== '--', String(value));
 }
+const belowYellow = widget.render({temp_board:49.975}).children[1];
+assert.equal(text(belowYellow), 'Motherboard|50 °C');
+assert(belowYellow.children[1].attrs.style.includes('--success'), 'color follows the original reading');
 assert.equal(text(widget.render(null).children.at(-1)), 'Fan|--');
 """, widget)
 

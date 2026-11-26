@@ -8,6 +8,8 @@ var callFanStatus = rpc.declare({
 	expect: { '': {} }
 });
 
+var tempFormat = new Intl.NumberFormat('en', { maximumFractionDigits: 1, useGrouping: false });
+
 return baseclass.extend({
 	title: _('Temperature & Fan'),
 
@@ -29,7 +31,7 @@ return baseclass.extend({
 		];
 
 		function temp(value) {
-			return value != null && isFinite(Number(value)) ? Number(value) + ' °C' : '--';
+			return value != null && isFinite(Number(value)) ? tempFormat.format(Number(value)) + ' °C' : '--';
 		}
 
 		function color(value) {

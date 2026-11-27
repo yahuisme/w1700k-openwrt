@@ -51,6 +51,29 @@ class RecoveryTests(unittest.TestCase):
                     self.assertFalse((self.root / 'staging_dir/host').exists())
                     self.assertEqual(list(self.archive.iterdir()), [])
 
+    def test_bootstrap_disappearing_at_restore_is_not_an_effective_hit(self):
+        from contextlib import redirect_stderr, redirect_stdout
+        from unittest.mock import patch
+        from scripts import bootstrap_cache, cache_recovery
+
+        snapshot = self.truncated('bootstrap')
+        (self.archive / 'key').write_text('matched\n')
+        restore = bootstrap_cache.restore
+
+        def archive_disappeared(*args):
+            snapshot.unlink()
+            return restore(*args)
+
+        outputs, diagnostics = io.StringIO(), io.StringIO()
+        with patch.object(bootstrap_cache, 'restore', side_effect=archive_disappeared) as owner, \
+                redirect_stdout(outputs), redirect_stderr(diagnostics):
+            cache_recovery.restore('bootstrap', self.root, self.archive, 'matched', 'matched', 'success')
+        owner.assert_called_once()
+        self.assertEqual(outputs.getvalue(), 'hit=false\nmatched-key=\npoisoned=true\n')
+        self.assertIn('Cache restore rejected; cold bootstrap', diagnostics.getvalue())
+        self.assertEqual(list(self.root.iterdir()), [])
+        self.assertEqual(list(self.archive.iterdir()), [])
+
     def test_exact_valid_archives_report_healthy_and_miss_cannot_reuse_leftovers(self):
         for kind in ('toolchain', 'bootstrap'):
             with self.subTest(kind=kind):

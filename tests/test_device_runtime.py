@@ -121,15 +121,19 @@ for (const [rpm, pct, expected] of [
 }
 for (const [value, expected] of [
  [0,'0 °C'],[-12,'-12 °C'],[42.4,'42.4 °C'],[39.875,'39.9 °C'],[65.05,'65.1 °C'],
- [null,'--'],[undefined,'--'],[NaN,'--'],[Infinity,'--']]) {
+ [null,'--'],[undefined,'--'],[NaN,'--'],[Infinity,'--'],['','--'],[false,'--'],[[],'--']]) {
  const tree = widget.render({temp_board:value});
  assert.equal(text(tree.children[1]), 'Motherboard|' + expected, String(value));
  const style = tree.children[1].children[1].attrs.style;
  assert.equal(style.includes('color:'), expected !== '--', String(value));
 }
-const belowYellow = widget.render({temp_board:49.975}).children[1];
-assert.equal(text(belowYellow), 'Motherboard|50 °C');
-assert(belowYellow.children[1].attrs.style.includes('--success'), 'color follows the original reading');
+for (const [value, displayed, tone] of [
+ [49.975,50,'--success'], [50,50,'#eab308'], [65,65,'#eab308'], [65.01,65,'#f97316'],
+ [75,75,'#f97316'], [75.01,75,'--danger']]) {
+ const card = widget.render({temp_board:value}).children[1];
+ assert.equal(text(card), `Motherboard|${displayed} °C`);
+ assert(card.children[1].attrs.style.includes(tone), `color must follow the original reading ${value}`);
+}
 assert.equal(text(widget.render(null).children.at(-1)), 'Fan|--');
 """, widget)
 

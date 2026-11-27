@@ -256,6 +256,10 @@ docker_exec() {
         [ "$FAULT" != installer ]
     elif [ "$1" = python3 ] && [ "$2" = /cache-scripts/cache.py ]; then
         [ "$FAULT" != package ] || return 17
+        if [ "$FAULT" = download_pack ] && [ "$3" = dl ]; then
+            truncate -s 100 dlarchive/dl.tar.gz
+            return 17
+        fi
         mkdir -p "${5#/}"
         suffix=tar.gz; [ "$3" != toolchain ] || suffix=tar.zst
         truncate -s 100 "${5#/}/$3.$suffix"
@@ -360,6 +364,16 @@ export -f make docker_exec sudo git
                     self.assertEqual(outcomes[name], 'skipped', log)
                 self.assertFalse(any(call[:2] == ['release', 'create']
                                      for call in inventory['calls']), log)
+
+    def test_failed_download_pack_preserves_publication_and_old_seed(self):
+        outcomes, _, inventory, log = self.replay('download_pack')
+        self.assertEqual(outcomes['Check download cache changes'], 'success', log)
+        self.assertEqual(outcomes['Prepare build caches'], 'success', log)
+        self.assertEqual(outcomes['Publish firmware and prune releases'], 'success', log)
+        self.assertEqual(outcomes['Save download cache'], 'skipped', log)
+        self.assertEqual(outcomes['Prune old download caches'], 'skipped', log)
+        self.assertIn(3, {item['id'] for item in inventory['entries']}, log)
+        self.assertIn('Download cache archive unavailable', log)
 
     def test_full_compile_stage_cache_publish_failure_matrix(self):
         for fault in ('none', 'download', 'compile', 'validation', 'cancel', 'package', 'save', 'readback', 'publish', 'metadata', 'metadata-feed', 'metadata-external', 'metadata-external-invalid', 'upload'):

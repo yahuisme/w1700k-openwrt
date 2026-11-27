@@ -234,7 +234,10 @@ jobs:
           docker_exec DK python3 /cache-scripts/cache.py toolchain "$DK_OPENWRT" /tcarchive '${{ steps.inputs.outputs.key }}'
         fi
         if [ '${{ steps.dl_changed.outputs.save }}' = true ]; then
-          docker_exec DK python3 /cache-scripts/cache.py dl /dlcache /dlarchive unused
+          if ! docker_exec DK python3 /cache-scripts/cache.py dl /dlcache /dlarchive unused; then
+            sudo rm -f -- dlarchive/dl.tar.gz
+            echo '::warning::Download cache archive unavailable; skipping its save.'
+          fi
         fi
         sudo chown -R "$(id -u):$(id -g)" tcarchive ccarchive dlarchive
         # Retire confirmed rolling compiler generations before admitting toolchain.
@@ -309,8 +312,11 @@ jobs:
         done
         install -t firmware openwrt_bin/targets/airoha/an7581/profiles.json
         install -m 0644 accepted-images.json firmware/accepted-images.json
-        echo "acceptance=$(sha256sum firmware/accepted-images.json | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
-        VERSION="W1700K-${DISTRO_TITLE}-r$(jq -r '.version_code' firmware/profiles.json | sed 's/^r//; s/-.*//')-$(TZ=Asia/Hong_Kong date +'%y.%m.%d_%H.%M.%S')"
+        acceptance=$(sha256sum firmware/accepted-images.json)
+        revision=$(jq -er '.version_code | capture("^(?<revision>r[0-9]+)-[0-9a-f]+$").revision' firmware/profiles.json)
+        timestamps=$(TZ=Asia/Hong_Kong date +'%y.%m.%d_%H.%M.%S|%Y-%m-%d %H:%M:%S %Z')
+        IFS='|' read -r stamp build_time <<< "$timestamps"
+        VERSION="W1700K-${DISTRO_TITLE}-${revision}-${stamp}"
         echo "$VERSION" > firmware/version.txt
         SOURCE_BRANCH=main
         if [ "$SYSTEM" = immortalwrt ]; then SOURCE_BRANCH=master; fi
@@ -319,12 +325,13 @@ jobs:
         ## Quantum Fiber / Gemtek W1700K ${DISTRO_TITLE}
 
         - 上游源码：[${DISTRO_TITLE} ${SOURCE_BRANCH}](https://github.com/${SYSTEM}/${SYSTEM}/tree/${SOURCE_BRANCH})
-        - 构建时间：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S %Z')
+        - 构建时间：${build_time}
         - [首次刷机 / 完整重装（含救砖）](https://github.com/yahuisme/w1700k-openwrt/blob/main/w1700k-${SYSTEM}-first-flash.md)：在原厂 U-Boot 刷 \`chainload-uboot.itb\`，再启动 \`initramfs-installer.itb\`。
         - 日常升级：使用同发行版的 \`squashfs-sysupgrade.itb\`。
 
         [默认设置](https://github.com/yahuisme/w1700k-openwrt#默认设置) · [补丁与功率定制](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/user/w1700k-patches/SOURCES.md)
         EOF
+        echo "acceptance=${acceptance%% *}" >> "$GITHUB_OUTPUT"
 
     - name: Collect build record
       id: record

@@ -55,10 +55,36 @@ class ReleaseTests(unittest.TestCase):
         (output / 'profiles.json').write_text(json.dumps(data))
         return output, data
 
-    def stage(self, base):
-        block = 'sudo() { "$@"; }; docker_exec() { shift; "$@"; };\n' + render(step('Validate and stage firmware')['run'], {})
-        return subprocess.run(['bash', '-eo', 'pipefail', '-c', block], cwd=base,
+    def stage(self, base, inject=''):
+        block = 'sudo() { "$@"; }; docker_exec() { shift; "$@"; };\n' + inject
+        block += render(step('Validate and stage firmware')['run'], {})
+        # With no explicit shell, GitHub runs bash -e (without pipefail).
+        return subprocess.run(['bash', '-e', '-c', block], cwd=base,
                               env=dict(os.environ, DK_OPENWRT=str(base), GITHUB_OUTPUT=str(base / 'output')), text=True, capture_output=True)
+
+    def test_stage_reports_only_a_complete_acceptance(self):
+        for failing in ('', 'jq', 'sha256sum', 'date'):
+            with self.subTest(failing=failing), tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                self.fixture(base)
+                inject = (f'{failing}() {{ echo "fixture: {failing} failed" >&2; return 19; }}\n' if failing else
+                          'date() { printf "read\n" >> date-calls; '
+                          'command date -d 2026-11-26T21:59:59Z "$@"; };\n')
+                result = self.stage(base, inject)
+                output = base / 'output'
+                if failing:
+                    self.assertIn(f'fixture: {failing} failed', result.stderr)
+                    self.assertEqual(result.returncode, 19, result.stdout + result.stderr)
+                    self.assertFalse(output.exists())
+                else:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    proof = (base / 'firmware/accepted-images.json').read_bytes()
+                    self.assertEqual(output.read_text(), 'acceptance=' + hashlib.sha256(proof).hexdigest() + '\n')
+                    self.assertEqual((base / 'firmware/version.txt').read_text(),
+                                     f'W1700K-{MATRIX["title"]}-r123-26.11.27_05.59.59\n')
+                    self.assertIn('构建时间：2026-11-27 05:59:59 HKT',
+                                  (base / 'firmware/release-notes.md').read_text())
+                    self.assertEqual((base / 'date-calls').read_text(), 'read\n')
 
     def test_usteer_selection_contract(self):
         packages = ('usteer', 'luci-app-usteer', 'luci-i18n-usteer-zh-cn')

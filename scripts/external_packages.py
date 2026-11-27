@@ -36,6 +36,10 @@ def put(root, name, text):
     path.write_text(text)
 
 
+def runtime_feeds():
+    return ''.join(f'@{tag} {repo["url"]}/packages.adb\n' for tag, repo in REPOSITORIES.items())
+
+
 def prepare(root):
     root = Path(root).resolve()
     packages = ' '.join(f'{p}@{tag}' for tag, repo in REPOSITORIES.items() for p in repo['packages'])
@@ -68,8 +72,7 @@ def prepare(root):
                  '\t$(call mklibs,$(1))\n'
                  '\tpython3 /cache-scripts/external_packages.py verify-root $(1) $(TOPDIR)/.external-packages/provenance.json\n')
     # Runtime entries are editable by LuCI and contain no builder paths.
-    put(root, 'files/etc/apk/repositories.d/customfeeds.list', ''.join(
-        f'@{tag} {repo["url"]}/packages.adb\n' for tag, repo in REPOSITORIES.items()))
+    put(root, 'files/etc/apk/repositories.d/customfeeds.list', runtime_feeds())
 
 
 def download(url, path):
@@ -158,6 +161,11 @@ def snapshot(root, apk, repositories=None):
 def verify_root(root, provenance):
     root = Path(root)
     record = json.loads(Path(provenance).read_text())
+    packages = [(row['repository'], row['name']) for row in record['packages']]
+    tags = [row['name'] for row in record['repositories']]
+    if (sorted(packages) != sorted((tag, name) for tag, repo in REPOSITORIES.items() for name in repo['packages'])
+            or sorted(tags) != sorted(REPOSITORIES)):
+        raise ValueError('Incomplete or ambiguous external APK provenance')
     installed = {}
     for block in (root / 'lib/apk/db/installed').read_text().split('\n\n'):
         fields = dict(line.split(':', 1) for line in block.splitlines() if ':' in line)
@@ -169,14 +177,17 @@ def verify_root(root, provenance):
             raise ValueError('Missing or wrong official APK version: ' + row['name'])
         if row['name'] + '@' + row['repository'] not in world:
             raise ValueError('Missing updatable tagged world constraint: ' + row['name'])
-    feeds = (root / 'etc/apk/repositories.d/customfeeds.list').read_text()
-    if 'file://' in feeds:
+    feeds = (root / 'etc/apk/repositories.d/customfeeds.list').read_bytes()
+    if b'file://' in feeds:
         raise ValueError('Build-only repository leaked into firmware')
+    # This file is generated at build time. Require its native syntax exactly;
+    # a malformed earlier line can prevent APK loading later valid entries.
+    if feeds != runtime_feeds().encode():
+        raise ValueError('Missing runtime repository or noncanonical generated feed')
     for feed in record['repositories']:
-        if f'@{feed["name"]} {REPOSITORIES[feed["name"]]["url"]}/packages.adb' not in feeds:
-            raise ValueError('Missing runtime repository: ' + feed['name'])
-        if digest(root / 'etc/apk/keys' / (feed['name'] + '.pem')) != feed['key_sha256']:
-            raise ValueError('Missing or wrong runtime signing key: ' + feed['name'])
+        tag = feed['name']
+        if digest(root / 'etc/apk/keys' / (tag + '.pem')) != feed['key_sha256']:
+            raise ValueError('Missing or wrong runtime signing key: ' + tag)
     return installed
 
 

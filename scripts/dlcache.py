@@ -16,25 +16,30 @@ else:
     from cache_recovery import clear_restored
 
 
-def fingerprint(root):
-    digest = hashlib.sha256()
-    count = 0
+def download_files(root):
     if not stat.S_ISDIR(root.lstat().st_mode):
         raise ValueError('not a download directory: ' + str(root))
 
     def onerror(exc):
         raise exc
 
-    paths = (Path(base) / name for base, dirs, files in os.walk(root, onerror=onerror)
-             for name in dirs + files)
-    for path in sorted(paths):
-        mode = path.lstat().st_mode
-        if stat.S_ISLNK(mode):
-            raise ValueError('unsupported linked download: ' + str(path))
-        if stat.S_ISDIR(mode):
-            continue
-        if not stat.S_ISREG(mode):
-            raise ValueError('unsupported download item: ' + str(path))
+    for base, dirs, files in os.walk(root, onerror=onerror):
+        for name in dirs + files:
+            path = Path(base) / name
+            mode = path.lstat().st_mode
+            if stat.S_ISLNK(mode):
+                raise ValueError('unsupported linked download: ' + str(path))
+            if stat.S_ISDIR(mode):
+                continue
+            if not stat.S_ISREG(mode):
+                raise ValueError('unsupported download item: ' + str(path))
+            yield path
+
+
+def fingerprint(root):
+    digest = hashlib.sha256()
+    count = 0
+    for path in sorted(download_files(root)):
         with path.open('rb') as source:
             content = hashlib.file_digest(source, 'sha256')
         digest.update(json.dumps([str(path.relative_to(root)), content.hexdigest()]).encode())
@@ -90,9 +95,12 @@ def changed(root, state, restored):
     except (OSError, ValueError) as exc:
         print(f'::warning::Download cache comparison unavailable; save disabled: {exc}', file=sys.stderr)
         return False
+    # A cold tree needs a seed regardless of content equality. Scan the
+    # entire inventory to keep type checks, but leave payload I/O to tar.
+    if not restored:
+        return sum(1 for _ in download_files(root)) > 0
     current = fingerprint(root)
-    # A populated legacy/cold cache must seed the current archive format.
-    return current['files'] > 0 and (not restored or current != before)
+    return current['files'] > 0 and current != before
 
 
 def main():

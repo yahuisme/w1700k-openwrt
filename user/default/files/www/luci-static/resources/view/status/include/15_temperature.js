@@ -30,16 +30,7 @@ return baseclass.extend({
 			['6 GHz', 'wifi_6g']
 		];
 
-		function temp(value) {
-			return value != null && isFinite(Number(value)) ? tempFormat.format(Number(value)) + ' °C' : '--';
-		}
-
 		function color(value) {
-			if (value == null || !isFinite(Number(value)))
-				return '';
-
-			value = Number(value);
-
 			if (value < 50)
 				return 'var(--success,var(--success-color-high,#15803d))';
 
@@ -103,9 +94,11 @@ return baseclass.extend({
 		});
 
 		sensors.forEach(function(sensor) {
-			var key = sensor[1];
+			var value = data[sensor[1]];
 			root.appendChild(
-				card(sensor[0], valueBox(temp(data[key]), color(data[key])))
+				card(sensor[0], Number.isFinite(value)
+					? valueBox(tempFormat.format(value) + ' °C', color(value))
+					: valueBox('--', ''))
 			);
 		});
 

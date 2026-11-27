@@ -60,8 +60,8 @@ def restore(kind, root, archive, expected, restored, outcome):
                     if kind == 'toolchain':
                         toolchain.restore(root, archive, expected)
                         toolchain.validate_artifacts(root)
-                    else:
-                        bootstrap.restore(root, archive, expected)
+                    elif not bootstrap.restore(root, archive, expected):
+                        raise ValueError('bootstrap archive disappeared before restore')
             else:
                 subprocess.run(['tar', '--gzip', '-xf', str(candidate), '-C', str(root)], check=True)
             hit = True

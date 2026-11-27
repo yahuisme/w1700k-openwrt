@@ -201,6 +201,14 @@ done
             self.assertEqual(installer, canonical.replace('/openwrt-airoha-an7581-', '/immortalwrt-airoha-an7581-'))
             # Reverse independently tested changes before the historical digest check.
             for current, historical in (
+                ('  local erase_size write_size\n', ''),
+                ('  # Both native image recipes use 128 KiB blocks and 2 KiB pages. Partition\n'
+                 '  # labels/offsets alone do not establish compatibility with this UBI layout.\n'
+                 '  erase_size="$(cat /sys/class/mtd/mtd2/erasesize)" || die "Unsupported UBI NAND geometry: unreadable erase size"\n'
+                 '  write_size="$(cat /sys/class/mtd/mtd2/writesize)" || die "Unsupported UBI NAND geometry: unreadable page size"\n'
+                 '  if [ "$erase_size" != 131072 ] || [ "$write_size" != 2048 ]; then\n'
+                 '    die "Unsupported UBI NAND geometry: expected 128 KiB erase blocks and 2 KiB pages"\n'
+                 '  fi\n', ''),
                 ('  # Match Linux\'s nonzero unicast requirement, including locally assigned MACs.\n'
                  '  [ "$1" != \'00:00:00:00:00:00\' ] &&\n'
                  '    printf \'%s\' "$1" | grep -Eq \'^[0-9A-Fa-f][02468AaCcEe](:[0-9A-Fa-f]{2}){5}$\'\n',

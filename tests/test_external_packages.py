@@ -1,5 +1,6 @@
 """Signed Aurora APK assembly on real rolling-source fixtures; no builds."""
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -20,6 +21,48 @@ def helper():
 
 
 class ExternalPackageTests(unittest.TestCase):
+    def test_root_gate_requires_complete_provenance_and_active_runtime_feed(self):
+        module = helper()
+        tag = 'eamonxg'
+        repo = module.REPOSITORIES[tag]
+        url = repo['url'] + '/packages.adb'
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            installed = root / 'lib/apk/db/installed'
+            keys = root / 'etc/apk/keys'
+            feeds = root / 'etc/apk/repositories.d/customfeeds.list'
+            for path in (installed.parent, keys, feeds.parent):
+                path.mkdir(parents=True)
+            packages = repo['packages']
+            installed.write_text(''.join(f'P:{name}\nV:1\n\n' for name in packages))
+            (root / 'etc/apk/world').write_text(''.join(f'{name}@{tag}\n' for name in packages))
+            key = b'test signing key\n'
+            (keys / f'{tag}.pem').write_bytes(key)
+            rows = [dict(name=name, repository=tag, version='1') for name in packages]
+            repositories = [dict(name=tag, key_sha256=hashlib.sha256(key).hexdigest())]
+            provenance = root / 'provenance.json'
+            valid_feed = f'@{tag} {url}\n'
+            for package_rows, repo_rows, feed, error in (
+                    (rows, repositories, valid_feed, ''),
+                    (rows, repositories, '  ' + valid_feed, 'Missing runtime repository'),
+                    (rows, repositories, '  ' + valid_feed + valid_feed, 'Missing runtime repository'),
+                    (rows, repositories, valid_feed * 2, 'Missing runtime repository'),
+                    (rows, repositories, valid_feed.replace('\n', '\r\n'), 'Missing runtime repository'),
+                    (rows[1:], repositories, valid_feed, 'external APK provenance'),
+                    (rows + rows[:1], repositories, valid_feed, 'external APK provenance'),
+                    (rows, [], valid_feed, 'external APK provenance'),
+                    (rows, repositories * 2, valid_feed, 'external APK provenance'),
+                    (rows, repositories, '# ' + valid_feed, 'Missing runtime repository'),
+                    (rows, repositories, valid_feed.replace('.adb', '.adb.disabled'), 'Missing runtime repository')):
+                with self.subTest(packages=len(package_rows), repos=len(repo_rows), feed=feed):
+                    provenance.write_text(json.dumps(dict(packages=package_rows, repositories=repo_rows)))
+                    feeds.write_text(feed)
+                    if error:
+                        with self.assertRaisesRegex(ValueError, error):
+                            module.verify_root(root, provenance)
+                    else:
+                        self.assertEqual(set(module.verify_root(root, provenance)), set(packages))
+
     def test_snapshot_precedes_cache_key_and_covers_shared_device_resolver(self):
         fixture = os.environ.get('AURORA_SOURCE_FIXTURE')
         self.assertTrue(fixture, 'set AURORA_SOURCE_FIXTURE to the real distro source fixture')

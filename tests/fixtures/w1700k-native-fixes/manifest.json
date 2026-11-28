@@ -252,7 +252,19 @@
     "official/6145ff0b02f315f8e80af01345cb3bd6caa62b84.patch": {
       "sha256": "2f1bad7b5f00b5f7a43d19c7d60c812a99217efb6e940bd3b612937e0ccca63e",
       "origin": "https://github.com/openwrt/mt76/commit/6145ff0b02f315f8e80af01345cb3bd6caa62b84"
+    },
+    "airoha-npu-after-924/drivers/net/ethernet/airoha/airoha_npu.c": {
+      "sha256": "8bcca2e6fdc5810bb745defa0784f9348b39e790fbe91b284ccc2d98ca8687d9",
+      "origin": "OpenWrt@77c14c5a0a0c21684feff750d0618d24f1393978 / ImmortalWrt@73bc086a62f951d96e5d7404f04c4d73e141cad2: native backport, pending, hack and Airoha patch chain for this file through 924"
+    },
+    "mt76/mt7615/sdio.c": {
+      "sha256": "954dc4c6906198bb09d8136929af08e845b2e8ec5160fa53aa4ee5730e1197da",
+      "origin": "openwrt/mt76@0936617dc529ff9da0385221d3fa6de732231177"
+    },
+    "mt76/mt7615/usb.c": {
+      "sha256": "b04f75a012123f7f3b0d0bba67a944199b83769d12bc6f693af884c9cf1e0d0b",
+      "origin": "openwrt/mt76@0936617dc529ff9da0385221d3fa6de732231177"
     }
   },
-  "archive_sha256": "18e73c624d64af7118697ebd4881a26fccd163f65fa31890e850cf8b4579af34"
+  "archive_sha256": "1772c8c03e00a3640857cf2200018c6e4c3ae9f33387a2ddf8f6ca90e64eda6f"
 }

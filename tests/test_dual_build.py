@@ -146,6 +146,10 @@ class DualBuildTests(unittest.TestCase):
                 'tree/package/kernel/mt76/patches/915-mt76-npu-rx-packet-reassembly.patch',
                 'tree/package/kernel/mt76/patches/916-mt76-radiotap-tlv-header.patch',
                 'tree/package/kernel/mt76/patches/917-mt76-amsdu-subframe-header.patch',
+                'tree/package/kernel/mt76/patches/918-mt76-amsdu-station-cleanup.patch',
+                'tree/package/kernel/mt76/patches/919-mt76-amsdu-phy-cleanup.patch',
+                'tree/target/linux/airoha/patches-6.18/925-net-airoha-npu-fix-mailbox-notification-ordering.patch',
+                'patches/921-wifi-fractional-txpower.patch',
                 'patches/110-run-libuv-loop.patch',
                 'tree/package/kernel/mt76/patches/914-mt76-mt7996-free-rro-drop-buffers.patch',
                 'tree/package/network/utils/iwinfo/patches/998-fix-multi-radio-scan.patch',
@@ -163,6 +167,9 @@ class DualBuildTests(unittest.TestCase):
                          '< "$PATCH_DIR/patches/003-airoha-fan-init.patch"\n')
             self.assertEqual(script.count(fan_apply), 1)
             script = script.replace(fan_apply, '', 1)
+            fractional_apply = fan_apply.replace('003-airoha-fan-init', '921-wifi-fractional-txpower')
+            self.assertEqual(script.count(fractional_apply), 1)
+            script = script.replace(fractional_apply, '', 1)
             # The later shared-DTSI adaptation has its own tests. Restore
             # only the independently reviewed LED block for this old digest.
             led_start = '# Status LED colors: upgrade green, running white; keep native boot/failsafe.\n'

@@ -15,6 +15,7 @@ GEN = 'package/network/config/wifi-scripts/files-ucode/usr/share/ucode/wifi/host
 HOST = 'package/network/services/hostapd/files/hostapd.uc'
 from patch_source import PATCHES
 PATCH = PATCHES / 'patches/920-wifi-non-mlo-ap-txpower.patch'
+FRACTIONAL = '921-wifi-fractional-txpower.patch'
 
 
 def function(source, name):
@@ -36,10 +37,13 @@ class TxpowerTests(unittest.TestCase):
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(Path(os.environ['TXPOWER_SOURCE']) / name, dest)
         cls.zero_is_fixed = 'if (config.txpower != null)' in (cls.tree / MAC).read_text()
-        if not os.environ.get('TXPOWER_BASELINE'):
+        cls.baseline = bool(os.environ.get('TXPOWER_BASELINE'))
+        if not cls.baseline:
             custom = (ROOT / 'user/default/custom.sh').read_text()
-            line = next(line for line in custom.splitlines() if 'patch -p1 --fuzz=0' in line and PATCH.name in line)
-            subprocess.run(['bash', '-ec', line], cwd=cls.tree,
+            lines = [line for line in custom.splitlines() if 'patch -p1 --fuzz=0' in line
+                     and any(name in line for name in (FRACTIONAL, PATCH.name))]
+            assert len(lines) == 2, lines
+            subprocess.run(['bash', '-ec', '\n'.join(lines)], cwd=cls.tree,
                            env=dict(os.environ, DK_PROFILE=str(ROOT/'user/default'), PATCH_DIR=str(PATCHES)),
                            check=True, capture_output=True)
         cls.mac, cls.gen, cls.host = [(cls.tree / n).read_text() for n in (MAC, GEN, HOST)]
@@ -58,7 +62,7 @@ class TxpowerTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         return json.loads(proc.stdout)
 
-    def setup_case(self, power=23, radio=0, interfaces=None):
+    def setup_case(self, power: int | float | None = 23, radio=0, interfaces=None):
         interfaces = interfaces if interfaces is not None else {'a': {'config': {'mode': 'ap'}, 'stas': {}}}
         data = {'config': {'radio': radio, 'band': '2g', 'channel': 6, 'txpower': power},
                 'data': {'txantenna': 4294967295, 'rxantenna': 4294967295}, 'interfaces': interfaces}
@@ -82,9 +86,14 @@ setup(); printf('%J',{commands,config:passed});''')
         self.assertTrue(result['config']['per_interface_txpower'])
 
     def test_zero_and_auto(self):
-        expected = 'fixed 000' if self.zero_is_fixed else 'auto'
+        expected = ('fixed 000' if self.baseline else 'fixed 0') if self.zero_is_fixed else 'auto'
         self.assertEqual(self.setup_case(0)['config']['txpower'], expected)
         self.assertEqual(self.setup_case(None)['config']['txpower'], 'auto')
+
+    def test_fractional_power_for_ap_and_phy(self):
+        self.assertEqual(self.setup_case(17.5)['config']['txpower'], 'fixed 1700')
+        self.assertIn('iw phy phy0 set txpower fixed 1700',
+                      self.setup_case(17.5, radio=-1)['commands'])
 
     def test_mlo_and_non_ap_keep_upstream_path(self):
         for cfg in ({'mode': 'ap', 'mlo': True}, {'mode': 'monitor'}):
@@ -340,7 +349,8 @@ printf('%J',iface_reload_config('phy0.0',{name:'phy0'},changed,old));
     def test_generator_and_parser_carry_power(self):
         for label, power, scoped, expected in (
                 ('fixed', 23, True, 'fixed 2300'),
-                ('zero', 0, True, 'fixed 000' if self.zero_is_fixed else 'auto'),
+                ('fractional', 17.5, True, 'fixed 1700'),
+                ('zero', 0, True, 'fixed 0' if self.zero_is_fixed else 'auto'),
                 ('auto', None, True, 'auto'),
                 ('absent', 23, False, None)):
             with self.subTest(case=label):

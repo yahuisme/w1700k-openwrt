@@ -78,7 +78,7 @@ echo() { if [ "$*" = 2 ] && [ "$RESTORE" = no ]; then return 1; fi; command echo
     def test_complete_customization_and_invalid_payloads(self):
         source = Path(os.environ['TXPOWER_SOURCE'])
         payloads = sorted(p.relative_to(PATCHES) for p in PATCHES.rglob('*.patch'))
-        self.assertEqual(len(payloads), 20, 'update the full production payload matrix')
+        self.assertEqual(len(payloads), 24, 'update the full production payload matrix')
         cases = [(None, None)] + [(kind, name) for name in payloads
                                   for kind in ('missing', 'empty')]
         for kind, broken in cases:
@@ -127,7 +127,8 @@ echo() { if [ "$*" = 2 ] && [ "$RESTORE" = no ]; then return 1; fi; command echo
                 for directory in ('package/kernel/mt76',):
                     shutil.copytree(source / directory, work / directory)
                 for name in ('package/kernel/linux/modules/crypto.mk',
-                             'target/linux/airoha/patches-6.18/609-02-clk-en7523-add-support-for-dedicated-PCIe-PERSTOUT-r.patch'):
+                             'target/linux/airoha/patches-6.18/609-02-clk-en7523-add-support-for-dedicated-PCIe-PERSTOUT-r.patch',
+                             'target/linux/airoha/patches-6.18/924-net-airoha-npu-use-coherent-mailbox-dma.patch'):
                     target = work / name
                     target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copyfile(source / name, target)
@@ -205,6 +206,8 @@ export -f git python3
                     self.assertEqual((PATCHES / 'patches' / PAYLOAD).read_bytes(),
                                      (work / 'feeds/packages/utils/ttyd/patches' / PAYLOAD).read_bytes())
                     self.assertIn('per_interface_txpower', (work / 'package/network/config/wifi-scripts/files-ucode/lib/netifd/wireless/mac80211.sh').read_text())
+                    self.assertIn("'fixed ' + int(config.txpower) * 100",
+                                  (work / 'package/network/config/wifi-scripts/files-ucode/lib/netifd/wireless/mac80211.sh').read_text())
                     self.assertIn('123'.zfill(40), (work / '.custom-revisions.tsv').read_text())
                     if distro == 'immortalwrt':
                         fw4 = work / 'package/network/config/firewall4/patches/001-firewall4-add-support-for-fullcone-nat.patch'

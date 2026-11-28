@@ -17,9 +17,15 @@ from scripts.validate_firmware import validate, finalize
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'tests/fixtures/w1700k-native-fixes'
 RESET = 'target/linux/airoha/patches-6.18/609-02-clk-en7523-add-support-for-dedicated-PCIe-PERSTOUT-r.patch'
+MAILBOX = 'target/linux/airoha/patches-6.18/924-net-airoha-npu-use-coherent-mailbox-dma.patch'
+MAILBOX_ORDER = 'target/linux/airoha/patches-6.18/925-net-airoha-npu-fix-mailbox-notification-ordering.patch'
 MT76 = 'package/kernel/mt76'
 NEW = ('915-mt76-npu-rx-packet-reassembly.patch',
        '916-mt76-radiotap-tlv-header.patch', '917-mt76-amsdu-subframe-header.patch')
+AMSDU = {
+    '918-mt76-amsdu-station-cleanup.patch': 'ace64631a7a235f8587c58317ef85b0df399ef6814907f8b6dedfb03661c9628',
+    '919-mt76-amsdu-phy-cleanup.patch': '6f28312f265f04248a5540aee071bba3a2acf3c382fb2f3dde409bd99f018379',
+}
 ROOT_PATCHES = ('004-airoha-reset-initialize-value.patch', '005-eip93-cbc-dependency.patch')
 
 
@@ -84,6 +90,7 @@ class NativeFixes(unittest.TestCase):
     def setup_source(self, base, distro):
         work = base / 'source'
         self.populate(work, distro)
+        (work / MAILBOX).write_bytes((FIXTURE / '924-mailbox.patch.fixture').read_bytes())
         ttyd = work / 'feeds/packages/utils/ttyd/Makefile'
         ttyd.parent.mkdir(parents=True)
         ttyd.write_text('PKG_VERSION:=1.7.7\nPKG_RELEASE:=1\nPKG_HASH:=039dd995229377caee919898b7bd54484accec3bba49c118e2d5cd6ec51e3650\n')
@@ -96,7 +103,9 @@ class NativeFixes(unittest.TestCase):
         for patch in sorted((work / MT76 / 'patches').glob('*.patch')):
             apply(mt, patch.read_bytes())
             names.append(patch.name)
-        self.assertEqual(names[-3:], list(NEW), 'new fixes not on the native package patch chain')
+        self.assertEqual(names[-5:], [*NEW, *AMSDU], 'new fixes not on the native package patch chain')
+        for name, digest in AMSDU.items():
+            self.assertEqual(hashlib.sha256((work / MT76 / 'patches' / name).read_bytes()).hexdigest(), digest)
         self.assertIn('911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch', names)
         # Each backport must have the exact official +/- semantics, not just a
         # hand-written source-string approximation.
@@ -129,6 +138,23 @@ class NativeFixes(unittest.TestCase):
         crypto = (work / 'package/kernel/linux/modules/crypto.mk').read_text()
         eip = crypto.split('define KernelPackage/crypto-hw-eip93\n')[1].split('\nendef')[0]
         self.assertEqual(eip.count('+kmod-crypto-cbc'), 1)
+        # This input is the complete native NPU file after patch 924. Verify
+        # the only change is the position of the notification, not a retry.
+        npu_file = 'drivers/net/ethernet/airoha/airoha_npu.c'
+        npu = kernel / npu_file
+        npu.parent.mkdir(parents=True, exist_ok=True)
+        original = self.files['airoha-npu-after-924/' + npu_file]
+        npu.write_bytes(original)
+        mailbox_patch = (work / MAILBOX_ORDER).read_bytes()
+        self.assertEqual(hashlib.sha256(mailbox_patch).hexdigest(),
+                         '0c273105ac905fe3fe5ca5cd4078f83d9fc04cddadae552cea87f6b4033fd23a')
+        apply(kernel, mailbox_patch)
+        notify = (b'\tregmap_read(npu->regmap, REG_CR_MBQ0_CTRL(2) + offset, &val);\n'
+                  b'\tregmap_write(npu->regmap, REG_CR_MBQ0_CTRL(2) + offset, val + 1);\n')
+        command = (b'\tval = FIELD_PREP(MBOX_MSG_FUNC_ID, func_id) | MBOX_MSG_WAIT_RSP;\n'
+                   b'\tregmap_write(npu->regmap, REG_CR_MBQ0_CTRL(3) + offset, val);\n')
+        self.assertEqual(original.count(notify + command), 1)
+        self.assertEqual(npu.read_bytes(), original.replace(notify + command, command + notify, 1))
         return mt
 
     def test_each_native_repair_is_maintained_and_replayed(self):
@@ -205,31 +231,8 @@ class NativeFixes(unittest.TestCase):
                 if depth == 0:
                     body = source[start:index + 2]
                     break
-            if name == 'mt76_rx_release_amsdu(':
-                # Upstream's earlier 6a2f1454 independently changes station/WCID
-                # ownership, not header/subframe location. Normalize only its
-                # exact prologue, retaining the entire reached validation body.
-                selected = ('\tstruct sk_buff *skb = phy->rx_amsdu[q].head;\n'
-                            '\tstruct mt76_rx_status *status = (struct mt76_rx_status *)skb->cb;\n'
-                            '\tstruct mt76_dev *dev = phy->dev;\n'
-                            '\tstruct mt76_queue *rxq = &dev->q_rx[q];\n\n'
-                            '\tphy->rx_amsdu[q].head = NULL;\n'
-                            '\tphy->rx_amsdu[q].tail = NULL;\n')
-                official = ('\tstruct sk_buff *skb = mt76_rx_amsdu_detach(phy, q);\n'
-                            '\tstruct mt76_rx_status *status = (struct mt76_rx_status *)skb->cb;\n'
-                            '\tstruct mt76_dev *dev = phy->dev;\n'
-                            '\tstruct mt76_queue *rxq = &dev->q_rx[q];\n\n'
-                            '\t/* status->wcid was looked up in an earlier RCU section. It can only be\n'
-                            '\t * used if the wcid is still published, which keeps it alive until the\n'
-                            '\t * end of the current RCU section.\n'
-                            '\t */\n'
-                            '\tif (status->amsdu && status->wcid &&\n'
-                            '\t    __mt76_wcid_ptr(dev, phy->rx_amsdu[q].wcid_idx) != status->wcid) {\n'
-                            '\t\tdev_kfree_skb(skb);\n'
-                            '\t\treturn;\n'
-                            '\t}\n')
-                self.assertEqual(body.count(selected), 1)
-                body = body.replace(selected, official, 1)
+            # 918 now provides the official A-MSDU prologue as well as 917's
+            # header validation; no normalization is needed for that function.
             self.assertEqual(hashlib.sha256(body.encode()).hexdigest(), identity['sha256'], name)
         # Complete official added lines further bind the model to applied C.
         official = self.files['official/a801adb009f70cde062de22976d4d6c7dc13daa8.patch'].decode()
@@ -350,7 +353,8 @@ class NativeFixes(unittest.TestCase):
     def test_source_drift_absorption_and_conflicts_stop_before_copy(self):
         for distro in (json.loads((ROOT / 'user/default/build.json').read_text())['system'],):
             for fault in ('version', 'mirror', 'native-patch', 'reset-absorbed', 'cbc-absorbed',
-                          'collision', 'symlink', 'patch-reject-reset', 'patch-reject-cbc'):
+                          'collision', 'symlink', 'mailbox-drift', 'mailbox-collision',
+                          'mailbox-symlink', 'patch-reject-reset', 'patch-reject-cbc'):
                 with self.subTest(distro=distro, fault=fault), tempfile.TemporaryDirectory() as tmp:
                     base = Path(tmp)
                     recipe = self.recipe(base, distro)
@@ -369,8 +373,16 @@ class NativeFixes(unittest.TestCase):
                         p = work / 'package/kernel/linux/modules/crypto.mk'
                         p.write_text(p.read_text().replace('+kmod-crypto-authenc \\\n', '+kmod-crypto-authenc \\\n\t+kmod-crypto-cbc \\\n'))
                     if fault in ('collision', 'symlink'):
-                        p = work / MT76 / 'patches' / NEW[0]
+                        p = work / MT76 / 'patches' / next(iter(AMSDU))
                         p.symlink_to('/dev/null') if fault == 'symlink' else p.write_text('upstream owner\n')
+                    if fault == 'mailbox-drift':
+                        (work / MAILBOX).write_text('new upstream predecessor\n')
+                    if fault in ('mailbox-collision', 'mailbox-symlink'):
+                        p = (work / MAILBOX_ORDER).with_name('925-upstream.patch')
+                        if fault == 'mailbox-symlink':
+                            p.symlink_to('absent')
+                        else:
+                            p.write_text('upstream owner\n')
                     if fault.startswith('patch-reject-'):
                         name = ROOT_PATCHES[int(fault.endswith('cbc'))]
                         payload = recipe / 'user/w1700k-patches/patches' / name
@@ -386,6 +398,8 @@ class NativeFixes(unittest.TestCase):
                         self.assertIn('FAILED', result.stdout)
                     else:
                         diagnostic = ('conflicting mt76 backport' if fault in ('collision', 'symlink') else
+                                      'unreviewed Airoha NPU mailbox predecessor' if fault == 'mailbox-drift' else
+                                      'conflicting Airoha NPU backport' if fault.startswith('mailbox-') else
                                       'unreviewed mt76 source' if fault in ('version', 'mirror') else
                                       'unreviewed mt76 native patches' if fault == 'native-patch' else
                                       'unreviewed Airoha reset/EIP93 source')

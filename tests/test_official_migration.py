@@ -31,7 +31,7 @@ class OfficialMigrationTests(unittest.TestCase):
     def test_minimal_kernel_delta(self):
         tree = PATCHES / 'tree'
         patches = sorted(p.name for p in tree.glob('target/linux/airoha/patches-*/*.patch'))
-        self.assertEqual([p[:3] for p in patches], ['745', '746', '940'])
+        self.assertEqual([p[:3] for p in patches], ['745', '746', '925', '940'])
         mt76_patches = sorted(p.name for p in tree.glob('package/kernel/mt76/patches/*.patch'))
         self.assertEqual(mt76_patches, [
             '911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch',
@@ -39,7 +39,9 @@ class OfficialMigrationTests(unittest.TestCase):
             '914-mt76-mt7996-free-rro-drop-buffers.patch',
             '915-mt76-npu-rx-packet-reassembly.patch',
             '916-mt76-radiotap-tlv-header.patch',
-            '917-mt76-amsdu-subframe-header.patch'])
+            '917-mt76-amsdu-subframe-header.patch',
+            '918-mt76-amsdu-station-cleanup.patch',
+            '919-mt76-amsdu-phy-cleanup.patch'])
         self.assertFalse((tree / 'package/network/config/firewall4').exists())
         self.assertFalse(list(tree.rglob('939-*')))
 

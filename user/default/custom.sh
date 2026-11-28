@@ -52,11 +52,13 @@ for file in \
     patches/004-airoha-reset-initialize-value.patch \
     patches/005-eip93-cbc-dependency.patch \
     patches/920-wifi-non-mlo-ap-txpower.patch \
+    patches/921-wifi-fractional-txpower.patch \
     patches/610-w1700k-power-30.patch \
     patches/998-single-wiphy.patch \
     patches/110-run-libuv-loop.patch \
     tree/target/linux/airoha/patches-6.18/745-net-pcs-airoha-extend-manual-rx-calib-to-E2-silicon.patch \
     tree/target/linux/airoha/patches-6.18/746-net-dsa-mt7530-pre-deassert-phy-reset-gpios-before-mdio-scan.patch \
+    tree/target/linux/airoha/patches-6.18/925-net-airoha-npu-fix-mailbox-notification-ordering.patch \
     tree/target/linux/airoha/patches-6.18/940-pmdomain-airoha-cpu-pll-fallback.patch \
     tree/package/kernel/mt76/patches/911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch \
     tree/package/kernel/mt76/patches/913-mt76-mt7996-clean-up-truncated-txfree.patch \
@@ -64,6 +66,8 @@ for file in \
     tree/package/kernel/mt76/patches/915-mt76-npu-rx-packet-reassembly.patch \
     tree/package/kernel/mt76/patches/916-mt76-radiotap-tlv-header.patch \
     tree/package/kernel/mt76/patches/917-mt76-amsdu-subframe-header.patch \
+    tree/package/kernel/mt76/patches/918-mt76-amsdu-station-cleanup.patch \
+    tree/package/kernel/mt76/patches/919-mt76-amsdu-phy-cleanup.patch \
     tree/package/network/utils/iwinfo/patches/998-fix-multi-radio-scan.patch \
     tree/package/network/utils/iwinfo/patches/999-fix-txpower-list.patch \
     tree/package/system/procd/patches/001-watchdog-reconcile-timeout.patch; do
@@ -80,7 +84,9 @@ fi
 for file in \
     915-mt76-npu-rx-packet-reassembly.patch \
     916-mt76-radiotap-tlv-header.patch \
-    917-mt76-amsdu-subframe-header.patch; do
+    917-mt76-amsdu-subframe-header.patch \
+    918-mt76-amsdu-station-cleanup.patch \
+    919-mt76-amsdu-phy-cleanup.patch; do
     target="$MT76_RECIPE/patches/$file"
     if [ -e "$target" ] || [ -L "$target" ]; then
         echo "ERROR: conflicting mt76 backport: $file" >&2
@@ -96,6 +102,18 @@ c8aba1f8bd5f76c1e3a7f06d0eb60bab28592cc76fda7c516df64de6111fe4b2  100-wifi-mt76-
 7dbaad684fa1f3179bd7d42787d777f353f0937869b5a2eb6d1f255784758abb  101-wifi-mt76-mt76x2u-limit-TX-A-MSDUs-to-3-kB-at-SuperSpeed.patch') ;;
     *) echo 'ERROR: unreviewed mt76 native patches; review backport order' >&2; exit 1 ;;
 esac
+NPU_PATCH_DIR=target/linux/airoha/patches-6.18
+NPU_MAILBOX="$NPU_PATCH_DIR/924-net-airoha-npu-use-coherent-mailbox-dma.patch"
+if [ "$(sha256sum "$NPU_MAILBOX")" != "8b0d5139616b22c03f43ab4c336cce7747859383dc0fab0ac8208b623385eb8b  $NPU_MAILBOX" ]; then
+    echo 'ERROR: unreviewed Airoha NPU mailbox predecessor; review backport absorption' >&2
+    exit 1
+fi
+for target in "$NPU_PATCH_DIR"/925-*; do
+    if [ -e "$target" ] || [ -L "$target" ]; then
+        echo "ERROR: conflicting Airoha NPU backport: $target" >&2
+        exit 1
+    fi
+done
 RESET_PATCH=target/linux/airoha/patches-6.18/609-02-clk-en7523-add-support-for-dedicated-PCIe-PERSTOUT-r.patch
 if [ "$(sha256sum "$RESET_PATCH")" != "b78df17fb157eec45ffcb654c7f1f8158ac24ed3f780aba300371515984afaa2  $RESET_PATCH" ] ||
    [ "$(sed -n '/^define KernelPackage\/crypto-hw-eip93$/,/^endef$/p' package/kernel/linux/modules/crypto.mk | sha256sum)" != '7e9de5195ddd98c8112f82ce4f8c18d697e503adf951b33de9cb747a8e02b173  -' ]; then
@@ -138,6 +156,7 @@ cp -a --no-preserve=ownership "$PATCH_DIR/tree/." .
 patch -p1 --fuzz=0 --no-backup-if-mismatch < "$PATCH_DIR/patches/002-w1700k-cpufreq-resources.patch"
 patch -p1 --fuzz=0 --no-backup-if-mismatch < "$PATCH_DIR/patches/003-airoha-fan-init.patch"
 # wifi-scripts installs directly from source; its Build/Prepare is empty.
+patch -p1 --fuzz=0 --no-backup-if-mismatch < "$PATCH_DIR/patches/921-wifi-fractional-txpower.patch"
 patch -p1 --fuzz=0 --no-backup-if-mismatch < "$PATCH_DIR/patches/920-wifi-non-mlo-ap-txpower.patch"
 
 # -------------------------------------------------
